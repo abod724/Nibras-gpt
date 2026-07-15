@@ -4,7 +4,6 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-# استدعاء المفتاح من صندوق الأسرار في Render
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.post("/ask")
@@ -12,7 +11,6 @@ def ask_ai():
     data = request.json
     prompt = data["prompt"]
 
-    # رد ثابت عن المبرمج
     keywords = [
         "من برمجك", "مين برمجك", "من سواك", "مين سواك",
         "من طورك", "مين طورك", "المبرمج", "من صممك",
@@ -23,7 +21,6 @@ def ask_ai():
             "reply": "تم تطويري وبرمجتي من قبل أبو مشعل المطيري يعمل بالتأهيل الشامل قسم الاتصالات الإدارية."
         })
 
-    # الرد الطبيعي من الذكاء الاصطناعي
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
