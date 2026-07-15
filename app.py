@@ -1,9 +1,9 @@
 import streamlit as st
 from ai import ask
 
-st.set_page_config(page_title="Nibras AI", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Nibras", page_icon="🤖", layout="wide")
 
-# ====== CSS واجهة نظيفة ======
+# ====== CSS واجهة نظيفة جداً ======
 st.markdown("""
 <style>
 
@@ -11,41 +11,41 @@ body {
     background-color: #ffffff;
 }
 
-.chat-wrapper {
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+.chat-box {
     max-width: 800px;
     margin: auto;
     padding: 10px;
 }
 
-.title {
-    text-align: center;
-    font-size: 30px;
-    font-weight: bold;
-    color: #222;
-    margin-bottom: 20px;
-}
-
-.message-box {
-    background: #f7f7f7;
+.msg {
     padding: 12px 18px;
     border-radius: 10px;
     margin-bottom: 10px;
-    color: #333;
-    font-weight: 500;
+    font-size: 17px;
 }
 
-.user-msg {
+.user {
     background: #e8f0fe;
     color: #1a73e8;
 }
 
-.bot-msg {
+.bot {
     background: #f1f3f4;
     color: #333;
 }
 
-input, textarea {
-    border-radius: 10px !important;
+.input-area {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    padding: 10px;
+    border-top: 1px solid #ddd;
 }
 
 .send-btn {
@@ -57,16 +57,6 @@ input, textarea {
     cursor: pointer;
 }
 
-.send-btn:hover {
-    background: #155fc4;
-}
-
-.bottom-bar {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-}
-
 .icon-btn {
     background: #f1f3f4;
     padding: 10px 14px;
@@ -75,35 +65,43 @@ input, textarea {
     font-size: 20px;
 }
 
-.icon-btn:hover {
-    background: #e8e8e8;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
-# ====== واجهة ======
-st.markdown("<div class='chat-wrapper'>", unsafe_allow_html=True)
-st.markdown("<div class='title'>Nibras AI 🤖</div>", unsafe_allow_html=True)
+# ====== صندوق المحادثة ======
+st.markdown("<div class='chat-box'>", unsafe_allow_html=True)
 
-# ====== صندوق الكتابة ======
-user_input = st.text_input("اكتب رسالتك هنا:")
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-col1, col2, col3 = st.columns([1, 0.2, 0.2])
-
-with col1:
-    send = st.button("إرسال", key="send_btn")
-
-with col2:
-    st.button("🎤", key="voice_btn")
-
-with col3:
-    st.button("📁", key="upload_btn")
-
-# ====== الرد ======
-if send and user_input:
-    st.markdown(f"<div class='message-box user-msg'>👤 أنت: {user_input}</div>", unsafe_allow_html=True)
-    reply = ask(user_input)
-    st.markdown(f"<div class='message-box bot-msg'>🤖 نبراس: {reply}</div>", unsafe_allow_html=True)
+for role, text in st.session_state.history:
+    css = "user" if role == "user" else "bot"
+    st.markdown(f"<div class='msg {css}'>{text}</div>", unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
+
+# ====== منطقة الإدخال أسفل الشاشة ======
+st.markdown("<div class='input-area'>", unsafe_allow_html=True)
+
+col1, col2, col3, col4 = st.columns([5, 1, 1, 1])
+
+with col1:
+    user_input = st.text_input("", placeholder="اكتب رسالتك…", key="input")
+
+with col2:
+    send = st.button("📨")
+
+with col3:
+    st.button("🎤")
+
+with col4:
+    st.button("📁")
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ====== إرسال الرسالة ======
+if send and user_input:
+    st.session_state.history.append(("user", user_input))
+    reply = ask(user_input)
+    st.session_state.history.append(("bot", reply))
+    st.experimental_rerun()
