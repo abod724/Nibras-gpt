@@ -28,7 +28,6 @@ HTML_PAGE = """
         .input-area { display: flex; gap: 8px; margin-top: 12px; }
         .input-area input { flex: 1; padding: 12px; border-radius: 30px; border: 1px solid #ddd; }
         .input-area button { padding: 12px 24px; border-radius: 30px; background: #000; color: #fff; border: none; cursor: pointer; }
-        .input-area button:hover { background: #333; }
         .typing { color: #888; font-style: italic; }
     </style>
 </head>
@@ -53,25 +52,24 @@ HTML_PAGE = """
             input.value = '';
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // مؤشر الكتابة
-            const typingDiv = document.createElement('div');
-            typingDiv.className = 'msg bot typing';
-            typingDiv.textContent = 'نبراس يكتب...';
-            chatBox.appendChild(typingDiv);
+            const typing = document.createElement('div');
+            typing.className = 'msg bot typing';
+            typing.textContent = 'نبراس يكتب...';
+            chatBox.appendChild(typing);
             chatBox.scrollTop = chatBox.scrollHeight;
 
             try {
-                const response = await fetch('/chat', {
+                const res = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: msg })
                 });
-                const data = await response.json();
-                typingDiv.remove();
+                const data = await res.json();
+                typing.remove();
                 chatBox.innerHTML += `<div class="msg bot">${data.reply}</div>`;
                 chatBox.scrollTop = chatBox.scrollHeight;
             } catch (e) {
-                typingDiv.remove();
+                typing.remove();
                 chatBox.innerHTML += `<div class="msg bot">⚠️ خطأ في الاتصال</div>`;
             }
         }
@@ -94,19 +92,17 @@ def chat():
     user_message = data.get("message", "").strip()
     if not user_message:
         return jsonify({"reply": "الرجاء كتابة رسالة"})
-
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "أنت نبراس، مساعد ذكي مختصر. أجب بجمل قصيرة (حد أقصى 3 جمل)."},
+                {"role": "system", "content": "أنت نبراس، مساعد ذكي مختصر. أجب بجمل قصيرة."},
                 {"role": "user", "content": user_message}
             ],
             max_tokens=200,
             temperature=0.3
         )
-        reply = response.choices[0].message.content
-        return jsonify({"reply": reply})
+        return jsonify({"reply": response.choices[0].message.content})
     except Exception as e:
         return jsonify({"reply": f"⚠️ خطأ: {str(e)}"}), 500
 
