@@ -52,7 +52,7 @@ SYSTEM_PROMPT = f"""
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
 """
 
-# ========== واجهة الدردشة (تم تثبيت مربع الإدخال) ==========
+# ========== واجهة الدردشة ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -263,7 +263,7 @@ HTML_TEMPLATE = """
         async function sendMessageInternal(text, image = null) {
             userInput.value = '';
             userInput.style.height = 'auto';
-            userInput.focus();
+            // ✅ تم إزالة userInput.focus() عشان تختفي لوحة المفاتيح بعد الإرسال
             try {
                 const res = await fetch('/chat', {
                     method: 'POST',
@@ -287,7 +287,7 @@ HTML_TEMPLATE = """
             addMessage(text, 'user');
             userInput.value = '';
             userInput.style.height = 'auto';
-            userInput.focus();
+            // ✅ تم إزالة userInput.focus() عشان تختفي لوحة المفاتيح بعد الإرسال
             try {
                 const res = await fetch('/chat', {
                     method: 'POST',
