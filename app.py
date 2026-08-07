@@ -52,7 +52,7 @@ SYSTEM_PROMPT = f"""
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
 """
 
-# ========== (جديد) دالة إنشاء الصور ==========
+# ========== دالة إنشاء الصور ==========
 def generate_image(prompt):
     """توليد صورة باستخدام DALL-E 3"""
     try:
@@ -67,7 +67,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة ==========
+# ========== واجهة الدردشة (مع تعديل عرض الصور) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -99,6 +99,7 @@ HTML_TEMPLATE = """
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
+        .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
         /* --- حاوية معاينة الصورة المعلقة --- */
         #imagePreviewContainer {
             display: none;
@@ -289,37 +290,70 @@ HTML_TEMPLATE = """
             }
         });
 
-        // دالة إضافة رسالة في الشات
+        // دالة إضافة رسالة في الشات (تم تعديلها لدعم عرض الصور من الروابط)
         function addMessage(text, sender = 'bot', isSystem = false, imageData = null) {
             const el = document.createElement('div');
             el.className = `msg ${sender}`;
             if (sender === 'error') el.classList.add('error');
             const now = new Date();
             const time = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            
+            // إذا كانت رسالة تحتوي على صورة (مرفقة)
             if (imageData) {
                 el.innerHTML = `<img src="${imageData}" class="image-upload" /><span class="file-label">${text || 'صورة'}</span><span class="time"> ${time}</span>`;
                 chatBox.appendChild(el);
                 chatBox.scrollTop = chatBox.scrollHeight;
                 return;
             }
-            if (sender === 'bot' && !isSystem) {
+
+            // إذا كان النص يحتوي على رابط صورة (من DALL-E)
+            const imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
+            let displayText = text;
+            let generatedImageUrl = null;
+            if (imageUrlMatch) {
+                generatedImageUrl = imageUrlMatch[0];
+                // إزالة الرابط من النص المعروض (سنعرضه كصورة)
+                displayText = text.replace(imageUrlMatch[0], '').trim();
+                // إذا بقي النص فارغاً، نضع نص افتراضي
+                if (!displayText) {
+                    displayText = '🖼️ الصورة المولدة';
+                }
+            }
+
+            // رسالة البوت مع تأثير الكتابة (إذا لم تكن صورة)
+            if (sender === 'bot' && !isSystem && !generatedImageUrl) {
                 el.innerHTML = `<span class="typing-text"></span><span class="time"> ${time}</span>`;
                 chatBox.appendChild(el);
                 chatBox.scrollTop = chatBox.scrollHeight;
                 const typingSpan = el.querySelector('.typing-text');
                 let index = 0;
                 function typeChar() {
-                    if (index < text.length) {
-                        typingSpan.textContent += text.charAt(index);
+                    if (index < displayText.length) {
+                        typingSpan.textContent += displayText.charAt(index);
                         index++;
                         chatBox.scrollTop = chatBox.scrollHeight;
                         setTimeout(typeChar, 20);
+                    } else {
+                        // بعد الانتهاء من الكتابة، إذا كان هناك صورة نضيفها
+                        if (generatedImageUrl) {
+                            const imgEl = document.createElement('img');
+                            imgEl.src = generatedImageUrl;
+                            imgEl.className = 'generated-image';
+                            el.appendChild(imgEl);
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        }
                     }
                 }
                 typeChar();
                 return;
             }
-            el.innerHTML = `${text} <span class="time">${time}</span>`;
+
+            // رسالة عادية (بدون تأثير كتابة)
+            let content = displayText;
+            if (generatedImageUrl) {
+                content += `<br/><img src="${generatedImageUrl}" class="generated-image" />`;
+            }
+            el.innerHTML = `${content} <span class="time">${time}</span>`;
             chatBox.appendChild(el);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
@@ -565,9 +599,13 @@ def chat():
                 limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
         # =========================================================
-        # 🔥 (جديد) كشف طلب إنشاء صورة قبل أي شيء آخر
+        # 🔥 (توسيع الكلمات المفتاحية) كشف طلب إنشاء صورة
         # =========================================================
-        draw_keywords = ["ارسم", "أنشئ", "صورة", "رسم", "ارسمي", "صمم", "ولّد", "generate", "draw", "ارسم لي"]
+        draw_keywords = [
+            "ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", 
+            "رسم", "ارسمي", "صمم", "ولّد", "generate", "draw", "ارسم لي",
+            "أنشئ لي", "انشئ لي", "انشى لي", "صوره لي"
+        ]
         if allow_images and any(keyword in user_message for keyword in draw_keywords):
             print(f"🎨 اكتشاف طلب رسم: {user_message}")
             image_url = generate_image(user_message)
@@ -588,7 +626,7 @@ def chat():
                 
                 return jsonify({"reply": reply})
             else:
-                # إذا فشل التوليد، نكمل للرد العادي (نعطي فرصة للـ GPT)
+                # إذا فشل التوليد، نكمل للرد العادي
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
         # =========================================================
@@ -647,7 +685,6 @@ def chat():
             if not reply:
                 reply = "ما قدرت أجيب لك رد، حاول مرة أخرى."
         except openai.BadRequestError as e:
-            # 🔥 إذا فشل نموذج gpt-4o، يتحول لـ gpt-4o-mini
             print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
             try:
                 fallback_model = "gpt-4o-mini"
