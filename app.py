@@ -15,7 +15,7 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
 
-# ========== نظام الذاكرة المؤقتة (بدون قاعدة بيانات) ==========
+# ========== نظام الذاكرة المؤقتة (للتخزين المؤقت للمحادثات) ==========
 session_memory = {}
 
 # ========== تحميل ملف المعرفة ==========
@@ -48,13 +48,12 @@ SYSTEM_PROMPT = f"""
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
 - إذا لم تجد المعلومة في ملف المعرفة، استخدم البحث بالويب.
-- إذا كان السؤال يتطلب معلومات حديثة (أخبار، طقس، أحداث)، استخدم البحث بالويب.
 - دائماً حافظ على لهجتك العامية البيضاء.
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
 - إذا سألك عن الترقية، أجب أن الخطة المدفوعة بـ 7 ريال شهرياً وتشمل بحث بالويب وتوليد الصور.
 """
 
-# ========== الواجهة الكاملة (تم تعديل الشريط العلوي بناءً على طلبك) ==========
+# ========== واجهة الدردشة الرئيسية ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -68,7 +67,6 @@ HTML_TEMPLATE = """
         body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; background: #ffffff; }
-        /* تم تعديل ترتيب العناصر: القائمة على اليمين، الأزرار على اليسار */
         .menu-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
@@ -127,30 +125,27 @@ HTML_TEMPLATE = """
 </head>
 <body>
 <div class="app">
-    <!-- الشريط العلوي (تم إزالة الشعار ووضع القائمة على اليمين) -->
     <div class="header">
         <button class="menu-btn" id="menuToggle">
             <i class="fas fa-ellipsis-v"></i>
         </button>
         <div class="btn-group">
-            <a href="/login" class="btn btn-outline">دخول</a>
+            {% if session.get('admin_email') or session.get('user_email') %}
+                <a href="/logout" class="btn btn-outline">تسجيل خروج</a>
+            {% else %}
+                <a href="/login" class="btn btn-outline">دخول</a>
+            {% endif %}
             <a href="/plans" class="btn btn-gold">💎 ترقية</a>
         </div>
     </div>
     
-    <!-- القائمة المنسدلة (ثلاث نقاط) -->
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
-        <button class="item" data-action="library"><i class="fas fa-layer-group"></i> المكتبة</button>
         <button class="item" data-action="history"><i class="fas fa-history"></i> المحادثات السابقة</button>
     </div>
 
-    <!-- منطقة الدردشة -->
-    <div id="chat">
-        <div class="msg bot">مرحباً بك في نبراس!</div>
-    </div>
+    <div id="chat"></div>
 
-    <!-- منطقة الإدخال مع الأزرار -->
     <div class="input-area">
         <button class="btn-icon mic-btn" id="micBtn" title="تسجيل صوت"><i class="fas fa-microphone"></i></button>
         <button class="plus-btn" id="plusBtn" title="إضافة"><i class="fas fa-plus"></i></button>
@@ -163,7 +158,6 @@ HTML_TEMPLATE = """
         <button class="send" id="sendBtn"><i class="fas fa-arrow-left"></i></button>
     </div>
     
-    <!-- عناصر الإدخال المخفية -->
     <input type="file" id="fileInput" accept="image/*" style="display: none;" />
     <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" />
     <input type="file" id="fileInputGeneric" style="display: none;" />
@@ -340,36 +334,7 @@ HTML_TEMPLATE = """
                 imgs.splice(index, 1);
                 saveImages(imgs);
                 addMessage('تم حذف الصورة.', 'bot', true);
-                showLibrary();
             }
-        }
-
-        function showLibrary() {
-            const imgs = getImages();
-            if (imgs.length === 0) {
-                addMessage('لا توجد صور.', 'bot', true);
-                return;
-            }
-            let html = '<div class="gallery">';
-            imgs.forEach((src, idx) => {
-                html += `<div class="img-wrap">
-                    <img src="${src}" />
-                    <button class="del" data-idx="${idx}">×</button>
-                </div>`;
-            });
-            html += '</div>';
-            const container = document.createElement('div');
-            container.className = 'msg bot';
-            container.innerHTML = html + `<span class="time">${new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span>`;
-            chatBox.appendChild(container);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            container.querySelectorAll('.del').forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    const idx = parseInt(this.dataset.idx);
-                    deleteImage(idx);
-                });
-            });
         }
 
         function showHistory() {
@@ -385,18 +350,10 @@ HTML_TEMPLATE = """
                 msg += `- ${txt} (${t})\n`;
             });
             addMessage(msg, 'bot', true);
-            hist.slice(-5).forEach(entry => {
-                const btn = document.createElement('button');
-                btn.textContent = entry.text.length > 22 ? entry.text.substring(0, 22) + '…' : entry.text;
-                btn.style.cssText = 'background:#f0f2f5;border:none;border-radius:30px;padding:4px 12px;margin:4px;cursor:pointer;font-size:13px;color:#1a2b3c;';
-                btn.onclick = function() { userInput.value = entry.text; userInput.focus(); };
-                chatBox.appendChild(btn);
-            });
-            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         function newChat() {
-            chatBox.innerHTML = '<div class="msg bot">بدأت محادثة جديدة!</div>';
+            chatBox.innerHTML = '';
             conversationHistory = [];
         }
 
@@ -404,7 +361,6 @@ HTML_TEMPLATE = """
             dropdown.classList.remove('show');
             switch(action) {
                 case 'new': newChat(); break;
-                case 'library': showLibrary(); break;
                 case 'history': showHistory(); break;
                 default: break;
             }
@@ -417,7 +373,6 @@ HTML_TEMPLATE = """
             });
         });
 
-        // فتح وإغلاق القائمة (ثلاث نقاط)
         menuToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdown.classList.toggle('show');
@@ -524,7 +479,7 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# ========== صفحة تسجيل الدخول (مكبرة) ==========
+# ========== صفحة تسجيل الدخول ==========
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -539,11 +494,13 @@ LOGIN_HTML = """
     button { width: 100%; padding: 16px; background: #4a6a8a; color: white; border: none; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; margin-top: 15px; }
     button:hover { background: #3a5a7a; }
     a { color: #4a6a8a; text-decoration: none; font-size: 16px; display: inline-block; margin-top: 20px; }
+    .error { color: #d9534f; margin-bottom: 15px; }
 </style>
 </head>
 <body>
 <div class="box">
     <h2>🔐 تسجيل الدخول</h2>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="POST">
         <input type="email" name="email" placeholder="البريد الإلكتروني" required>
         <input type="password" name="password" placeholder="كلمة المرور" required>
@@ -553,7 +510,7 @@ LOGIN_HTML = """
 </div></body></html>
 """
 
-# ========== صفحة خطط نبراس (مكبرة) ==========
+# ========== صفحة خطط نبراس ==========
 PLANS_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -618,9 +575,23 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        # هذا مجرد واجهة عرض، لأنك ما عندك قاعدة بيانات مستخدمين حقيقية في هذا الكود
-        return "<h3>نظام تسجيل الدخول غير مفعل حالياً (يحتاج قاعدة بيانات).</h3>"
+        email = request.form.get('email')
+        if email == "abdullaha0569361@gmail.com":
+            session['admin_email'] = email
+            return redirect(url_for('index'))
+        elif email and "@" in email:
+            session['user_email'] = email
+            session['trial_remaining'] = 5 # بدء تجربة 5 محادثات للمستخدم العادي
+            session['is_trial_expired'] = False
+            return redirect(url_for('index'))
+        else:
+            return render_template_string(LOGIN_HTML, error="يرجى إدخال بريد إلكتروني صحيح.")
     return render_template_string(LOGIN_HTML)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
 
 @app.route('/plans')
 def plans():
@@ -636,13 +607,46 @@ def chat():
         if not user_message:
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
 
+        # ========== تحديد نوع المستخدم ==========
+        is_admin = 'admin_email' in session and session['admin_email'] == "abdullaha0569361@gmail.com"
+        is_trial_user = 'user_email' in session and not is_admin
+        trial_remaining = session.get('trial_remaining', 0)
+
         user_id = request.remote_addr
+        if is_admin:
+            user_id = "admin_" + session['admin_email']
+        elif is_trial_user:
+            user_id = "trial_" + session['user_email']
+
+        # ========== تحديد الصلاحيات والاستخدام ==========
+        if is_admin:
+            # مشرف: مميز بالكامل (مفتوح)
+            model = "gpt-4o"
+            use_web_search = True
+            allow_images = True
+            limit_msg = None
+        elif is_trial_user and trial_remaining > 0 and not session.get('is_trial_expired'):
+            # مستخدم تجريبي: 5 محادثات مع بحث ويب وصور
+            model = "gpt-4o"
+            use_web_search = True
+            allow_images = True
+            limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة مع بحث ويب وصور!"
+        else:
+            # مستخدم مجاني أو ضيف (بدون بحث ويب، بدون صور)
+            model = "gpt-4o"
+            use_web_search = False
+            allow_images = False
+            if is_trial_user and trial_remaining == 0:
+                limit_msg = "⚠️ انتهت محادثاتك التجريبية. للاستمرار مع البحث بالويب والصور، يرجى الترقية."
+
+        # ========== إدارة الذاكرة ==========
         if user_id not in session_memory:
             session_memory[user_id] = []
-
+        
         session_memory[user_id].append({"role": "user", "content": user_message})
         chat_history = session_memory[user_id][-10:]
 
+        # ========== تجهيز الرسائل ==========
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for entry in chat_history:
             messages.append({"role": entry["role"], "content": entry["content"]})
@@ -650,35 +654,53 @@ def chat():
             if entry["role"] in ["user", "bot"]:
                 messages.append({"role": entry["role"], "content": entry["content"]})
 
-        # البحث بالويب
-        try:
-            full_context = ""
-            for msg in messages:
-                if msg["role"] == "user":
-                    full_context += msg["content"] + "\n"
-                elif msg["role"] == "assistant":
-                    full_context += "نبراس: " + msg["content"] + "\n"
-            
-            search_response = client.responses.create(
-                model="gpt-4o-mini",
-                instructions=f"{SYSTEM_PROMPT}\n\nسياق المحادثة السابقة:\n{full_context}",
-                input=f"ابحث في الويب عن أحدث المعلومات حول: {user_message}، وقدم لي ملخصاً مفيداً.",
-                tools=[{"type": "web_search"}],
-                temperature=0.7,
-                max_output_tokens=800
-            )
-            search_result = search_response.output_text.strip()
-            if search_result:
-                messages.append({
-                    "role": "user",
-                    "content": f"نتيجة البحث عن '{user_message}':\n{search_result}\n\nاستخدم هذه المعلومات في ردك."
-                })
-        except Exception as e:
-            print(f"⚠️ فشل البحث بالويب: {e}")
+        # ========== معالجة الصور (للمميزين فقط) ==========
+        image_data = data.get("image", None)
+        if image_data and allow_images:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_message or "حلل هذه الصورة باللهجة العامية"},
+                    {"type": "image_url", "image_url": {"url": image_data}}
+                ]
+            })
 
+        # ========== البحث بالويب (للمميزين فقط) ==========
+        if use_web_search:
+            try:
+                full_context = ""
+                for msg in messages:
+                    if msg["role"] == "user":
+                        if isinstance(msg["content"], list):
+                            for part in msg["content"]:
+                                if part["type"] == "text":
+                                    full_context += part["text"] + "\n"
+                        else:
+                            full_context += msg["content"] + "\n"
+                    elif msg["role"] == "assistant":
+                        full_context += "نبراس: " + msg["content"] + "\n"
+                
+                search_response = client.responses.create(
+                    model="gpt-4o-mini",
+                    instructions=f"{SYSTEM_PROMPT}\n\nسياق المحادثة السابقة:\n{full_context}",
+                    input=f"ابحث في الويب عن أحدث المعلومات حول: {user_message}، وقدم لي ملخصاً مفيداً.",
+                    tools=[{"type": "web_search"}],
+                    temperature=0.7,
+                    max_output_tokens=800
+                )
+                search_result = search_response.output_text.strip()
+                if search_result:
+                    messages.append({
+                        "role": "user",
+                        "content": f"نتيجة البحث عن '{user_message}':\n{search_result}\n\nاستخدم هذه المعلومات في ردك."
+                    })
+            except Exception as e:
+                print(f"⚠️ فشل البحث بالويب: {e}")
+
+        # ========== الرد النهائي ==========
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=model,
                 messages=messages,
                 max_tokens=1000,
                 temperature=0.8
@@ -691,6 +713,14 @@ def chat():
             reply = "حدث خطأ، حاول مرة أخرى."
 
         session_memory[user_id].append({"role": "assistant", "content": reply})
+
+        # ========== خصم محادثة للمستخدم التجريبي ==========
+        if is_trial_user and trial_remaining > 0:
+            session['trial_remaining'] = trial_remaining - 1
+            if session['trial_remaining'] == 0:
+                session['is_trial_expired'] = True
+                reply += "\n\n⚠️ انتهت محادثاتك التجريبية. للاستمرار مع البحث بالويب والصور، يرجى الترقية إلى خطة نبراس المدفوعة."
+
         return jsonify({"reply": reply})
 
     except Exception as e:
