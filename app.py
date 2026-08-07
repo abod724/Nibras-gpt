@@ -52,7 +52,7 @@ SYSTEM_PROMPT = f"""
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
 """
 
-# ========== الواجهة (مع تعديل ثبات مربع الإدخال) ==========
+# ========== واجهة الدردشة (تم تثبيت مربع الإدخال) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -477,7 +477,7 @@ def chat():
             allow_images = True
             limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
         else:
-            model = "gpt-4o-mini" # 🔥 تم التعديل: إذا انتهت التجربة أو ضيف، نستخدم -mini
+            model = "gpt-4o-mini"
             use_web_search = False
             allow_images = False
             if is_trial_user and trial_remaining == 0:
