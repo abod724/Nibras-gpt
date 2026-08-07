@@ -54,7 +54,7 @@ SYSTEM_PROMPT = f"""
 - إذا سألك عن الترقية، أجب أن الخطة المدفوعة بـ 7 ريال شهرياً وتشمل بحث بالويب وتوليد الصور.
 """
 
-# ========== الواجهة الكاملة (مع رفع الصور، مايك، قائمة، وأزرار الدخول والترقية) - لم يتم المساس بها ==========
+# ========== الواجهة الكاملة (تم تعديل الشريط العلوي بناءً على طلبك) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -68,7 +68,8 @@ HTML_TEMPLATE = """
         body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; background: #ffffff; }
-        .logo { font-size: 20px; font-weight: bold; color: #1a2b3c; }
+        /* تم تعديل ترتيب العناصر: القائمة على اليمين، الأزرار على اليسار */
+        .menu-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1px solid #4a6a8a; color: #4a6a8a; }
@@ -108,7 +109,6 @@ HTML_TEMPLATE = """
         .plus-options .option-btn.files { color: #3498db; }
         @media (max-width: 420px) {
             .header { padding: 12px 14px; }
-            .logo { font-size: 18px; }
             .btn-group { gap: 6px; }
             .btn { font-size: 12px; padding: 5px 12px; }
             .dropdown { top: 58px; left: 10px; right: 10px; }
@@ -127,16 +127,18 @@ HTML_TEMPLATE = """
 </head>
 <body>
 <div class="app">
-    <!-- الشريط العلوي مع الأزرار الجديدة -->
+    <!-- الشريط العلوي (تم إزالة الشعار ووضع القائمة على اليمين) -->
     <div class="header">
-        <div class="logo">نبراس</div>
+        <button class="menu-btn" id="menuToggle">
+            <i class="fas fa-ellipsis-v"></i>
+        </button>
         <div class="btn-group">
             <a href="/login" class="btn btn-outline">دخول</a>
             <a href="/plans" class="btn btn-gold">💎 ترقية</a>
         </div>
     </div>
     
-    <!-- قائمة منسدلة (ثلاث نقاط) -->
+    <!-- القائمة المنسدلة (ثلاث نقاط) -->
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" data-action="library"><i class="fas fa-layer-group"></i> المكتبة</button>
@@ -415,6 +417,7 @@ HTML_TEMPLATE = """
             });
         });
 
+        // فتح وإغلاق القائمة (ثلاث نقاط)
         menuToggle.addEventListener('click', (e) => {
             e.stopPropagation();
             dropdown.classList.toggle('show');
@@ -515,29 +518,13 @@ HTML_TEMPLATE = """
 
         sendBtn.addEventListener('click', sendMessage);
         userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
-        
-        // إضافة زر القائمة (الثلاث نقاط) في الـ header
-        const headerRight = document.querySelector('.header .btn-group');
-        if(headerRight) {
-            const menuBtn = document.createElement('button');
-            menuBtn.className = 'btn-icon menu-btn';
-            menuBtn.id = 'menuToggle';
-            menuBtn.style.cssText = 'background:none;border:none;font-size:20px;color:#5a6b7c;cursor:pointer;padding:4px 8px;';
-            menuBtn.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
-            headerRight.insertBefore(menuBtn, headerRight.firstChild);
-            
-            menuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.getElementById('dropdown').classList.toggle('show');
-            });
-        }
     })();
 </script>
 </body>
 </html>
 """
 
-# ========== صفحة تسجيل الدخول (تم تكبيرها وتوسيعها) ==========
+# ========== صفحة تسجيل الدخول (مكبرة) ==========
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -566,7 +553,7 @@ LOGIN_HTML = """
 </div></body></html>
 """
 
-# ========== صفحة خطط نبراس (تم تكبيرها وتوسيعها) ==========
+# ========== صفحة خطط نبراس (مكبرة) ==========
 PLANS_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
