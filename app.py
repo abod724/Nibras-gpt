@@ -54,7 +54,7 @@ SYSTEM_PROMPT = f"""
 - إذا سألك عن الترقية، أجب أن الخطة المدفوعة بـ 7 ريال شهرياً وتشمل بحث بالويب وتوليد الصور.
 """
 
-# ========== الواجهة الكاملة (مع رفع الصور، مايك، قائمة، وأزرار الدخول والترقية) ==========
+# ========== الواجهة الكاملة (مع رفع الصور، مايك، قائمة، وأزرار الدخول والترقية) - لم يتم المساس بها ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -537,43 +537,90 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# ========== صفحة تسجيل الدخول ==========
+# ========== صفحة تسجيل الدخول (تم تكبيرها وتوسيعها) ==========
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><title>دخول - نبراس</title>
-<style>body{font-family:Arial;background:#f0f2f5;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}.box{background:white;padding:30px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);width:300px;text-align:center}input{width:100%;padding:10px;margin:10px 0;border:1px solid #ccc;border-radius:5px}button{width:100%;padding:10px;background:#4a6a8a;color:white;border:none;border-radius:5px;cursor:pointer}</style>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>دخول - نبراس</title>
+<style>
+    * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; padding: 15px; }
+    .box { background: white; padding: 40px 30px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; }
+    h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 25px; }
+    input { width: 100%; padding: 14px 16px; margin: 12px 0; border: 1px solid #dce1e8; border-radius: 12px; font-size: 18px; background: #fafbfc; box-sizing: border-box; }
+    input:focus { outline: none; border-color: #4a6a8a; background: #fff; }
+    button { width: 100%; padding: 16px; background: #4a6a8a; color: white; border: none; border-radius: 12px; font-size: 20px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+    button:hover { background: #3a5a7a; }
+    a { color: #4a6a8a; text-decoration: none; font-size: 16px; display: inline-block; margin-top: 20px; }
+</style>
 </head>
 <body>
-<div class="box"><h2>تسجيل الدخول إلى نبراس</h2>
-<form method="POST">
-<input type="email" name="email" placeholder="البريد الإلكتروني" required>
-<input type="password" name="password" placeholder="كلمة المرور" required>
-<button type="submit">دخول</button>
-</form>
-<p><a href="/" style="color:#4a6a8a;">العودة للرئيسية</a></p>
+<div class="box">
+    <h2>🔐 تسجيل الدخول</h2>
+    <form method="POST">
+        <input type="email" name="email" placeholder="البريد الإلكتروني" required>
+        <input type="password" name="password" placeholder="كلمة المرور" required>
+        <button type="submit">دخول</button>
+    </form>
+    <a href="/">⬅ العودة للرئيسية</a>
 </div></body></html>
 """
 
-# ========== صفحة خطط نبراس (الترقية) ==========
+# ========== صفحة خطط نبراس (تم تكبيرها وتوسيعها) ==========
 PLANS_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><title>خطط نبراس</title>
-<style>body{font-family:Arial;background:#f0f2f5;padding:20px}.container{max-width:500px;margin:0 auto}.back{display:inline-block;margin-bottom:15px;padding:8px 16px;background:#4a6a8a;color:white;text-decoration:none;border-radius:8px}.plan{background:white;border-radius:12px;padding:20px;margin-bottom:15px;box-shadow:0 2px 10px rgba(0,0,0,0.05);border-right:4px solid #4a6a8a}.plan.premium{border-right-color:#f1c40f}.plan h3{font-size:22px;color:#1a2b3c}.price{font-size:28px;font-weight:bold;color:#2d7d46}.price span{font-size:16px;color:#6a7b8c}.btn{display:block;padding:12px;background:#4a6a8a;color:white;text-align:center;text-decoration:none;border-radius:8px;font-size:18px}.btn.gold{background:#f1c40f;color:#1a2b3c}</style>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>خطط نبراس</title>
+<style>
+    * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #f0f2f5; padding: 20px; margin: 0; }
+    .container { max-width: 500px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 25px; padding: 12px 24px; background: #4a6a8a; color: white; text-decoration: none; border-radius: 12px; font-size: 16px; }
+    h1 { font-size: 32px; color: #1a2b3c; text-align: center; margin-bottom: 30px; }
+    .plan { background: white; border-radius: 16px; padding: 30px 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-right: 6px solid #4a6a8a; }
+    .plan.premium { border-right-color: #f1c40f; }
+    .plan h3 { font-size: 26px; margin: 0 0 10px 0; color: #1a2b3c; }
+    .price { font-size: 34px; font-weight: bold; color: #2d7d46; }
+    .price span { font-size: 18px; color: #6a7b8c; }
+    .plan ul { margin: 20px 0 25px 0; padding: 0; list-style: none; font-size: 18px; line-height: 2.2; }
+    .plan ul li { border-bottom: 1px solid #f0f2f5; padding: 4px 0; }
+    .plan ul li:last-child { border-bottom: none; }
+    .badge { display: inline-block; padding: 6px 18px; border-radius: 30px; font-size: 16px; }
+    .badge.free { background: #eef2f7; color: #1a2b3c; }
+    .badge.premium { background: #2d7d46; color: white; }
+    .btn { display: block; padding: 18px; background: #4a6a8a; color: white; text-align: center; text-decoration: none; border-radius: 14px; font-size: 20px; font-weight: bold; margin-top: 10px; }
+    .btn.gold { background: #f1c40f; color: #1a2b3c; }
+    .btn.gold:hover { background: #e1b50f; }
+</style>
 </head>
 <body>
-<div class="container"><a href="/" class="back">⬅ العودة للرئيسية</a>
-<h1 style="color:#1a2b3c;">💎 خطط نبراس</h1>
-<div class="plan"><span style="background:#eef2f7;padding:4px 12px;border-radius:30px;font-size:14px;">مجاني</span>
-<h3>الخطة المجانية</h3><div class="price">0 <span>ر.س / شهرياً</span></div>
-<ul><li>✅ محادثات غير محدودة</li><li>✅ إجابات سريعة وذكية</li></ul>
-</div>
-<div class="plan premium"><span style="background:#2d7d46;padding:4px 12px;border-radius:30px;font-size:14px;color:white;">مميز</span>
-<h3>الخطة المدفوعة</h3><div class="price">7 <span>ر.س / شهرياً</span></div>
-<ul><li>✅ ذكاء متقدم (إجابات أعمق)</li><li>✅ بحث بالويب (معلومات حديثة)</li><li>✅ تحليل الصور</li><li>✅ ردود أسرع</li></ul>
-<a href="#" class="btn gold">💎 اشترك الآن</a>
-</div></div></body></html>
+<div class="container">
+    <a href="/" class="back">⬅ العودة للرئيسية</a>
+    <h1>💎 خطط نبراس</h1>
+    
+    <div class="plan">
+        <span class="badge free">مجاني</span>
+        <h3>الخطة المجانية</h3>
+        <div class="price">0 <span>ر.س / شهرياً</span></div>
+        <ul>
+            <li>✅ محادثات غير محدودة</li>
+            <li>✅ إجابات سريعة وذكية</li>
+        </ul>
+    </div>
+    
+    <div class="plan premium">
+        <span class="badge premium">مميز</span>
+        <h3>الخطة المدفوعة</h3>
+        <div class="price">7 <span>ر.س / شهرياً</span></div>
+        <ul>
+            <li>✅ ذكاء متقدم (إجابات أعمق)</li>
+            <li>✅ بحث بالويب (معلومات حديثة)</li>
+            <li>✅ تحليل الصور</li>
+            <li>✅ ردود أسرع</li>
+        </ul>
+        <a href="#" class="btn gold">💎 اشترك الآن</a>
+    </div>
+</div></body></html>
 """
 
 # ========== مسارات التطبيق ==========
