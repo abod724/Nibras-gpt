@@ -571,35 +571,40 @@ def chat():
         if not user_message:
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
 
+        # ========== تحديد نوع المستخدم ==========
         is_admin = 'admin_email' in session and session['admin_email'] == "abdullaha0569361@gmail.com"
         is_trial_user = 'user_email' in session and not is_admin
         trial_remaining = session.get('trial_remaining', 0)
+        is_logged_in = is_admin or is_trial_user  # <-- جديد: هل المستخدم مسجل دخول؟
 
         user_id = request.remote_addr
         if is_admin:
             user_id = "admin_" + session['admin_email']
         elif is_trial_user:
             user_id = "trial_" + session['user_email']
+        else:
+            user_id = "guest_" + request.remote_addr
 
+        # ========== تعيين الصلاحيات (مع تقييد البحث بالويب) ==========
         if is_admin:
             model = "gpt-4o"
-            use_web_search = True
+            use_web_search = True   # ✅ مسموح للمشرف
             allow_images = True
             limit_msg = None
         elif is_trial_user and trial_remaining > 0 and not session.get('is_trial_expired'):
             model = "gpt-4o"
-            use_web_search = True
+            use_web_search = True   # ✅ مسموح للمستخدم التجريبي
             allow_images = True
             limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
         else:
             model = "gpt-4o-mini"
-            use_web_search = False
+            use_web_search = False  # ❌ ممنوع للضيوف والمستخدمين العاديين
             allow_images = False
             if is_trial_user and trial_remaining == 0:
                 limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
         # =========================================================
-        # 🔥 (توسيع الكلمات المفتاحية) كشف طلب إنشاء صورة
+        # 🔥 كشف طلب إنشاء صورة (نفس الكود القديم)
         # =========================================================
         draw_keywords = [
             "ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", 
@@ -611,13 +616,11 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
-                # حفظ في الذاكرة
                 if user_id not in session_memory:
                     session_memory[user_id] = []
                 session_memory[user_id].append({"role": "user", "content": user_message})
                 session_memory[user_id].append({"role": "assistant", "content": reply})
                 
-                # تحديث العداد التجريبي
                 if is_trial_user and trial_remaining > 0:
                     session['trial_remaining'] = trial_remaining - 1
                     if session['trial_remaining'] == 0:
@@ -626,11 +629,10 @@ def chat():
                 
                 return jsonify({"reply": reply})
             else:
-                # إذا فشل التوليد، نكمل للرد العادي
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
         # =========================================================
-        # باقي الكود الأصلي (تحليل الصور، محادثة، بحث ويب) لم يتغير
+        # باقي الكود الأصلي (تحليل الصور، محادثة)
         # =========================================================
         if user_id not in session_memory:
             session_memory[user_id] = []
@@ -649,8 +651,8 @@ def chat():
                 "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
             })
 
-        # ===== البحث بالويب =====
-        if use_web_search:
+        # ===== البحث بالويب (مقيد الآن) =====
+        if use_web_search:  # ✅ الآن فقط للمشرف والمستخدم التجريبي
             try:
                 full_context = ""
                 for msg in messages:
@@ -673,7 +675,7 @@ def chat():
             except Exception as e:
                 print(f"⚠️ فشل البحث بالويب: {e}")
 
-        # ===== الرد النهائي (مع استثناء آمن) =====
+        # ===== الرد النهائي =====
         try:
             response = client.chat.completions.create(
                 model=model,
