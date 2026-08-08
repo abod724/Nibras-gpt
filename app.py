@@ -41,17 +41,33 @@ def get_user_conversations(user_id):
     return all_conv.get(user_id, [])
 
 def save_user_conversation(user_id, conversation):
-    """حفظ محادثة جديدة لمستخدم"""
+    """حفظ محادثة جديدة لمستخدم مع عنوان فريد"""
     all_conv = load_conversations()
     if user_id not in all_conv:
         all_conv[user_id] = []
-    # نضيف المحادثة مع معرف فريد ووقت
+    
+    # توليد عنوان من أول رسالة (أو "محادثة جديدة" إذا كانت فارغة)
+    if conversation and len(conversation) > 0:
+        base_title = conversation[0]["content"][:30]
+        if len(conversation[0]["content"]) > 30:
+            base_title += "..."
+    else:
+        base_title = "محادثة جديدة"
+    
+    # التأكد من عدم تكرار العنوان
+    existing_titles = [c["title"] for c in all_conv[user_id]]
+    title = base_title
+    counter = 1
+    while title in existing_titles:
+        title = f"{base_title} ({counter})"
+        counter += 1
+    
     conv_id = hashlib.md5(f"{user_id}{datetime.now().isoformat()}".encode()).hexdigest()[:8]
     all_conv[user_id].append({
         "id": conv_id,
         "messages": conversation,
         "timestamp": datetime.now().isoformat(),
-        "title": conversation[0]["content"][:30] + "..." if conversation else "محادثة جديدة"
+        "title": title
     })
     save_conversations(all_conv)
     return conv_id
@@ -117,7 +133,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (مع المحادثات السابقة) ==========
+# ========== واجهة الدردشة (مع المحادثات السابقة بدون تواريخ) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -142,22 +158,27 @@ HTML_TEMPLATE = """
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        .dropdown .conv-item { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: flex-start; 
-            gap: 4px; 
-            padding: 12px 18px; 
-            border-bottom: 1px solid #f0f2f5; 
-            cursor: pointer; 
-            width: 100%; 
-            background: none; 
-            border: none; 
-            text-align: right; 
+        /* تنسيق عناوين المحادثات (بدون تواريخ) */
+        .dropdown .conv-item {
+            display: block;
+            padding: 12px 18px;
+            border-bottom: 1px solid #f0f2f5;
+            cursor: pointer;
+            width: 100%;
+            background: none;
+            border: none;
+            text-align: right;
+            font-size: 16px;
+            color: #1a2b3c;
+            font-weight: 500;
+            transition: background 0.2s;
         }
-        .dropdown .conv-item:hover { background: #f5f7fa; }
-        .dropdown .conv-item .title { font-size: 15px; color: #1a2b3c; }
-        .dropdown .conv-item .time { font-size: 12px; color: #8a9aab; }
+        .dropdown .conv-item:hover {
+            background: #f5f7fa;
+        }
+        .dropdown .conv-item:last-child {
+            border-bottom: none;
+        }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; }
         .msg.user { align-self: flex-end; background: transparent; color: #1a2b3c; border-bottom-left-radius: 6px; }
@@ -283,7 +304,7 @@ HTML_TEMPLATE = """
         const removeImageBtn = document.getElementById('removeImageBtn');
         const historyList = document.getElementById('historyList');
 
-        // ===== تحميل المحادثات السابقة =====
+        // ===== تحميل المحادثات السابقة (عناوين فقط) =====
         async function loadHistory() {
             try {
                 const res = await fetch('/history');
@@ -293,10 +314,7 @@ HTML_TEMPLATE = """
                     data.conversations.forEach(conv => {
                         const btn = document.createElement('button');
                         btn.className = 'conv-item';
-                        btn.innerHTML = `
-                            <span class="title">${conv.title}</span>
-                            <span class="time">${conv.timestamp}</span>
-                        `;
+                        btn.textContent = conv.title;
                         btn.onclick = () => loadConversation(conv.id);
                         historyList.appendChild(btn);
                     });
@@ -342,12 +360,7 @@ HTML_TEMPLATE = """
             userInput.value = '';
         });
 
-        // ===== زر المحادثات السابقة =====
-        document.querySelector('[data-action="history"]')?.addEventListener('click', function() {
-            dropdown.classList.remove('show');
-            loadHistory();
-        });
-
+        // ===== زر المحادثات السابقة (تم إزالته من الـ HTML، لكن نتركه للتوافق) =====
         // عند فتح القائمة، نحمل المحادثات
         menuToggle.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -674,17 +687,12 @@ def plans():
 
 @app.route('/history')
 def history():
-    """إرجاع قائمة المحادثات السابقة للمستخدم الحالي"""
+    """إرجاع قائمة المحادثات السابقة (عناوين فقط، مرتبة تنازلياً)"""
     user_id = get_user_id()
     conversations = get_user_conversations(user_id)
-    # نرجع البيانات المطلوبة للواجهة
-    result = []
-    for conv in conversations:
-        result.append({
-            "id": conv["id"],
-            "title": conv["title"],
-            "timestamp": conv["timestamp"]
-        })
+    # ترتيب تنازلي حسب الوقت (الأحدث أولاً)
+    conversations.sort(key=lambda x: x["timestamp"], reverse=True)
+    result = [{"id": c["id"], "title": c["title"]} for c in conversations]
     return jsonify({"conversations": result})
 
 @app.route('/load_conversation/<conv_id>')
@@ -752,7 +760,6 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
-                # حفظ المحادثة في الذاكرة المؤقتة
                 if user_id not in session_memory:
                     session_memory[user_id] = []
                 session_memory[user_id].append({"role": "user", "content": user_message})
