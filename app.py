@@ -43,9 +43,7 @@ def save_user_conversation(user_id, conversation, conv_id=None):
         all_conv[user_id] = []
     
     if conv_id is None:
-        # === إنشاء محادثة جديدة ===
         if conversation and len(conversation) > 0:
-            # نأخذ أول رسالة في المحادثة (وهي الرسالة الجديدة الأولى)
             title = conversation[0]["content"][:30]
             if len(conversation[0]["content"]) > 30:
                 title += "..."
@@ -62,14 +60,12 @@ def save_user_conversation(user_id, conversation, conv_id=None):
         save_conversations(all_conv)
         return new_conv_id
     else:
-        # === تحديث محادثة موجودة ===
         for conv in all_conv[user_id]:
             if conv["id"] == conv_id:
                 conv["messages"] = conversation
                 conv["timestamp"] = datetime.now().isoformat()
                 save_conversations(all_conv)
                 return conv_id
-        # إذا لم نجد المحادثة، ننشئها جديدة
         return save_user_conversation(user_id, conversation, None)
 
 def load_conversation_by_id(user_id, conv_id):
@@ -279,6 +275,7 @@ HTML_TEMPLATE = """
         let pendingImageData = null;
         let isWaiting = false;
         let currentConvId = null;
+        let welcomeElement = null; // مرجع لعنصر الترحيب
         
         const chatBox = document.getElementById('chat');
         const userInput = document.getElementById('userInput');
@@ -351,6 +348,7 @@ HTML_TEMPLATE = """
             pendingImageData = null;
             imagePreviewContainer.style.display = 'none';
             userInput.value = '';
+            // لا نعيد عرض الترحيب
         });
 
         menuToggle.addEventListener('click', function(e) {
@@ -360,6 +358,96 @@ HTML_TEMPLATE = """
                 loadHistory();
             }
         });
+
+        // ===== دالة addMessage معدلة (ترجع العنصر وتزيل الوقت للنظام) =====
+        function addMessage(text, sender = 'bot', isSystem = false, imageData = null) {
+            const el = document.createElement('div');
+            el.className = `msg ${sender}`;
+            if (sender === 'error') el.classList.add('error');
+            const now = new Date();
+            const time = isSystem ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            
+            if (imageData) {
+                el.innerHTML = `<img src="${imageData}" class="image-upload" /><span class="file-label">${text || 'صورة'}</span>${time ? ' <span class="time">'+time+'</span>' : ''}`;
+                chatBox.appendChild(el);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                return el;
+            }
+
+            const imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
+            let displayText = text;
+            let generatedImageUrl = null;
+            if (imageUrlMatch) {
+                generatedImageUrl = imageUrlMatch[0];
+                displayText = text.replace(imageUrlMatch[0], '').trim();
+                if (!displayText) displayText = '🖼️ الصورة المولدة';
+            }
+
+            if (sender === 'bot' && !isSystem && !generatedImageUrl) {
+                el.innerHTML = `<span class="typing-text"></span>${time ? ' <span class="time">'+time+'</span>' : ''}`;
+                chatBox.appendChild(el);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                const typingSpan = el.querySelector('.typing-text');
+                let index = 0;
+                function typeChar() {
+                    if (index < displayText.length) {
+                        typingSpan.textContent += displayText.charAt(index);
+                        index++;
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                        setTimeout(typeChar, 20);
+                    } else {
+                        if (generatedImageUrl) {
+                            const imgEl = document.createElement('img');
+                            imgEl.src = generatedImageUrl;
+                            imgEl.className = 'generated-image';
+                            el.appendChild(imgEl);
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        }
+                    }
+                }
+                typeChar();
+                return el;
+            }
+
+            let content = displayText;
+            if (generatedImageUrl) {
+                content += `<br/><img src="${generatedImageUrl}" class="generated-image" />`;
+            }
+            el.innerHTML = `${content}${time ? ' <span class="time">'+time+'</span>' : ''}`;
+            chatBox.appendChild(el);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return el;
+        }
+
+        // ===== عرض الترحيب (مرة واحدة لكل جلسة) =====
+        function showWelcome() {
+            if (!sessionStorage.getItem('welcomeShown')) {
+                // نضيف رسالة ترحيب
+                const welcomeMsg = '👋 اهلا بك نورتنا! وش اسمك؟';
+                welcomeElement = addMessage(welcomeMsg, 'bot', true);
+                sessionStorage.setItem('welcomeShown', 'true');
+                
+                // نحدد مؤقت لإزالة الرسالة بعد 2 ثانية
+                const welcomeTimer = setTimeout(() => {
+                    if (welcomeElement && welcomeElement.parentNode) {
+                        welcomeElement.remove();
+                        welcomeElement = null;
+                    }
+                }, 2000);
+                
+                // نزيل الرسالة إذا بدأ المستخدم بالكتابة
+                const removeWelcomeOnInput = function() {
+                    if (welcomeElement && welcomeElement.parentNode) {
+                        welcomeElement.remove();
+                        welcomeElement = null;
+                    }
+                    userInput.removeEventListener('keydown', removeWelcomeOnInput);
+                    userInput.removeEventListener('click', removeWelcomeOnInput);
+                };
+                userInput.addEventListener('keydown', removeWelcomeOnInput);
+                userInput.addEventListener('click', removeWelcomeOnInput);
+            }
+        }
 
         // ===== باقي الكود =====
         function showImagePreview(dataUrl) {
@@ -419,64 +507,6 @@ HTML_TEMPLATE = """
                 reader.readAsDataURL(this.files[0]);
             }
         });
-
-        function addMessage(text, sender = 'bot', isSystem = false, imageData = null) {
-            const el = document.createElement('div');
-            el.className = `msg ${sender}`;
-            if (sender === 'error') el.classList.add('error');
-            const now = new Date();
-            const time = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-            
-            if (imageData) {
-                el.innerHTML = `<img src="${imageData}" class="image-upload" /><span class="file-label">${text || 'صورة'}</span><span class="time"> ${time}</span>`;
-                chatBox.appendChild(el);
-                chatBox.scrollTop = chatBox.scrollHeight;
-                return;
-            }
-
-            const imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
-            let displayText = text;
-            let generatedImageUrl = null;
-            if (imageUrlMatch) {
-                generatedImageUrl = imageUrlMatch[0];
-                displayText = text.replace(imageUrlMatch[0], '').trim();
-                if (!displayText) displayText = '🖼️ الصورة المولدة';
-            }
-
-            if (sender === 'bot' && !isSystem && !generatedImageUrl) {
-                el.innerHTML = `<span class="typing-text"></span><span class="time"> ${time}</span>`;
-                chatBox.appendChild(el);
-                chatBox.scrollTop = chatBox.scrollHeight;
-                const typingSpan = el.querySelector('.typing-text');
-                let index = 0;
-                function typeChar() {
-                    if (index < displayText.length) {
-                        typingSpan.textContent += displayText.charAt(index);
-                        index++;
-                        chatBox.scrollTop = chatBox.scrollHeight;
-                        setTimeout(typeChar, 20);
-                    } else {
-                        if (generatedImageUrl) {
-                            const imgEl = document.createElement('img');
-                            imgEl.src = generatedImageUrl;
-                            imgEl.className = 'generated-image';
-                            el.appendChild(imgEl);
-                            chatBox.scrollTop = chatBox.scrollHeight;
-                        }
-                    }
-                }
-                typeChar();
-                return;
-            }
-
-            let content = displayText;
-            if (generatedImageUrl) {
-                content += `<br/><img src="${generatedImageUrl}" class="generated-image" />`;
-            }
-            el.innerHTML = `${content} <span class="time">${time}</span>`;
-            chatBox.appendChild(el);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
 
         async function sendMessage() {
             if (isWaiting) return;
@@ -564,6 +594,10 @@ HTML_TEMPLATE = """
             recognition.onerror = () => { micBtn.classList.remove('listening'); };
             recognition.start();
         });
+
+        // ===== تشغيل الترحيب عند تحميل الصفحة =====
+        showWelcome();
+
     })();
 </script>
 </body>
@@ -716,11 +750,9 @@ def chat():
 
         user_id = get_user_id()
 
-        # ===== التعديل الأساسي: إذا كانت محادثة جديدة، امسح الذاكرة المؤقتة =====
+        # محادثة جديدة: امسح الذاكرة المؤقتة
         if conv_id is None:
-            # محادثة جديدة: نمسح الذاكرة المؤقتة للمستخدم
             session_memory[user_id] = []
-        # إذا كانت محادثة موجودة، نستمر بدون مسح
 
         if is_admin:
             model = "gpt-4o"
@@ -841,7 +873,6 @@ def chat():
 
         session_memory[user_id].append({"role": "assistant", "content": reply})
 
-        # حفظ المحادثة
         new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
 
         if is_trial_user and trial_remaining > 0:
