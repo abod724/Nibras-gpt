@@ -41,27 +41,20 @@ def get_user_conversations(user_id):
     return all_conv.get(user_id, [])
 
 def save_user_conversation(user_id, conversation):
-    """حفظ محادثة جديدة لمستخدم مع عنوان فريد"""
+    """حفظ محادثة جديدة (العنوان = أول رسالة بدون أي إضافات)"""
     all_conv = load_conversations()
     if user_id not in all_conv:
         all_conv[user_id] = []
     
     # توليد عنوان من أول رسالة (أو "محادثة جديدة" إذا كانت فارغة)
     if conversation and len(conversation) > 0:
-        base_title = conversation[0]["content"][:30]
+        title = conversation[0]["content"][:30]
         if len(conversation[0]["content"]) > 30:
-            base_title += "..."
+            title += "..."
     else:
-        base_title = "محادثة جديدة"
+        title = "محادثة جديدة"
     
-    # التأكد من عدم تكرار العنوان
-    existing_titles = [c["title"] for c in all_conv[user_id]]
-    title = base_title
-    counter = 1
-    while title in existing_titles:
-        title = f"{base_title} ({counter})"
-        counter += 1
-    
+    # لا نضيف أي أرقام أو تواريخ، العنوان هو نص أول رسالة فقط
     conv_id = hashlib.md5(f"{user_id}{datetime.now().isoformat()}".encode()).hexdigest()[:8]
     all_conv[user_id].append({
         "id": conv_id,
@@ -133,7 +126,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (مع المحادثات السابقة بدون تواريخ) ==========
+# ========== واجهة الدردشة ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -360,7 +353,6 @@ HTML_TEMPLATE = """
             userInput.value = '';
         });
 
-        // ===== زر المحادثات السابقة (تم إزالته من الـ HTML، لكن نتركه للتوافق) =====
         // عند فتح القائمة، نحمل المحادثات
         menuToggle.addEventListener('click', function(e) {
             e.stopPropagation();
