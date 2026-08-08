@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, render_template_string, session, redi
 import openai
 import os
 import secrets
+import json
+import hashlib
 from datetime import datetime
 
 app = Flask(__name__)
@@ -15,7 +17,54 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
 
-# ========== نظام الذاكرة المؤقتة ==========
+# ========== نظام تخزين المحادثات (في ملف JSON) ==========
+CONVERSATIONS_FILE = "conversations.json"
+
+def load_conversations():
+    """تحميل جميع المحادثات من ملف JSON"""
+    if os.path.exists(CONVERSATIONS_FILE):
+        try:
+            with open(CONVERSATIONS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_conversations(data):
+    """حفظ المحادثات في ملف JSON"""
+    with open(CONVERSATIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def get_user_conversations(user_id):
+    """استرجاع قائمة المحادثات لمستخدم معين"""
+    all_conv = load_conversations()
+    return all_conv.get(user_id, [])
+
+def save_user_conversation(user_id, conversation):
+    """حفظ محادثة جديدة لمستخدم"""
+    all_conv = load_conversations()
+    if user_id not in all_conv:
+        all_conv[user_id] = []
+    # نضيف المحادثة مع معرف فريد ووقت
+    conv_id = hashlib.md5(f"{user_id}{datetime.now().isoformat()}".encode()).hexdigest()[:8]
+    all_conv[user_id].append({
+        "id": conv_id,
+        "messages": conversation,
+        "timestamp": datetime.now().isoformat(),
+        "title": conversation[0]["content"][:30] + "..." if conversation else "محادثة جديدة"
+    })
+    save_conversations(all_conv)
+    return conv_id
+
+def load_conversation_by_id(user_id, conv_id):
+    """تحميل محادثة محددة بواسطة المعرف"""
+    conversations = get_user_conversations(user_id)
+    for conv in conversations:
+        if conv["id"] == conv_id:
+            return conv["messages"]
+    return None
+
+# ========== الذاكرة المؤقتة للجلسة الحالية ==========
 session_memory = {}
 
 # ========== تحميل ملف المعرفة ==========
@@ -68,7 +117,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (مع التعديلات) ==========
+# ========== واجهة الدردشة (مع المحادثات السابقة) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -87,30 +136,37 @@ HTML_TEMPLATE = """
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1px solid #4a6a8a; color: #4a6a8a; }
         .btn-gold { background: #f1c40f; color: #1a2b3c; font-weight: bold; }
-        .dropdown { position: absolute; top: 64px; left: 14px; right: 14px; background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); display: none; flex-direction: column; z-index: 100; border: 1px solid #eaedf2; }
+        .dropdown { position: absolute; top: 64px; left: 14px; right: 14px; background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); display: none; flex-direction: column; z-index: 100; border: 1px solid #eaedf2; max-height: 60vh; overflow-y: auto; }
         .dropdown.show { display: flex; }
         .dropdown .item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; font-size: 15px; color: #1a2b3c; background: none; border: none; width: 100%; text-align: right; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
+        .dropdown .conv-item { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-start; 
+            gap: 4px; 
+            padding: 12px 18px; 
+            border-bottom: 1px solid #f0f2f5; 
+            cursor: pointer; 
+            width: 100%; 
+            background: none; 
+            border: none; 
+            text-align: right; 
+        }
+        .dropdown .conv-item:hover { background: #f5f7fa; }
+        .dropdown .conv-item .title { font-size: 15px; color: #1a2b3c; }
+        .dropdown .conv-item .time { font-size: 12px; color: #8a9aab; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; }
-        .msg.user { align-self: flex-end; background: transparent; color: #1a2b3c; border-bottom-left-radius: 6px; }  /* تم إزالة الخلفية */
+        .msg.user { align-self: flex-end; background: transparent; color: #1a2b3c; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; color: #1a2b3c; border-bottom-right-radius: 6px; }
-        .msg.typing { 
-            align-self: flex-end; 
-            background: transparent; 
-            padding: 4px 0; 
-            color: #8a9aab; 
-            font-style: italic;
-            border-bottom-right-radius: 6px;
-        }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
 
-        /* --- حاوية معاينة الصورة المعلقة --- */
         #imagePreviewContainer {
             display: none;
             padding: 6px 18px;
@@ -176,7 +232,7 @@ HTML_TEMPLATE = """
     
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
-        <button class="item" data-action="history"><i class="fas fa-history"></i> المحادثات السابقة</button>
+        <div id="historyList"></div>
     </div>
 
     <div id="chat"></div>
@@ -208,8 +264,7 @@ HTML_TEMPLATE = """
         let conversationHistory = [];
         let pendingImageData = null;
         let isWaiting = false;
-        let typingElement = null;
-        let typingStartTime = 0;
+        let currentConvId = null;
         
         const chatBox = document.getElementById('chat');
         const userInput = document.getElementById('userInput');
@@ -226,24 +281,83 @@ HTML_TEMPLATE = """
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
         const imagePreview = document.getElementById('imagePreview');
         const removeImageBtn = document.getElementById('removeImageBtn');
+        const historyList = document.getElementById('historyList');
 
-        // ===== أزرار القائمة المنسدلة =====
+        // ===== تحميل المحادثات السابقة =====
+        async function loadHistory() {
+            try {
+                const res = await fetch('/history');
+                const data = await res.json();
+                historyList.innerHTML = '';
+                if (data.conversations && data.conversations.length > 0) {
+                    data.conversations.forEach(conv => {
+                        const btn = document.createElement('button');
+                        btn.className = 'conv-item';
+                        btn.innerHTML = `
+                            <span class="title">${conv.title}</span>
+                            <span class="time">${conv.timestamp}</span>
+                        `;
+                        btn.onclick = () => loadConversation(conv.id);
+                        historyList.appendChild(btn);
+                    });
+                } else {
+                    const empty = document.createElement('div');
+                    empty.className = 'item';
+                    empty.textContent = '📭 لا توجد محادثات سابقة';
+                    historyList.appendChild(empty);
+                }
+            } catch (e) {
+                console.error('خطأ في تحميل المحادثات:', e);
+            }
+        }
+
+        // ===== تحميل محادثة معينة =====
+        async function loadConversation(convId) {
+            try {
+                const res = await fetch(`/load_conversation/${convId}`);
+                const data = await res.json();
+                if (data.messages) {
+                    chatBox.innerHTML = '';
+                    conversationHistory = data.messages;
+                    currentConvId = convId;
+                    data.messages.forEach(msg => {
+                        const sender = msg.role === 'user' ? 'user' : 'bot';
+                        addMessage(msg.content, sender, true);
+                    });
+                    dropdown.classList.remove('show');
+                }
+            } catch (e) {
+                console.error('خطأ في تحميل المحادثة:', e);
+            }
+        }
+
+        // ===== أزرار القائمة =====
         document.querySelector('[data-action="new"]').addEventListener('click', function() {
             chatBox.innerHTML = '';
             conversationHistory = [];
+            currentConvId = null;
             dropdown.classList.remove('show');
-            // إعادة تعيين الذاكرة المؤقتة للجلسة (اختياري)
             pendingImageData = null;
             imagePreviewContainer.style.display = 'none';
             userInput.value = '';
-            addMessage('✨ تم بدء محادثة جديدة', 'bot', true);
         });
 
-        document.querySelector('[data-action="history"]').addEventListener('click', function() {
+        // ===== زر المحادثات السابقة =====
+        document.querySelector('[data-action="history"]')?.addEventListener('click', function() {
             dropdown.classList.remove('show');
-            addMessage('📜 قريباً ستظهر المحادثات السابقة', 'bot', true);
+            loadHistory();
         });
 
+        // عند فتح القائمة، نحمل المحادثات
+        menuToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+            if (dropdown.classList.contains('show')) {
+                loadHistory();
+            }
+        });
+
+        // ===== باقي الكود =====
         function showImagePreview(dataUrl) {
             imagePreview.src = dataUrl;
             imagePreviewContainer.style.display = 'flex';
@@ -301,29 +415,6 @@ HTML_TEMPLATE = """
                 reader.readAsDataURL(this.files[0]);
             }
         });
-
-        // === مؤشر "جاري التفكير..." بدون خلفية ===
-        function addTypingIndicator() {
-            if (typingElement) {
-                typingElement.remove();
-                typingElement = null;
-            }
-            const el = document.createElement('div');
-            el.className = 'msg bot typing';
-            const time = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-            el.innerHTML = `جاري التفكير... <span class="time">${time}</span>`;
-            chatBox.appendChild(el);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            typingElement = el;
-            typingStartTime = Date.now();
-        }
-
-        function removeTypingIndicator() {
-            if (typingElement) {
-                typingElement.remove();
-                typingElement = null;
-            }
-        }
 
         function addMessage(text, sender = 'bot', isSystem = false, imageData = null) {
             const el = document.createElement('div');
@@ -401,13 +492,11 @@ HTML_TEMPLATE = """
             userInput.style.height = 'auto';
             isWaiting = true;
 
-            // عرض "جاري التفكير..."
-            addTypingIndicator();
-
             const payload = {
                 message: text || "📎 مرفق",
                 image: imageToSend || null,
-                history: conversationHistory
+                history: conversationHistory,
+                conv_id: currentConvId
             };
 
             try {
@@ -417,27 +506,18 @@ HTML_TEMPLATE = """
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                const elapsed = Date.now() - typingStartTime;
-                const remaining = Math.max(0, 3000 - elapsed);
-                setTimeout(() => {
-                    removeTypingIndicator();
-                    if (res.ok) {
-                        addMessage(data.reply, 'bot');
-                    } else {
-                        addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
+                if (res.ok) {
+                    addMessage(data.reply, 'bot');
+                    if (data.conv_id) {
+                        currentConvId = data.conv_id;
                     }
-                }, remaining);
+                } else {
+                    addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
+                }
             } catch (e) {
-                const elapsed = Date.now() - typingStartTime;
-                const remaining = Math.max(0, 3000 - elapsed);
-                setTimeout(() => {
-                    removeTypingIndicator();
-                    addMessage('تعذر الاتصال بالسيرفر.', 'error');
-                }, remaining);
+                addMessage('تعذر الاتصال بالسيرفر.', 'error');
             } finally {
-                setTimeout(() => {
-                    isWaiting = false;
-                }, 3000);
+                isWaiting = false;
             }
         }
 
@@ -449,12 +529,11 @@ HTML_TEMPLATE = """
             } 
         });
 
-        menuToggle.addEventListener('click', (e) => { 
-            e.stopPropagation(); 
-            dropdown.classList.toggle('show'); 
-        });
-        document.addEventListener('click', () => { 
-            dropdown.classList.remove('show'); 
+        // إغلاق القائمة عند النقر خارجها
+        document.addEventListener('click', function(e) {
+            if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.remove('show');
+            }
         });
 
         let recognition = null;
@@ -593,12 +672,46 @@ def logout():
 def plans():
     return render_template_string(PLANS_HTML)
 
+@app.route('/history')
+def history():
+    """إرجاع قائمة المحادثات السابقة للمستخدم الحالي"""
+    user_id = get_user_id()
+    conversations = get_user_conversations(user_id)
+    # نرجع البيانات المطلوبة للواجهة
+    result = []
+    for conv in conversations:
+        result.append({
+            "id": conv["id"],
+            "title": conv["title"],
+            "timestamp": conv["timestamp"]
+        })
+    return jsonify({"conversations": result})
+
+@app.route('/load_conversation/<conv_id>')
+def load_conversation(conv_id):
+    """تحميل محادثة محددة"""
+    user_id = get_user_id()
+    messages = load_conversation_by_id(user_id, conv_id)
+    if messages:
+        return jsonify({"messages": messages})
+    return jsonify({"messages": None}), 404
+
+def get_user_id():
+    """استخراج معرف المستخدم من الجلسة"""
+    if 'admin_email' in session:
+        return "admin_" + session['admin_email']
+    elif 'user_email' in session:
+        return "user_" + session['user_email']
+    else:
+        return "guest_" + request.remote_addr
+
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
         data = request.get_json()
         user_message = data.get("message", "").strip()
         history = data.get("history", [])
+        conv_id = data.get("conv_id", None)
 
         if not user_message:
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
@@ -607,13 +720,7 @@ def chat():
         is_trial_user = 'user_email' in session and not is_admin
         trial_remaining = session.get('trial_remaining', 0)
 
-        user_id = request.remote_addr
-        if is_admin:
-            user_id = "admin_" + session['admin_email']
-        elif is_trial_user:
-            user_id = "trial_" + session['user_email']
-        else:
-            user_id = "guest_" + request.remote_addr
+        user_id = get_user_id()
 
         if is_admin:
             model = "gpt-4o"
@@ -645,10 +752,14 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
+                # حفظ المحادثة في الذاكرة المؤقتة
                 if user_id not in session_memory:
                     session_memory[user_id] = []
                 session_memory[user_id].append({"role": "user", "content": user_message})
                 session_memory[user_id].append({"role": "assistant", "content": reply})
+                
+                # حفظ في قاعدة البيانات
+                save_user_conversation(user_id, session_memory[user_id])
                 
                 if is_trial_user and trial_remaining > 0:
                     session['trial_remaining'] = trial_remaining - 1
@@ -656,7 +767,7 @@ def chat():
                         session['is_trial_expired'] = True
                         reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار."
                 
-                return jsonify({"reply": reply})
+                return jsonify({"reply": reply, "conv_id": conv_id})
             else:
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
@@ -736,13 +847,16 @@ def chat():
 
         session_memory[user_id].append({"role": "assistant", "content": reply})
 
+        # حفظ المحادثة في قاعدة البيانات بعد كل رد
+        save_user_conversation(user_id, session_memory[user_id])
+
         if is_trial_user and trial_remaining > 0:
             session['trial_remaining'] = trial_remaining - 1
             if session['trial_remaining'] == 0:
                 session['is_trial_expired'] = True
                 reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار مع البحث بالويب والصور."
 
-        return jsonify({"reply": reply})
+        return jsonify({"reply": reply, "conv_id": conv_id})
 
     except Exception as e:
         print(f"❌ خطأ عام في /chat: {e}")
