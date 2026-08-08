@@ -177,6 +177,53 @@ HTML_TEMPLATE = """
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
 
+        /* ===== رسالة الترحيب في وسط الشاشة ===== */
+        .welcome-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.25);
+            z-index: 9999;
+            animation: fadeIn 0.5s ease;
+            pointer-events: none;
+        }
+        .welcome-overlay .welcome-box {
+            background: #ffffff;
+            padding: 30px 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            text-align: center;
+            max-width: 90%;
+            pointer-events: auto;
+            direction: rtl;
+        }
+        .welcome-overlay .welcome-box h2 {
+            font-size: 28px;
+            color: #1a2b3c;
+            margin-bottom: 8px;
+        }
+        .welcome-overlay .welcome-box p {
+            font-size: 18px;
+            color: #5a6b7c;
+            margin: 0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .welcome-overlay.fade-out {
+            animation: fadeOut 0.5s ease forwards;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.9); }
+        }
+
         #imagePreviewContainer {
             display: none;
             padding: 6px 18px;
@@ -223,6 +270,9 @@ HTML_TEMPLATE = """
             .msg .image-upload { max-height: 150px; }
             #imagePreviewContainer { padding: 4px 14px; }
             #imagePreviewContainer img { max-height: 50px; }
+            .welcome-overlay .welcome-box { padding: 20px 25px; }
+            .welcome-overlay .welcome-box h2 { font-size: 22px; }
+            .welcome-overlay .welcome-box p { font-size: 16px; }
         }
     </style>
 </head>
@@ -275,7 +325,6 @@ HTML_TEMPLATE = """
         let pendingImageData = null;
         let isWaiting = false;
         let currentConvId = null;
-        let welcomeElement = null; // مرجع لعنصر الترحيب
         
         const chatBox = document.getElementById('chat');
         const userInput = document.getElementById('userInput');
@@ -348,7 +397,6 @@ HTML_TEMPLATE = """
             pendingImageData = null;
             imagePreviewContainer.style.display = 'none';
             userInput.value = '';
-            // لا نعيد عرض الترحيب
         });
 
         menuToggle.addEventListener('click', function(e) {
@@ -359,7 +407,7 @@ HTML_TEMPLATE = """
             }
         });
 
-        // ===== دالة addMessage معدلة (ترجع العنصر وتزيل الوقت للنظام) =====
+        // ===== دالة addMessage =====
         function addMessage(text, sender = 'bot', isSystem = false, imageData = null) {
             const el = document.createElement('div');
             el.className = `msg ${sender}`;
@@ -419,33 +467,44 @@ HTML_TEMPLATE = """
             return el;
         }
 
-        // ===== عرض الترحيب (مرة واحدة لكل جلسة) =====
+        // ===== رسالة الترحيب في وسط الشاشة (5 ثوانٍ) =====
         function showWelcome() {
             if (!sessionStorage.getItem('welcomeShown')) {
-                // نضيف رسالة ترحيب
-                const welcomeMsg = '👋 اهلا بك نورتنا! وش اسمك؟';
-                welcomeElement = addMessage(welcomeMsg, 'bot', true);
+                // إنشاء عنصر الترحيب
+                const overlay = document.createElement('div');
+                overlay.className = 'welcome-overlay';
+                overlay.innerHTML = `
+                    <div class="welcome-box">
+                        <h2>👋 أهلاً بك في نبراس</h2>
+                        <p>نورتنا! كيف نقدر نساعدك اليوم؟</p>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
                 sessionStorage.setItem('welcomeShown', 'true');
                 
-                // نحدد مؤقت لإزالة الرسالة بعد 2 ثانية
-                const welcomeTimer = setTimeout(() => {
-                    if (welcomeElement && welcomeElement.parentNode) {
-                        welcomeElement.remove();
-                        welcomeElement = null;
+                // إزالة الترحيب بعد 5 ثوانٍ
+                setTimeout(() => {
+                    if (document.body.contains(overlay)) {
+                        overlay.classList.add('fade-out');
+                        setTimeout(() => {
+                            if (document.body.contains(overlay)) overlay.remove();
+                        }, 500);
                     }
-                }, 2000);
+                }, 5000);
                 
-                // نزيل الرسالة إذا بدأ المستخدم بالكتابة
-                const removeWelcomeOnInput = function() {
-                    if (welcomeElement && welcomeElement.parentNode) {
-                        welcomeElement.remove();
-                        welcomeElement = null;
+                // إزالة الترحيب عند النقر أو الكتابة
+                const removeWelcome = function() {
+                    if (document.body.contains(overlay)) {
+                        overlay.classList.add('fade-out');
+                        setTimeout(() => {
+                            if (document.body.contains(overlay)) overlay.remove();
+                        }, 500);
                     }
-                    userInput.removeEventListener('keydown', removeWelcomeOnInput);
-                    userInput.removeEventListener('click', removeWelcomeOnInput);
+                    document.removeEventListener('click', removeWelcome);
+                    userInput.removeEventListener('keydown', removeWelcome);
                 };
-                userInput.addEventListener('keydown', removeWelcomeOnInput);
-                userInput.addEventListener('click', removeWelcomeOnInput);
+                document.addEventListener('click', removeWelcome);
+                userInput.addEventListener('keydown', removeWelcome);
             }
         }
 
@@ -750,7 +809,6 @@ def chat():
 
         user_id = get_user_id()
 
-        # محادثة جديدة: امسح الذاكرة المؤقتة
         if conv_id is None:
             session_memory[user_id] = []
 
@@ -801,7 +859,7 @@ def chat():
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
         # =========================================================
-        # باقي الكود (تحليل الصور، محادثة، بحث ويب)
+        # باقي الكود
         # =========================================================
         session_memory[user_id].append({"role": "user", "content": user_message})
         chat_history = session_memory[user_id][-10:]
@@ -817,7 +875,6 @@ def chat():
                 "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
             })
 
-        # ===== البحث بالويب =====
         if use_web_search:
             try:
                 full_context = ""
@@ -841,7 +898,6 @@ def chat():
             except Exception as e:
                 print(f"⚠️ فشل البحث بالويب: {e}")
 
-        # ===== الرد النهائي =====
         try:
             response = client.chat.completions.create(
                 model=model,
