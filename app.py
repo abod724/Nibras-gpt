@@ -50,6 +50,7 @@ SYSTEM_PROMPT = f"""
 - إذا لم تجد المعلومة في ملف المعرفة، استخدم البحث بالويب.
 - دائماً حافظ على لهجتك العامية البيضاء.
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
+- **لا تكتب "لحظة" أو "انتظر" أو أي نص انتظار**، فقط انتظر النتيجة ورد مباشرة.
 """
 
 # ========== دالة إنشاء الصور ==========
@@ -67,7 +68,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (مع تعديل عرض الصور) ==========
+# ========== واجهة الدردشة (مع التعديلات) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -94,12 +95,21 @@ HTML_TEMPLATE = """
         .dropdown .item:hover { background: #f5f7fa; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; }
-        .msg.user { align-self: flex-end; background: #eef2f7; color: #1a2b3c; border-bottom-left-radius: 6px; }
+        .msg.user { align-self: flex-end; background: transparent; color: #1a2b3c; border-bottom-left-radius: 6px; }  /* تم إزالة الخلفية */
         .msg.bot { align-self: flex-start; background: #ffffff; color: #1a2b3c; border-bottom-right-radius: 6px; }
+        .msg.typing { 
+            align-self: flex-end; 
+            background: transparent; 
+            padding: 4px 0; 
+            color: #8a9aab; 
+            font-style: italic;
+            border-bottom-right-radius: 6px;
+        }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
+
         /* --- حاوية معاينة الصورة المعلقة --- */
         #imagePreviewContainer {
             display: none;
@@ -171,7 +181,6 @@ HTML_TEMPLATE = """
 
     <div id="chat"></div>
 
-    <!-- حاوية معاينة الصورة المعلقة (تظهر فقط عند اختيار صورة) -->
     <div id="imagePreviewContainer">
         <img id="imagePreview" src="" alt="معاينة" />
         <span class="label">📎 صورة معلقة</span>
@@ -197,7 +206,10 @@ HTML_TEMPLATE = """
 <script>
     (function() {
         let conversationHistory = [];
-        let pendingImageData = null; // تخزين الصورة المعلقة مؤقتاً
+        let pendingImageData = null;
+        let isWaiting = false;
+        let typingElement = null;
+        let typingStartTime = 0;
         
         const chatBox = document.getElementById('chat');
         const userInput = document.getElementById('userInput');
@@ -205,41 +217,51 @@ HTML_TEMPLATE = """
         const micBtn = document.getElementById('micBtn');
         const fileInput = document.getElementById('fileInput');
         const cameraInput = document.getElementById('cameraInput');
-        const fileInputGeneric = document.getElementById('fileInputGeneric');
         const menuToggle = document.getElementById('menuToggle');
         const dropdown = document.getElementById('dropdown');
         const plusBtn = document.getElementById('plusBtn');
         const plusOptions = document.getElementById('plusOptions');
         const cameraBtn = document.getElementById('cameraBtn');
         const galleryBtn = document.getElementById('galleryBtn');
-        const filesBtn = document.getElementById('filesBtn');
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
         const imagePreview = document.getElementById('imagePreview');
         const removeImageBtn = document.getElementById('removeImageBtn');
 
-        // دالة عرض معاينة الصورة
+        // ===== أزرار القائمة المنسدلة =====
+        document.querySelector('[data-action="new"]').addEventListener('click', function() {
+            chatBox.innerHTML = '';
+            conversationHistory = [];
+            dropdown.classList.remove('show');
+            // إعادة تعيين الذاكرة المؤقتة للجلسة (اختياري)
+            pendingImageData = null;
+            imagePreviewContainer.style.display = 'none';
+            userInput.value = '';
+            addMessage('✨ تم بدء محادثة جديدة', 'bot', true);
+        });
+
+        document.querySelector('[data-action="history"]').addEventListener('click', function() {
+            dropdown.classList.remove('show');
+            addMessage('📜 قريباً ستظهر المحادثات السابقة', 'bot', true);
+        });
+
         function showImagePreview(dataUrl) {
             imagePreview.src = dataUrl;
             imagePreviewContainer.style.display = 'flex';
         }
 
-        // دالة إزالة الصورة المعلقة
         function clearPendingImage() {
             pendingImageData = null;
             imagePreviewContainer.style.display = 'none';
             imagePreview.src = '';
         }
 
-        // زر إزالة الصورة
         removeImageBtn.addEventListener('click', clearPendingImage);
 
-        // ضبط ارتفاع حقل النص تلقائياً
         userInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 80) + 'px';
         });
 
-        // قائمة + (الكاميرا والمعرض)
         let plusOpen = false;
         plusBtn.addEventListener('click', function() {
             plusOpen = !plusOpen;
@@ -254,43 +276,55 @@ HTML_TEMPLATE = """
             }
         });
 
-        // ----- اختيار صورة من المعرض (لا ترسل فوراً) -----
-        galleryBtn.addEventListener('click', function() { 
-            fileInput.click(); 
-            plusOptions.classList.remove('show');
-        });
+        galleryBtn.addEventListener('click', function() { fileInput.click(); plusOptions.classList.remove('show'); });
         fileInput.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
                 reader.onload = function(ev) {
-                    const imgData = ev.target.result;
-                    pendingImageData = imgData;   // خزن الصورة
-                    showImagePreview(imgData);    // اعرض المعاينة
+                    pendingImageData = ev.target.result;
+                    showImagePreview(pendingImageData);
                     fileInput.value = '';
                 };
                 reader.readAsDataURL(this.files[0]);
             }
         });
 
-        // ----- اختيار صورة من الكاميرا (لا ترسل فوراً) -----
-        cameraBtn.addEventListener('click', function() { 
-            cameraInput.click(); 
-            plusOptions.classList.remove('show');
-        });
+        cameraBtn.addEventListener('click', function() { cameraInput.click(); plusOptions.classList.remove('show'); });
         cameraInput.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
                 reader.onload = function(ev) {
-                    const imgData = ev.target.result;
-                    pendingImageData = imgData;
-                    showImagePreview(imgData);
+                    pendingImageData = ev.target.result;
+                    showImagePreview(pendingImageData);
                     cameraInput.value = '';
                 };
                 reader.readAsDataURL(this.files[0]);
             }
         });
 
-        // دالة إضافة رسالة في الشات (تم تعديلها لدعم عرض الصور من الروابط)
+        // === مؤشر "جاري التفكير..." بدون خلفية ===
+        function addTypingIndicator() {
+            if (typingElement) {
+                typingElement.remove();
+                typingElement = null;
+            }
+            const el = document.createElement('div');
+            el.className = 'msg bot typing';
+            const time = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            el.innerHTML = `جاري التفكير... <span class="time">${time}</span>`;
+            chatBox.appendChild(el);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            typingElement = el;
+            typingStartTime = Date.now();
+        }
+
+        function removeTypingIndicator() {
+            if (typingElement) {
+                typingElement.remove();
+                typingElement = null;
+            }
+        }
+
         function addMessage(text, sender = 'bot', isSystem = false, imageData = null) {
             const el = document.createElement('div');
             el.className = `msg ${sender}`;
@@ -298,7 +332,6 @@ HTML_TEMPLATE = """
             const now = new Date();
             const time = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
             
-            // إذا كانت رسالة تحتوي على صورة (مرفقة)
             if (imageData) {
                 el.innerHTML = `<img src="${imageData}" class="image-upload" /><span class="file-label">${text || 'صورة'}</span><span class="time"> ${time}</span>`;
                 chatBox.appendChild(el);
@@ -306,21 +339,15 @@ HTML_TEMPLATE = """
                 return;
             }
 
-            // إذا كان النص يحتوي على رابط صورة (من DALL-E)
             const imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
             let displayText = text;
             let generatedImageUrl = null;
             if (imageUrlMatch) {
                 generatedImageUrl = imageUrlMatch[0];
-                // إزالة الرابط من النص المعروض (سنعرضه كصورة)
                 displayText = text.replace(imageUrlMatch[0], '').trim();
-                // إذا بقي النص فارغاً، نضع نص افتراضي
-                if (!displayText) {
-                    displayText = '🖼️ الصورة المولدة';
-                }
+                if (!displayText) displayText = '🖼️ الصورة المولدة';
             }
 
-            // رسالة البوت مع تأثير الكتابة (إذا لم تكن صورة)
             if (sender === 'bot' && !isSystem && !generatedImageUrl) {
                 el.innerHTML = `<span class="typing-text"></span><span class="time"> ${time}</span>`;
                 chatBox.appendChild(el);
@@ -334,7 +361,6 @@ HTML_TEMPLATE = """
                         chatBox.scrollTop = chatBox.scrollHeight;
                         setTimeout(typeChar, 20);
                     } else {
-                        // بعد الانتهاء من الكتابة، إذا كان هناك صورة نضيفها
                         if (generatedImageUrl) {
                             const imgEl = document.createElement('img');
                             imgEl.src = generatedImageUrl;
@@ -348,7 +374,6 @@ HTML_TEMPLATE = """
                 return;
             }
 
-            // رسالة عادية (بدون تأثير كتابة)
             let content = displayText;
             if (generatedImageUrl) {
                 content += `<br/><img src="${generatedImageUrl}" class="generated-image" />`;
@@ -358,31 +383,27 @@ HTML_TEMPLATE = """
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // ----- دالة الإرسال الرئيسية (تعديلها لترسل الصورة المعلقة مع النص) -----
         async function sendMessage() {
-            const text = userInput.value.trim();
-            const imageToSend = pendingImageData; // خذ الصورة المعلقة
+            if (isWaiting) return;
 
-            // إذا كان لا يوجد نص ولا صورة، لا تفعل شيئاً
+            const text = userInput.value.trim();
+            const imageToSend = pendingImageData;
+
             if (!text && !imageToSend) return;
 
-            // 1. عرض رسالة المستخدم (نص)
-            if (text) {
-                addMessage(text, 'user');
-            }
-
-            // 2. عرض الصورة في الشات (إذا وجدت)
+            if (text) addMessage(text, 'user');
             if (imageToSend) {
                 addMessage('🖼️ صورة مرفقة', 'user', false, imageToSend);
+                clearPendingImage();
             }
 
-            // 3. تنظيف الحقول
             userInput.value = '';
             userInput.style.height = 'auto';
-            // 4. إزالة المعاينة وتفريغ الصورة المعلقة
-            clearPendingImage();
+            isWaiting = true;
 
-            // 5. تحضير البيانات للإرسال
+            // عرض "جاري التفكير..."
+            addTypingIndicator();
+
             const payload = {
                 message: text || "📎 مرفق",
                 image: imageToSend || null,
@@ -396,17 +417,30 @@ HTML_TEMPLATE = """
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                if (res.ok) {
-                    addMessage(data.reply, 'bot');
-                } else {
-                    addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
-                }
+                const elapsed = Date.now() - typingStartTime;
+                const remaining = Math.max(0, 3000 - elapsed);
+                setTimeout(() => {
+                    removeTypingIndicator();
+                    if (res.ok) {
+                        addMessage(data.reply, 'bot');
+                    } else {
+                        addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
+                    }
+                }, remaining);
             } catch (e) {
-                addMessage('تعذر الاتصال بالسيرفر.', 'error');
+                const elapsed = Date.now() - typingStartTime;
+                const remaining = Math.max(0, 3000 - elapsed);
+                setTimeout(() => {
+                    removeTypingIndicator();
+                    addMessage('تعذر الاتصال بالسيرفر.', 'error');
+                }, remaining);
+            } finally {
+                setTimeout(() => {
+                    isWaiting = false;
+                }, 3000);
             }
         }
 
-        // ربط الأزرار
         sendBtn.addEventListener('click', sendMessage);
         userInput.addEventListener('keypress', (e) => { 
             if (e.key === 'Enter') { 
@@ -415,7 +449,6 @@ HTML_TEMPLATE = """
             } 
         });
 
-        // القائمة المنسدلة
         menuToggle.addEventListener('click', (e) => { 
             e.stopPropagation(); 
             dropdown.classList.toggle('show'); 
@@ -424,7 +457,6 @@ HTML_TEMPLATE = """
             dropdown.classList.remove('show'); 
         });
 
-        // ----- خاصية الصوت (بدون تغيير) -----
         let recognition = null;
         micBtn.addEventListener('click', function() {
             if (!('webkitSpeechRecognition' in window)) {
@@ -571,11 +603,9 @@ def chat():
         if not user_message:
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
 
-        # ========== تحديد نوع المستخدم ==========
         is_admin = 'admin_email' in session and session['admin_email'] == "abdullaha0569361@gmail.com"
         is_trial_user = 'user_email' in session and not is_admin
         trial_remaining = session.get('trial_remaining', 0)
-        is_logged_in = is_admin or is_trial_user  # <-- جديد: هل المستخدم مسجل دخول؟
 
         user_id = request.remote_addr
         if is_admin:
@@ -585,26 +615,25 @@ def chat():
         else:
             user_id = "guest_" + request.remote_addr
 
-        # ========== تعيين الصلاحيات (مع تقييد البحث بالويب) ==========
         if is_admin:
             model = "gpt-4o"
-            use_web_search = True   # ✅ مسموح للمشرف
+            use_web_search = True
             allow_images = True
             limit_msg = None
         elif is_trial_user and trial_remaining > 0 and not session.get('is_trial_expired'):
             model = "gpt-4o"
-            use_web_search = True   # ✅ مسموح للمستخدم التجريبي
+            use_web_search = True
             allow_images = True
             limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
         else:
             model = "gpt-4o-mini"
-            use_web_search = False  # ❌ ممنوع للضيوف والمستخدمين العاديين
+            use_web_search = False
             allow_images = False
             if is_trial_user and trial_remaining == 0:
                 limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
         # =========================================================
-        # 🔥 كشف طلب إنشاء صورة (نفس الكود القديم)
+        # كشف طلب إنشاء صورة
         # =========================================================
         draw_keywords = [
             "ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", 
@@ -632,7 +661,7 @@ def chat():
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
         # =========================================================
-        # باقي الكود الأصلي (تحليل الصور، محادثة)
+        # باقي الكود (تحليل الصور، محادثة، بحث ويب)
         # =========================================================
         if user_id not in session_memory:
             session_memory[user_id] = []
@@ -651,8 +680,8 @@ def chat():
                 "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
             })
 
-        # ===== البحث بالويب (مقيد الآن) =====
-        if use_web_search:  # ✅ الآن فقط للمشرف والمستخدم التجريبي
+        # ===== البحث بالويب =====
+        if use_web_search:
             try:
                 full_context = ""
                 for msg in messages:
