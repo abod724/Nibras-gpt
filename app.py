@@ -21,7 +21,6 @@ SYSTEM_ENABLED = True
 CONVERSATIONS_FILE = "conversations.json"
 
 def load_conversations():
-    """تحميل جميع المحادثات من ملف JSON"""
     if os.path.exists(CONVERSATIONS_FILE):
         try:
             with open(CONVERSATIONS_FILE, "r", encoding="utf-8") as f:
@@ -31,21 +30,14 @@ def load_conversations():
     return {}
 
 def save_conversations(data):
-    """حفظ المحادثات في ملف JSON"""
     with open(CONVERSATIONS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def get_user_conversations(user_id):
-    """استرجاع قائمة المحادثات لمستخدم معين"""
     all_conv = load_conversations()
     return all_conv.get(user_id, [])
 
 def save_user_conversation(user_id, conversation, conv_id=None):
-    """
-    حفظ محادثة جديدة أو تحديث محادثة موجودة
-    - إذا كان conv_id = None: يتم إنشاء محادثة جديدة مع عنوان = أول رسالة
-    - إذا كان conv_id موجود: يتم تحديث المحادثة الموجودة مع الحفاظ على العنوان
-    """
     all_conv = load_conversations()
     if user_id not in all_conv:
         all_conv[user_id] = []
@@ -53,6 +45,7 @@ def save_user_conversation(user_id, conversation, conv_id=None):
     if conv_id is None:
         # === إنشاء محادثة جديدة ===
         if conversation and len(conversation) > 0:
+            # نأخذ أول رسالة في المحادثة (وهي الرسالة الجديدة الأولى)
             title = conversation[0]["content"][:30]
             if len(conversation[0]["content"]) > 30:
                 title += "..."
@@ -74,14 +67,12 @@ def save_user_conversation(user_id, conversation, conv_id=None):
             if conv["id"] == conv_id:
                 conv["messages"] = conversation
                 conv["timestamp"] = datetime.now().isoformat()
-                # لا نغير العنوان
                 save_conversations(all_conv)
                 return conv_id
         # إذا لم نجد المحادثة، ننشئها جديدة
         return save_user_conversation(user_id, conversation, None)
 
 def load_conversation_by_id(user_id, conv_id):
-    """تحميل محادثة محددة بواسطة المعرف"""
     conversations = get_user_conversations(user_id)
     for conv in conversations:
         if conv["id"] == conv_id:
@@ -128,7 +119,6 @@ SYSTEM_PROMPT = f"""
 
 # ========== دالة إنشاء الصور ==========
 def generate_image(prompt):
-    """توليد صورة باستخدام DALL-E 3"""
     try:
         response = client.images.generate(
             model="dall-e-3",
@@ -166,7 +156,6 @@ HTML_TEMPLATE = """
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        /* تنسيق عناوين المحادثات */
         .dropdown .conv-item {
             display: block;
             padding: 12px 18px;
@@ -181,12 +170,8 @@ HTML_TEMPLATE = """
             font-weight: 500;
             transition: background 0.2s;
         }
-        .dropdown .conv-item:hover {
-            background: #f5f7fa;
-        }
-        .dropdown .conv-item:last-child {
-            border-bottom: none;
-        }
+        .dropdown .conv-item:hover { background: #f5f7fa; }
+        .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; }
         .msg.user { align-self: flex-end; background: transparent; color: #1a2b3c; border-bottom-left-radius: 6px; }
@@ -312,7 +297,7 @@ HTML_TEMPLATE = """
         const removeImageBtn = document.getElementById('removeImageBtn');
         const historyList = document.getElementById('historyList');
 
-        // ===== تحميل المحادثات السابقة (عناوين فقط) =====
+        // ===== تحميل المحادثات السابقة =====
         async function loadHistory() {
             try {
                 const res = await fetch('/history');
@@ -361,14 +346,13 @@ HTML_TEMPLATE = """
         document.querySelector('[data-action="new"]').addEventListener('click', function() {
             chatBox.innerHTML = '';
             conversationHistory = [];
-            currentConvId = null;  // مهم: هذا يسمح بإنشاء عنوان جديد
+            currentConvId = null;
             dropdown.classList.remove('show');
             pendingImageData = null;
             imagePreviewContainer.style.display = 'none';
             userInput.value = '';
         });
 
-        // عند فتح القائمة، نحمل المحادثات
         menuToggle.addEventListener('click', function(e) {
             e.stopPropagation();
             dropdown.classList.toggle('show');
@@ -549,7 +533,6 @@ HTML_TEMPLATE = """
             } 
         });
 
-        // إغلاق القائمة عند النقر خارجها
         document.addEventListener('click', function(e) {
             if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) {
                 dropdown.classList.remove('show');
@@ -587,7 +570,7 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# ========== صفحة الدخول والخطط ==========
+# ========== صفحات الدخول والخطط ==========
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -694,17 +677,14 @@ def plans():
 
 @app.route('/history')
 def history():
-    """إرجاع قائمة المحادثات السابقة (عناوين فقط، مرتبة تنازلياً)"""
     user_id = get_user_id()
     conversations = get_user_conversations(user_id)
-    # ترتيب تنازلي حسب الوقت (الأحدث أولاً)
     conversations.sort(key=lambda x: x["timestamp"], reverse=True)
     result = [{"id": c["id"], "title": c["title"]} for c in conversations]
     return jsonify({"conversations": result})
 
 @app.route('/load_conversation/<conv_id>')
 def load_conversation(conv_id):
-    """تحميل محادثة محددة"""
     user_id = get_user_id()
     messages = load_conversation_by_id(user_id, conv_id)
     if messages:
@@ -712,7 +692,6 @@ def load_conversation(conv_id):
     return jsonify({"messages": None}), 404
 
 def get_user_id():
-    """استخراج معرف المستخدم من الجلسة"""
     if 'admin_email' in session:
         return "admin_" + session['admin_email']
     elif 'user_email' in session:
@@ -736,6 +715,12 @@ def chat():
         trial_remaining = session.get('trial_remaining', 0)
 
         user_id = get_user_id()
+
+        # ===== التعديل الأساسي: إذا كانت محادثة جديدة، امسح الذاكرة المؤقتة =====
+        if conv_id is None:
+            # محادثة جديدة: نمسح الذاكرة المؤقتة للمستخدم
+            session_memory[user_id] = []
+        # إذا كانت محادثة موجودة، نستمر بدون مسح
 
         if is_admin:
             model = "gpt-4o"
@@ -768,13 +753,9 @@ def chat():
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
                 
-                # نضيف الرسائل للتاريخ
-                if user_id not in session_memory:
-                    session_memory[user_id] = []
                 session_memory[user_id].append({"role": "user", "content": user_message})
                 session_memory[user_id].append({"role": "assistant", "content": reply})
                 
-                # حفظ المحادثة (جديدة أو محدثة)
                 new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
                 
                 if is_trial_user and trial_remaining > 0:
@@ -790,9 +771,6 @@ def chat():
         # =========================================================
         # باقي الكود (تحليل الصور، محادثة، بحث ويب)
         # =========================================================
-        if user_id not in session_memory:
-            session_memory[user_id] = []
-        
         session_memory[user_id].append({"role": "user", "content": user_message})
         chat_history = session_memory[user_id][-10:]
 
@@ -863,7 +841,7 @@ def chat():
 
         session_memory[user_id].append({"role": "assistant", "content": reply})
 
-        # حفظ المحادثة في قاعدة البيانات (جديدة أو محدثة)
+        # حفظ المحادثة
         new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
 
         if is_trial_user and trial_remaining > 0:
