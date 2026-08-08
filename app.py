@@ -40,30 +40,45 @@ def get_user_conversations(user_id):
     all_conv = load_conversations()
     return all_conv.get(user_id, [])
 
-def save_user_conversation(user_id, conversation):
-    """حفظ محادثة جديدة (العنوان = أول رسالة بدون أي إضافات)"""
+def save_user_conversation(user_id, conversation, conv_id=None):
+    """
+    حفظ محادثة جديدة أو تحديث محادثة موجودة
+    - إذا كان conv_id = None: يتم إنشاء محادثة جديدة مع عنوان = أول رسالة
+    - إذا كان conv_id موجود: يتم تحديث المحادثة الموجودة مع الحفاظ على العنوان
+    """
     all_conv = load_conversations()
     if user_id not in all_conv:
         all_conv[user_id] = []
     
-    # توليد عنوان من أول رسالة (أو "محادثة جديدة" إذا كانت فارغة)
-    if conversation and len(conversation) > 0:
-        title = conversation[0]["content"][:30]
-        if len(conversation[0]["content"]) > 30:
-            title += "..."
+    if conv_id is None:
+        # === إنشاء محادثة جديدة ===
+        if conversation and len(conversation) > 0:
+            title = conversation[0]["content"][:30]
+            if len(conversation[0]["content"]) > 30:
+                title += "..."
+        else:
+            title = "محادثة جديدة"
+        
+        new_conv_id = hashlib.md5(f"{user_id}{datetime.now().isoformat()}".encode()).hexdigest()[:8]
+        all_conv[user_id].append({
+            "id": new_conv_id,
+            "messages": conversation,
+            "timestamp": datetime.now().isoformat(),
+            "title": title
+        })
+        save_conversations(all_conv)
+        return new_conv_id
     else:
-        title = "محادثة جديدة"
-    
-    # لا نضيف أي أرقام أو تواريخ، العنوان هو نص أول رسالة فقط
-    conv_id = hashlib.md5(f"{user_id}{datetime.now().isoformat()}".encode()).hexdigest()[:8]
-    all_conv[user_id].append({
-        "id": conv_id,
-        "messages": conversation,
-        "timestamp": datetime.now().isoformat(),
-        "title": title
-    })
-    save_conversations(all_conv)
-    return conv_id
+        # === تحديث محادثة موجودة ===
+        for conv in all_conv[user_id]:
+            if conv["id"] == conv_id:
+                conv["messages"] = conversation
+                conv["timestamp"] = datetime.now().isoformat()
+                # لا نغير العنوان
+                save_conversations(all_conv)
+                return conv_id
+        # إذا لم نجد المحادثة، ننشئها جديدة
+        return save_user_conversation(user_id, conversation, None)
 
 def load_conversation_by_id(user_id, conv_id):
     """تحميل محادثة محددة بواسطة المعرف"""
@@ -151,7 +166,7 @@ HTML_TEMPLATE = """
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        /* تنسيق عناوين المحادثات (بدون تواريخ) */
+        /* تنسيق عناوين المحادثات */
         .dropdown .conv-item {
             display: block;
             padding: 12px 18px;
@@ -342,11 +357,11 @@ HTML_TEMPLATE = """
             }
         }
 
-        // ===== أزرار القائمة =====
+        // ===== محادثة جديدة =====
         document.querySelector('[data-action="new"]').addEventListener('click', function() {
             chatBox.innerHTML = '';
             conversationHistory = [];
-            currentConvId = null;
+            currentConvId = null;  // مهم: هذا يسمح بإنشاء عنوان جديد
             dropdown.classList.remove('show');
             pendingImageData = null;
             imagePreviewContainer.style.display = 'none';
@@ -752,13 +767,15 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
+                
+                # نضيف الرسائل للتاريخ
                 if user_id not in session_memory:
                     session_memory[user_id] = []
                 session_memory[user_id].append({"role": "user", "content": user_message})
                 session_memory[user_id].append({"role": "assistant", "content": reply})
                 
-                # حفظ في قاعدة البيانات
-                save_user_conversation(user_id, session_memory[user_id])
+                # حفظ المحادثة (جديدة أو محدثة)
+                new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
                 
                 if is_trial_user and trial_remaining > 0:
                     session['trial_remaining'] = trial_remaining - 1
@@ -766,7 +783,7 @@ def chat():
                         session['is_trial_expired'] = True
                         reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار."
                 
-                return jsonify({"reply": reply, "conv_id": conv_id})
+                return jsonify({"reply": reply, "conv_id": new_conv_id})
             else:
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
@@ -846,8 +863,8 @@ def chat():
 
         session_memory[user_id].append({"role": "assistant", "content": reply})
 
-        # حفظ المحادثة في قاعدة البيانات بعد كل رد
-        save_user_conversation(user_id, session_memory[user_id])
+        # حفظ المحادثة في قاعدة البيانات (جديدة أو محدثة)
+        new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
 
         if is_trial_user and trial_remaining > 0:
             session['trial_remaining'] = trial_remaining - 1
@@ -855,7 +872,7 @@ def chat():
                 session['is_trial_expired'] = True
                 reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار مع البحث بالويب والصور."
 
-        return jsonify({"reply": reply, "conv_id": conv_id})
+        return jsonify({"reply": reply, "conv_id": new_conv_id})
 
     except Exception as e:
         print(f"❌ خطأ عام في /chat: {e}")
