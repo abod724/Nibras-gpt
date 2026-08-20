@@ -137,7 +137,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (وردية وناعمة + زر قلب + حماية) ==========
+# ========== واجهة الدردشة (وردية وناعمة + زر قلب + زر سماعة) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -151,13 +151,17 @@ HTML_TEMPLATE = """
         body { background: #fff5f7; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; box-shadow: 0 0 20px rgba(232, 139, 156, 0.15); }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #fce4ec; flex-shrink: 0; background: #fff5f7; }
-        .menu-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px 8px; }
-        .btn-group { display: flex; gap: 8px; align-items: center; }
-        .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
-        .btn-outline { background: transparent; border: 1.5px solid #e88b9c; color: #e88b9c; }
-        .btn-outline:hover { background: #e88b9c; color: white; }
         
-        /* زر القلب الجديد */
+        /* الجهة اليمنى: الصوت والقائمة */
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .mute-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px; transition: 0.2s; }
+        .mute-btn:hover { color: #d47384; }
+        .mute-btn.muted { opacity: 0.4; transform: scale(0.9); }
+        .menu-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px 8px; }
+        .menu-btn:hover { color: #d47384; }
+
+        /* الجهة اليسرى: زر القلب */
+        .header-left { display: flex; align-items: center; gap: 12px; }
         .btn-heart {
             background: #e88b9c;
             color: white;
@@ -314,15 +318,23 @@ HTML_TEMPLATE = """
 <body>
 <div class="app">
     <div class="header">
-        <button class="menu-btn" id="menuToggle"><i class="fas fa-ellipsis-v"></i></button>
-        <div class="btn-group">
-            {% if session.get('admin_email') or session.get('user_email') %}
-                <a href="/logout" class="btn-heart" style="background:#d47384;"><i class="fas fa-heart"></i></a>
-            {% else %}
-                <a href="/login" class="btn-heart"><i class="fas fa-heart"></i></a>
-            {% endif %}
-            <!-- تم إخفاء زر الترقية -->
-            <a href="/plans" class="btn btn-gold" style="display:none;">💎 ترقية</a>
+        <!-- ===== الجهة اليمنى: زر الصوت وزر القائمة ===== -->
+        <div class="header-right">
+            <button class="mute-btn" id="muteBtn" title="كتم/تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
+            <button class="menu-btn" id="menuToggle"><i class="fas fa-ellipsis-v"></i></button>
+        </div>
+        
+        <!-- ===== الجهة اليسرى: زر القلب ===== -->
+        <div class="header-left">
+            <div class="btn-group">
+                {% if session.get('admin_email') or session.get('user_email') %}
+                    <a href="/logout" class="btn-heart" style="background:#d47384;"><i class="fas fa-heart"></i></a>
+                {% else %}
+                    <a href="/login" class="btn-heart"><i class="fas fa-heart"></i></a>
+                {% endif %}
+                <!-- تم إخفاء زر الترقية -->
+                <a href="/plans" class="btn btn-gold" style="display:none;">💎 ترقية</a>
+            </div>
         </div>
     </div>
     
@@ -778,7 +790,7 @@ def get_user_id():
         return "guest_" + request.remote_addr
 
 @app.route('/chat', methods=['POST'])
-@limiter.limit("10 per minute")  # ===== هنا الحماية الخلفية =====
+@limiter.limit("10 per minute")
 def chat():
     try:
         data = request.get_json()
