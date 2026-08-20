@@ -1,3 +1,3 @@
 flask
 openai
-gunicorn
+edge-tts
