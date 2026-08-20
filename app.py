@@ -137,7 +137,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (وردية وناعمة + زر قلب + زر سماعة) ==========
+# ========== واجهة الدردشة (وردية + زر قلب + زر صوت مُصلح) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -154,9 +154,12 @@ HTML_TEMPLATE = """
         
         /* الجهة اليمنى: الصوت والقائمة */
         .header-right { display: flex; align-items: center; gap: 12px; }
-        .mute-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px; transition: 0.2s; }
+        .mute-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px; transition: all 0.2s ease; }
         .mute-btn:hover { color: #d47384; }
-        .mute-btn.muted { opacity: 0.4; transform: scale(0.9); }
+        .mute-btn.muted { 
+            opacity: 0.5; 
+            transform: scale(0.7);  /* يصغر الزر عند كتم الصوت كما طلبت */
+        }
         .menu-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px 8px; }
         .menu-btn:hover { color: #d47384; }
 
@@ -390,6 +393,28 @@ HTML_TEMPLATE = """
         const imagePreview = document.getElementById('imagePreview');
         const removeImageBtn = document.getElementById('removeImageBtn');
         const historyList = document.getElementById('historyList');
+
+        // ===== حالة الصوت =====
+        let isMuted = true;
+        const muteBtn = document.getElementById('muteBtn');
+        muteBtn.querySelector('i').className = 'fas fa-volume-mute';
+        muteBtn.classList.add('muted');
+
+        muteBtn.addEventListener('click', function() {
+            isMuted = !isMuted;
+            const icon = muteBtn.querySelector('i');
+            if (isMuted) {
+                icon.className = 'fas fa-volume-mute';
+                muteBtn.classList.add('muted');
+                if (currentAudio) { 
+                    currentAudio.pause(); 
+                    currentAudio.currentTime = 0; 
+                }
+            } else {
+                icon.className = 'fas fa-volume-up';
+                muteBtn.classList.remove('muted');
+            }
+        });
 
         // ===== تحميل المحادثات السابقة =====
         async function loadHistory() {
@@ -630,11 +655,13 @@ HTML_TEMPLATE = """
             userInput.style.height = 'auto';
             isWaiting = true;
 
+            // ===== إرسال حالة الصوت الحالية للسيرفر =====
             const payload = {
                 message: text || "📎 مرفق",
                 image: imageToSend || null,
                 history: conversationHistory,
-                conv_id: currentConvId
+                conv_id: currentConvId,
+                voice_enabled: !isMuted
             };
 
             try {
@@ -646,6 +673,15 @@ HTML_TEMPLATE = """
                 const data = await res.json();
                 if (res.ok) {
                     addMessage(data.reply, 'bot');
+                    if (!isMuted && data.audio) {
+                        if (currentAudio) { 
+                            currentAudio.pause(); 
+                            currentAudio.currentTime = 0; 
+                        }
+                        const audioSrc = `data:audio/mp3;base64,${data.audio}`;
+                        currentAudio = new Audio(audioSrc);
+                        currentAudio.play();
+                    }
                     if (data.conv_id) {
                         currentConvId = data.conv_id;
                     }
