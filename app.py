@@ -291,7 +291,10 @@ HTML_TEMPLATE = """
             const el=document.createElement('div'); el.className=`msg ${sender}`; if(sender==='error') el.classList.add('error');
             const time=isSystem?'':new Date().toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
             if(img){ el.innerHTML=`<img src="${img}" class="image-upload" />${time?' <span class="time">'+time+'</span>':''}`; chat.appendChild(el); chat.scrollTop=chat.scrollHeight; return; }
-            let display=text, genImg=null; const match=text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i); if(match){ genImg=match[0]; display=text.replace(match[0],'').trim()||'🖼️'; }
+            let display=text, genImg=null; 
+            // تم إصلاح التعبير النمطي (Regex) هنا لتجنب خطأ بايثون
+            const match=text.match(/(https?:\\/\\/[^\s]+\\.(png|jpg|jpeg|gif|webp))/i);
+            if(match){ genImg=match[0]; display=text.replace(match[0],'').trim()||'🖼️'; }
             if(sender==='bot'&&!isSystem&&!genImg){
                 el.innerHTML=`<span class="typing-text"></span>${time?' <span class="time">'+time+'</span>':''}`; chat.appendChild(el); chat.scrollTop=chat.scrollHeight;
                 let idx=0; const span=el.querySelector('.typing-text'); function type(){ if(idx<display.length){ span.textContent+=display.charAt(idx++); chat.scrollTop=chat.scrollHeight; setTimeout(type,20); } else if(genImg){ const imgEl=document.createElement('img'); imgEl.src=genImg; imgEl.className='generated-image'; el.appendChild(imgEl); chat.scrollTop=chat.scrollHeight; } } type(); return;
