@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify, render_template_string, session, redirect, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import openai
 import os
 import secrets
@@ -7,6 +9,14 @@ import hashlib
 from datetime import datetime
 
 app = Flask(__name__)
+
+# ===== إعداد الحماية الخلفية (Rate Limiter) =====
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # إعداد المفاتيح السرية
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
@@ -127,7 +137,7 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (وردية وناعمة) ==========
+# ========== واجهة الدردشة (وردية وناعمة + زر قلب + حماية) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -142,12 +152,35 @@ HTML_TEMPLATE = """
         .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; box-shadow: 0 0 20px rgba(232, 139, 156, 0.15); }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #fce4ec; flex-shrink: 0; background: #fff5f7; }
         .menu-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px 8px; }
-        .btn-group { display: flex; gap: 8px; }
+        .btn-group { display: flex; gap: 8px; align-items: center; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1.5px solid #e88b9c; color: #e88b9c; }
         .btn-outline:hover { background: #e88b9c; color: white; }
-        /* تم إخفاء زر الترقية لأنه خاص بنبراس */
+        
+        /* زر القلب الجديد */
+        .btn-heart {
+            background: #e88b9c;
+            color: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: 0.2s;
+            box-shadow: 0 4px 12px rgba(232, 139, 156, 0.25);
+        }
+        .btn-heart:hover {
+            background: #d47384;
+            transform: scale(1.05);
+        }
+
+        /* تم إخفاء زر الترقية لروز */
         .btn-gold { background: #f1c40f; color: #1a2b3c; font-weight: bold; display: none; }
+        
         .dropdown { position: absolute; top: 64px; left: 14px; right: 14px; background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(232, 139, 156, 0.15); display: none; flex-direction: column; z-index: 100; border: 1px solid #fce4ec; max-height: 60vh; overflow-y: auto; }
         .dropdown.show { display: flex; }
         .dropdown .item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; font-size: 15px; color: #5a3c41; background: none; border: none; width: 100%; text-align: right; cursor: pointer; border-bottom: 1px solid #fce4ec; }
@@ -284,11 +317,11 @@ HTML_TEMPLATE = """
         <button class="menu-btn" id="menuToggle"><i class="fas fa-ellipsis-v"></i></button>
         <div class="btn-group">
             {% if session.get('admin_email') or session.get('user_email') %}
-                <a href="/logout" class="btn btn-outline">تسجيل خروج</a>
+                <a href="/logout" class="btn-heart" style="background:#d47384;"><i class="fas fa-heart"></i></a>
             {% else %}
-                <a href="/login" class="btn btn-outline">دخول</a>
+                <a href="/login" class="btn-heart"><i class="fas fa-heart"></i></a>
             {% endif %}
-            <!-- تم إخفاء زر الترقية لروز -->
+            <!-- تم إخفاء زر الترقية -->
             <a href="/plans" class="btn btn-gold" style="display:none;">💎 ترقية</a>
         </div>
     </div>
@@ -745,6 +778,7 @@ def get_user_id():
         return "guest_" + request.remote_addr
 
 @app.route('/chat', methods=['POST'])
+@limiter.limit("10 per minute")  # ===== هنا الحماية الخلفية =====
 def chat():
     try:
         data = request.get_json()
@@ -765,24 +799,23 @@ def chat():
             session_memory[user_id] = []
 
         # =========================================================
-        # ✅ جميع المستخدمين يستخدمون gpt-4o
+        # البحث والصور للأدمن فقط!
         # =========================================================
         if is_admin:
             model = "gpt-4o"
             use_web_search = True
             allow_images = True
             limit_msg = None
-        elif is_trial_user and trial_remaining > 0 and not session.get('is_trial_expired'):
-            model = "gpt-4o"
-            use_web_search = True
-            allow_images = True
-            limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
         else:
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
-            if is_trial_user and trial_remaining == 0:
+            if is_trial_user and trial_remaining > 0:
+                limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
+            elif is_trial_user and trial_remaining == 0:
                 limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
+            else:
+                limit_msg = None
 
         # =========================================================
         # كشف طلب إنشاء صورة
@@ -830,7 +863,7 @@ def chat():
                 "content": [{"type": "text", "text": user_message or "حللي هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
             })
 
-        # ===== البحث بالويب (تم التصحيح) =====
+        # ===== البحث بالويب (لن يعمل إلا للأدمن فقط) =====
         if use_web_search:
             try:
                 full_context = ""
@@ -852,7 +885,7 @@ def chat():
             except Exception as e:
                 print(f"⚠️ فشل البحث بالويب: {e}")
 
-        # ===== الرد النهائي (تم التصحيح) =====
+        # ===== الرد النهائي =====
         try:
             response = client.chat.completions.create(
                 model=model,
