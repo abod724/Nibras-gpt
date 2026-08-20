@@ -3,3 +3,4 @@ openai
 edge-tts
 flask-limiter
 gunicorn
+gtts
