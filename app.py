@@ -1,12 +1,15 @@
 from flask import Flask, request, jsonify, render_template_string, session, redirect, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from gtts import gTTS
 import openai
 import os
 import secrets
 import json
 import hashlib
 from datetime import datetime
+import io
+import base64
 
 app = Flask(__name__)
 
@@ -137,7 +140,20 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== واجهة الدردشة (وردية + زر قلب + زر صوت مُصلح) ==========
+# ========== دالة توليد الصوت باستخدام gTTS (بديل edge-tts) ==========
+def generate_speech(text, gender):
+    try:
+        # gTTS صوت أنثى افتراضي وواضح
+        tts = gTTS(text=text, lang='ar', slow=False)
+        audio_bytes = io.BytesIO()
+        tts.write_to_fp(audio_bytes)
+        audio_bytes.seek(0)
+        return base64.b64encode(audio_bytes.read()).decode('utf-8')
+    except Exception as e:
+        print(f"❌ فشل توليد الصوت باستخدام gTTS: {e}")
+        return None
+
+# ========== واجهة الدردشة (وردية وناعمة + زر قلب + زر سماعة) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -158,7 +174,7 @@ HTML_TEMPLATE = """
         .mute-btn:hover { color: #d47384; }
         .mute-btn.muted { 
             opacity: 0.5; 
-            transform: scale(0.7);  /* يصغر الزر عند كتم الصوت كما طلبت */
+            transform: scale(0.7);  /* يصغر الزر عند كتم الصوت */
         }
         .menu-btn { background: none; border: none; font-size: 20px; color: #e88b9c; cursor: pointer; padding: 4px 8px; }
         .menu-btn:hover { color: #d47384; }
