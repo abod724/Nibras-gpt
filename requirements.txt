@@ -1,8 +1,2 @@
 Flask
-openai
-edge-tts
-flask-limiter
 gunicorn
-gtts
-flask-talisman
-Pillow
