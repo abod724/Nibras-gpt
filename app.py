@@ -836,13 +836,15 @@ def login():
         if not email or not password:
             return render_template_string(LOGIN_HTML, error="يرجى إدخال البريد الإلكتروني وكلمة المرور.")
 
-        # 1) حساب الأدمن: يتطلب كلمة مرور من متغيرات البيئة
+        # 1) حساب الأدمن: يجب أن يكون ADMIN_PASSWORD موجوداً في البيئة
         admin_email = "abdullaha0569361@gmail.com"
         admin_password = os.environ.get("ADMIN_PASSWORD")
         
+        if not admin_password:
+            # إذا لم يكن معرفاً، نمنع الدخول ونعرض خطأ عام (لا نذكر السبب تفصيلياً)
+            return render_template_string(LOGIN_HTML, error="خطأ في الإعدادات، يرجى الاتصال بالمدير.")
+
         if email == admin_email:
-            if not admin_password:
-                return render_template_string(LOGIN_HTML, error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
             if secrets.compare_digest(password, admin_password):
                 session.clear()
                 session['admin_email'] = admin_email
@@ -850,7 +852,7 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # 2) المستخدمون العاديون: إذا كان البريد موجوداً تحقق من كلمة المرور، وإلا سجل جديد
+        # 2) المستخدمون العاديون: تسجيل تلقائي للمستخدمين الجدد أو التحقق من كلمة المرور للموجودين
         all_users = load_users()
         
         if email in all_users:
