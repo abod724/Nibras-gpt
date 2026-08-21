@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # ===== إجبار HTTPS =====
-# في بيئة الإنتاج، يفضل تفعيله؛ وفي التطوير يمكن تعطيله
 Talisman(app, force_https=not app.debug, force_https_permanent=True)
 
 # ===== إعداد الحماية الخلفية (Rate Limiter) =====
@@ -33,7 +32,7 @@ limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://"
+    storage_uri="memory://"  # تحسين: يمكن استبدال بـ Redis للإنتاج
 )
 
 # إعداد المفاتيح السرية
@@ -45,6 +44,10 @@ if not OPENAI_API_KEY:
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
+
+# ===== حدود الأمان =====
+MAX_MESSAGE_LENGTH = int(os.environ.get("MAX_MESSAGE_LENGTH", 2000))  # تحسين
+MAX_HISTORY_LENGTH = int(os.environ.get("MAX_HISTORY_LENGTH", 10))    # تحسين
 
 # ===== مسار آمن لملف robots.txt =====
 @app.route('/robots.txt')
@@ -132,10 +135,14 @@ def load_conversation_by_id(user_id, conv_id):
         return json.loads(row[0])
     return None
 
-init_db()
+def get_or_create_conversation(user_id, conv_id=None):  # تحسين
+    if conv_id:
+        messages = load_conversation_by_id(user_id, conv_id)
+        if messages is not None:
+            return messages, conv_id
+    return [], None
 
-# ========== الذاكرة المؤقتة ==========
-session_memory = {}
+init_db()
 
 # ========== تحميل ملف المعرفة ==========
 knowledge_content = ""
@@ -220,24 +227,30 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ========== دالة التحقق من صورة آمنة ==========
+# ========== دالة التحقق من صورة آمنة وضغطها ==========
 def is_safe_image(image_base64):
     try:
-        # الحد الأقصى لحجم الصورة 5 ميجابايت
         MAX_SIZE = 5 * 1024 * 1024
         if len(image_base64) > MAX_SIZE:
             logger.warning("حجم الصورة كبير جداً")
             return False
         
-        # فك الترميز وفصل الرأس
         if ',' in image_base64:
             image_base64 = image_base64.split(',')[1]
         
-        # محاولة فتح الصورة للتحقق من صحتها
         img_data = base64.b64decode(image_base64)
         img = Image.open(io.BytesIO(img_data))
-        img.verify()  # يتحقق من سلامة الصورة
-        return True
+        img.verify()
+        
+        # ===== ضغط الصورة (تحسين) =====
+        img = Image.open(io.BytesIO(img_data))
+        # تقليص الأبعاد إلى 1024 كحد أقصى
+        img.thumbnail((1024, 1024))
+        # حفظ بجودة 50% لتقليل الحجم
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG", quality=50)
+        compressed = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return compressed
     except Exception as e:
         logger.warning(f"ملف صورة غير صالح: {e}")
         return False
@@ -440,12 +453,14 @@ HTML_TEMPLATE = """
         const micBtn = document.getElementById('micBtn');
         const fileInput = document.getElementById('fileInput');
         const cameraInput = document.getElementById('cameraInput');
+        const fileInputGeneric = document.getElementById('fileInputGeneric'); // تحسين: ربط filesBtn
         const menuToggle = document.getElementById('menuToggle');
         const dropdown = document.getElementById('dropdown');
         const plusBtn = document.getElementById('plusBtn');
         const plusOptions = document.getElementById('plusOptions');
         const cameraBtn = document.getElementById('cameraBtn');
         const galleryBtn = document.getElementById('galleryBtn');
+        const filesBtn = document.getElementById('filesBtn');
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
         const imagePreview = document.getElementById('imagePreview');
         const removeImageBtn = document.getElementById('removeImageBtn');
@@ -728,7 +743,11 @@ HTML_TEMPLATE = """
             }
         });
 
+        // ===== ربط الأزرار الثلاثة =====
         galleryBtn.addEventListener('click', function() { fileInput.click(); plusOptions.classList.remove('show'); });
+        cameraBtn.addEventListener('click', function() { cameraInput.click(); plusOptions.classList.remove('show'); });
+        filesBtn.addEventListener('click', function() { fileInputGeneric.click(); plusOptions.classList.remove('show'); }); // تحسين
+
         fileInput.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
@@ -741,7 +760,6 @@ HTML_TEMPLATE = """
             }
         });
 
-        cameraBtn.addEventListener('click', function() { cameraInput.click(); plusOptions.classList.remove('show'); });
         cameraInput.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
@@ -749,6 +767,18 @@ HTML_TEMPLATE = """
                     pendingImageData = ev.target.result;
                     showImagePreview(pendingImageData);
                     cameraInput.value = '';
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+
+        fileInputGeneric.addEventListener('change', function(e) {  // تحسين
+            if (this.files && this.files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    pendingImageData = ev.target.result;
+                    showImagePreview(pendingImageData);
+                    fileInputGeneric.value = '';
                 };
                 reader.readAsDataURL(this.files[0]);
             }
@@ -918,7 +948,6 @@ def login():
         if not email or not password:
             return render_template_string(LOGIN_HTML, error="يرجى إدخال البريد الإلكتروني وكلمة المرور.")
 
-        # حساب الأدمن
         admin_email = "abdullaha0569361@gmail.com"
         admin_password = os.environ.get("ADMIN_PASSWORD")
         
@@ -936,7 +965,6 @@ def login():
                 logger.warning(f"محاولة دخول أدمن فاشلة: {email}")
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # المستخدمون العاديون
         all_users = load_users()
         
         if email in all_users:
@@ -950,7 +978,6 @@ def login():
                 logger.warning(f"محاولة دخول فاشلة: {email} (كلمة مرور خاطئة)")
                 return render_template_string(LOGIN_HTML, error="كلمة المرور غير صحيحة.")
         else:
-            # تسجيل جديد
             hashed_password = generate_password_hash(password)
             all_users[email] = hashed_password
             save_users(all_users)
@@ -988,7 +1015,6 @@ def get_user_id():
     elif 'user_email' in session:
         return "user_" + session['user_email']
     else:
-        # تعيين معرف ضيف عشوائي يعتمد على الجلسة بدلاً من IP
         if 'guest_id' not in session:
             session['guest_id'] = secrets.token_hex(8)
         return "guest_" + session['guest_id']
@@ -1016,11 +1042,15 @@ def chat():
         if not user_message:
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
 
+        # ===== حد طول الرسالة (تحسين) =====
+        if len(user_message) > MAX_MESSAGE_LENGTH:
+            return jsonify({"error": f"الرسالة طويلة جداً. الحد الأقصى {MAX_MESSAGE_LENGTH} حرف"}), 400
+
         is_admin = 'admin_email' in session and session['admin_email'] == "abdullaha0569361@gmail.com"
         user_id = get_user_id()
 
-        if conv_id is None:
-            session_memory[user_id] = []
+        # ===== جلب المحادثة من قاعدة البيانات (بدون ذاكرة) =====
+        conversation, conv_id = get_or_create_conversation(user_id, conv_id)
 
         if is_admin:
             model = "gpt-4o"
@@ -1038,27 +1068,31 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
-                session_memory[user_id].append({"role": "user", "content": user_message})
-                session_memory[user_id].append({"role": "assistant", "content": reply})
-                new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
+                conversation.append({"role": "user", "content": user_message})
+                conversation.append({"role": "assistant", "content": reply})
+                new_conv_id = save_user_conversation(user_id, conversation, conv_id)
                 return jsonify({"reply": reply, "conv_id": new_conv_id})
             else:
                 logger.warning(f"فشل توليد الصورة للمستخدم {user_id}")
 
-        session_memory[user_id].append({"role": "user", "content": user_message})
-        chat_history = session_memory[user_id][-10:]
+        # إضافة رسالة المستخدم إلى المحادثة
+        conversation.append({"role": "user", "content": user_message})
+
+        # ===== اقتصار التاريخ على آخر MAX_HISTORY_LENGTH رسائل (تحسين) =====
+        chat_history = conversation[-MAX_HISTORY_LENGTH:]
 
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for entry in chat_history:
             messages.append({"role": entry["role"], "content": entry["content"]})
 
-        # معالجة الصورة المرفقة (مع تحقق أمني)
+        # معالجة الصورة المرفقة (مع تحقق أمني وضغط)
         image_data = data.get("image", None)
         if image_data and allow_images:
-            if is_safe_image(image_data):
+            compressed = is_safe_image(image_data)
+            if compressed:
                 messages.append({
                     "role": "user",
-                    "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
+                    "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{compressed}"}}]
                 })
             else:
                 return jsonify({"error": "صورة غير صالحة أو كبيرة جداً"}), 400
@@ -1113,12 +1147,16 @@ def chat():
             logger.error(f"خطأ غير متوقع في OpenAI: {e}")
             reply = "حدث خطأ في السيرفر، حاول مرة أخرى."
 
-        session_memory[user_id].append({"role": "assistant", "content": reply})
-        new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
+        conversation.append({"role": "assistant", "content": reply})
+        new_conv_id = save_user_conversation(user_id, conversation, conv_id)
 
         try:
             user_gender = session.get('voice_gender', 'male')
-            audio_base64 = asyncio.run(generate_speech(reply, user_gender))
+            # ===== تشغيل asyncio بشكل آمن (تحسين) =====
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            audio_base64 = loop.run_until_complete(generate_speech(reply, user_gender))
+            loop.close()
         except Exception as e:
             logger.error(f"فشل توليد الصوت: {e}")
             audio_base64 = None
@@ -1131,5 +1169,4 @@ def chat():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    # تشغيل الخادم في وضع debug=False للإنتاج
     app.run(host='0.0.0.0', port=port, debug=False)
