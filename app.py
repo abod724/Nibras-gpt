@@ -5,13 +5,9 @@ import os
 app = Flask(__name__)
 
 # ==========================================================
-# 📂 قاعدة بيانات الردود — هنا تضيف وتعدل كل شيء بسهولة
+# 📂 قاعدة بيانات الردود — كل شيء هنا تعدله بسهولة
 # ==========================================================
-# ملاحظة: كل قسم له "كلمات مفتاحية" و "ردود"
-# هذا أسهل وأوضح طريقة لتنظيم البيانات — تعلمها!
-
 DATABASE = {
-    # 👋 التحيات
     "تحية": {
         "keywords": ["السلام", "هلا", "مرحبا", "أهلا", "مساء", "صباح"],
         "replies": [
@@ -20,8 +16,6 @@ DATABASE = {
             "السلام عليكم! شرفتنا، حدد طلبك من فضلك."
         ]
     },
-
-    # 🙏 الشكر والوداع
     "شكر": {
         "keywords": ["شكر", "مشكور", "تسلم", "يعطيك العافية"],
         "replies": [
@@ -38,62 +32,40 @@ DATABASE = {
             "في حفظ الله، تواصل معنا في أي وقت!"
         ]
     },
-
-    # 🏛️ الخدمات الحكومية
     "حكومي": {
-        "keywords": [
-            "جواز", "سفر", "إقامة", "مرور", "رخصة", "بلدية", "أمانة",
-            "تأمينات", "وزارة", "أبشر", "منصة", "إصدار", "تجديد"
-        ],
+        "keywords": ["جواز", "سفر", "إقامة", "مرور", "رخصة", "بلدية", "أمانة", "تأمينات", "وزارة", "أبشر"],
         "replies": [
             "الخدمات الحكومية متاحة عبر منصة أبشر والمنصات الرسمية 📋 حدد لي الخدمة بالضبط وأوجهك للطريق الصحيح.",
             "معظم الخدمات الحكومية تتم إلكترونياً الآن. اذكر لي اسم الخدمة وأفيدك بالتفاصيل ✅"
         ]
     },
-
-    # 💼 المؤسسات والشركات
     "مؤسسات": {
-        "keywords": [
-            "سجل تجاري", "مؤسسة", "شركة", "ترخيص", "ملف", "زكاة",
-            "ضريبة", "هيئة", "استثمار", "تأسيس", "تجديد سجل"
-        ],
+        "keywords": ["سجل تجاري", "مؤسسة", "شركة", "ترخيص", "زكاة", "ضريبة", "تأسيس"],
         "replies": [
-            "للخدمات التجارية والمؤسسية: تأكد من منصة السجل التجاري والزكاة والضريبة 📊 حدد طلبك بالتفصيل من فضلك.",
-            "الخدمات المؤسسية عبر منصة وزارة التجارة والزكاة والدخل. اذكر نوع طلبك وأوجهك للرابط المباشر 🔗"
+            "للخدمات التجارية والمؤسسية: تأكد من منصة السجل التجاري والزكاة والضريبة 📊 حدد طلبك بالتفصيل.",
+            "الخدمات المؤسسية عبر منصة وزارة التجارة. اذكر نوع طلبك وأوجهك للرابط المباشر 🔗"
         ]
     },
-
-    # 👤 خدمات الأفراد والدعم
     "أفراد": {
-        "keywords": [
-            "دعم", "حساب مواطن", "ضمان", "معاش", "تأمين اجتماعي",
-            "قرض", "تمويل", "مساعدة", "إعانة", "سكني", "زكاة الفرد"
-        ],
+        "keywords": ["دعم", "حساب مواطن", "ضمان", "معاش", "قرض", "تمويل", "سكني"],
         "replies": [
-            "للخدمات الفردية والاجتماعية — تختلف التفاصيل حسب البرنامج 💙 اذكر لي اسم البرنامج بالضبط وأعطيك كل التفاصيل.",
+            "للخدمات الفردية والاجتماعية 💙 اذكر لي اسم البرنامج بالضبط وأعطيك كل التفاصيل.",
             "الخدمات الاجتماعية كثيرة (حساب مواطن، ضمان، سكني…). حدد لي اللي تبيه وأفيدك فوراً ✅"
         ]
     },
-
-    # 🏗️ مواد البناء والمقاولات
     "بناء": {
-        "keywords": [
-            "حديد", "اسمنت", "أسمنت", "سباك", "مواسير", "كهرب", "كابل",
-            "سلك", "خشب", "طوب", "رمل", "بلوك", "مواد بناء"
-        ],
+        "keywords": ["حديد", "اسمنت", "سباك", "كهرب", "خشب", "مواد بناء"],
         "replies": {
-            "حديد": "سعر الحديد حالياً يتراوح بين ٣٦٠٠ و ٣٧٥٠ ريال للطن 🏗️ كم طن تحتاج؟",
+            "حديد": "سعر الحديد حالياً ٣٦٠٠-٣٧٥٠ ريال للطن 🏗️ كم طن تحتاج؟",
             "اسمنت": "سعر كيس الأسمنت ١٤ ريال 🧱 الكمية بكم؟",
-            "سباك": "مواسير PVC وجميع مستلزمات السباكة متوفرة 💧 حدد القطر والكمية من فضلك.",
+            "سباك": "مواسير وجميع مستلزمات السباكة متوفرة 💧 حدد القطر والكمية.",
             "كهرب": "الكابلات والأسلاك متوفرة بأنواعها ⚡ حدد النوع والمقاس.",
             "خشب": "جميع أنواع الأخشاب متوفرة 🌲 اذكر النوع والمقاسات.",
             "افتراضي": "جميع مواد البناء متوفرة 📦 حدد النوع والكمية وأعطيك السعر فوراً."
         }
     },
-
-    # 📞 المساعدة العامة
     "مساعدة": {
-        "keywords": ["مساعدة", "ماذا عندكم", "خدماتكم", "استفسار", "كيف"],
+        "keywords": ["مساعدة", "ماذا عندكم", "خدماتكم", "كيف"],
         "replies": [
             "نقدم خدمات في هذه المجالات — حدد ما تريد:\n🏛️ حكومي | 💼 مؤسسات | 👤 أفراد | 🏗️ مواد بناء",
             "يمكنني مساعدتك في:\n✅ الخدمات الحكومية\n✅ الأعمال والمؤسسات\n✅ الدعم والخدمات الاجتماعية\n✅ مواد البناء\n\nاكتب لي طلبك مباشرة 😊"
@@ -102,99 +74,121 @@ DATABASE = {
 }
 
 # ==========================================================
-# 🧠 دالة الرد الذكي — هنا تتم المعالجة
+# 🧠 دالة الرد الذكي
 # ==========================================================
 def get_bot_response(user_message):
-    """
-    دالة استلام الرسالة والبحث عن الرد المناسب
-    هذه الطريقة منظمة جداً وتسهل عليك التوسيع لاحقاً
-    """
-    # نحول الرسالة لأحرف صغيرة عشان المقارنة تكون دقيقة
     msg = user_message.lower().strip()
-
-    # 🔁 نمر على كل قسم في قاعدة البيانات
     for category, data in DATABASE.items():
-        # نتحقق هل كلمة من كلمات القسم موجودة في رسالة المستخدم
         if any(keyword in msg for keyword in data["keywords"]):
-            
-            # ✅ الحالة الأولى: الرد قاموس (مثل مواد البناء — كل منتج له سعر خاص)
             if isinstance(data["replies"], dict):
-                # نبحث عن اسم المنتج بالضبط
                 for product, reply_text in data["replies"].items():
                     if product in msg and product != "افتراضي":
                         return reply_text
-                # لو ماوجدنا نرد بالافتراضي
                 return data["replies"]["افتراضي"]
-            
-            # ✅ الحالة الثانية: الرد قائمة — نختار رد عشوائي
             else:
                 return random.choice(data["replies"])
-
-    # ❌ لو ماوجدنا أي تطابق — نعرض المساعدة
-    return "عذراً 😅 لم أفهم طلبك بالضبط! الرجاء التحديد:\n🏛️ حكومي | 💼 مؤسسات | 👤 أفراد | 🏗️ بناء\nأو اكتب 'مساعدة' لعرض الخدمات."
+    return "عذراً 😅 لم أفهم طلبك! الرجاء التحديد:\n🏛️ حكومي | 💼 مؤسسات | 👤 أفراد | 🏗️ بناء\nأو اكتب 'مساعدة'."
 
 # ==========================================================
-# 🎨 واجهة المستخدم — جاهزة ومتجاوبة مع الجوال
+# 🎨 الصفحة الرئيسية + البوت العائم
 # ==========================================================
-HTML_TEMPLATE = """
+HTML_PAGE = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>خدمة العملاء — مساعدك الشامل</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>موقع تجريبي — بوت عائم</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
-        }
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        .chat-container {
-            width: 100%;
-            max-width: 420px;
-            background: #ffffff;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: 85vh;
-            max-height: 750px;
-        }
-        .chat-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        
+        /* ===== محتوى الموقع العادي ===== */
+        body { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); min-height: 200vh; }
+        .page-content { padding: 40px 20px; max-width: 900px; margin: 0 auto; }
+        h1 { color: #1e40af; font-size: 32px; margin-bottom: 15px; }
+        .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        p { color: #475569; font-size: 17px; line-height: 1.8; margin-bottom: 10px; }
+        
+        /* ==============================================
+           🤖 البوت العائم — هنا كل السحر!
+           ============================================== */
+        
+        /* 🔘 زر البوت الدائري الثابت في الزاوية */
+        .chat-toggle-btn {
+            position: fixed;  /* ✅ يبقى ثابت دائماً — سر البوت! */
+            bottom: 25px;
+            left: 25px;
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
             color: white;
-            padding: 20px;
-            text-align: center;
+            border: none;
+            font-size: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+            z-index: 9999;  /* ✅ يطلع فوق كل شيء */
+            transition: all 0.3s ease;
         }
-        .chat-header h2 {
-            font-size: 18px;
-            margin-bottom: 4px;
+        .chat-toggle-btn:hover { transform: scale(1.15); }
+        
+        /* 💬 مربع المحادثة — مخفي افتراضياً */
+        .chat-box {
+            position: fixed;
+            bottom: 105px;
+            left: 25px;
+            width: 380px;
+            max-width: 92vw;
+            height: 520px;
+            max-height: 80vh;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: none;  /* ✅ مخفي */
+            flex-direction: column;
+            z-index: 9998;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
         }
-        .chat-header p {
-            font-size: 13px;
-            opacity: 0.9;
+        .chat-box.open { display: flex; }  /* ✅ يظهر لما نضغط */
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        
+        /* 🎨 رأس المحادثة */
+        .chat-header {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-header h3 { font-size: 16px; }
+        .chat-header button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+        .chat-header button:hover { opacity: 1; }
+        
+        /* 💬 منطقة الرسائل */
         .chat-messages {
             flex: 1;
-            padding: 20px;
+            padding: 16px;
             overflow-y: auto;
-            background: #f8f9fa;
+            background: #f8fafc;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
         .msg {
-            max-width: 85%;
+            max-width: 82%;
             padding: 12px 16px;
             border-radius: 18px;
             line-height: 1.5;
@@ -202,134 +196,171 @@ HTML_TEMPLATE = """
             white-space: pre-wrap;
         }
         .msg.user {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #2563eb;
             color: white;
             align-self: flex-end;
             border-bottom-right-radius: 6px;
         }
         .msg.bot {
-            background: #ffffff;
-            color: #333;
+            background: white;
+            color: #1e293b;
             align-self: flex-start;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
             border-bottom-left-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         .msg.typing {
-            background: #e9ecef;
-            color: #6c757d;
+            background: #e2e8f0;
+            color: #64748b;
             font-size: 14px;
         }
-        .time {
-            font-size: 10px;
-            opacity: 0.6;
-            margin-top: 6px;
-            text-align: right;
-        }
+        
+        /* ⌨️ منطقة الإدخال */
         .chat-input-area {
-            padding: 16px;
+            padding: 14px;
             background: white;
-            border-top: 1px solid #eee;
+            border-top: 1px solid #e2e8f0;
             display: flex;
             gap: 10px;
             align-items: center;
         }
         .chat-input-area input {
             flex: 1;
-            padding: 14px 20px;
-            border: 2px solid #e9ecef;
-            border-radius: 30px;
+            padding: 12px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 25px;
             font-size: 15px;
             outline: none;
-            transition: border-color 0.3s;
+            transition: border-color 0.2s;
         }
-        .chat-input-area input:focus {
-            border-color: #667eea;
-        }
+        .chat-input-area input:focus { border-color: #2563eb; }
         .chat-input-area button {
-            width: 46px;
-            height: 46px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             border: none;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #2563eb;
             color: white;
-            font-size: 20px;
+            font-size: 18px;
             cursor: pointer;
-            transition: transform 0.2s;
         }
-        .chat-input-area button:active {
-            transform: scale(0.95);
-        }
+        
+        /* 📱 للجوال */
         @media (max-width: 480px) {
-            body { padding: 0; }
-            .chat-container { height: 100vh; max-height: 100vh; border-radius: 0; }
+            .chat-box {
+                width: 100%;
+                height: 100vh;
+                bottom: 0;
+                left: 0;
+                max-height: 100vh;
+                border-radius: 0;
+            }
+            .chat-toggle-btn { bottom: 20px; left: 20px; }
         }
     </style>
 </head>
 <body>
-    <div class="chat-container">
+
+    <!-- ===== محتوى الصفحة الرئيسية ===== -->
+    <div class="page-content">
+        <h1>🇸🇦 منصة الخدمات الشاملة</h1>
+        <div class="card">
+            <p>مرحباً بك في منصتنا الإلكترونية 🤝</p>
+            <p>نقدم لك جميع الخدمات في مكان واحد — خدمات حكومية، تجارية، فردية، ومواد بناء.</p>
+            <p>📌 لاحظ الزر في الزاوية اليسرى السفلية ⬇️ — هذا بوت الخدمات الذكي! اضغط عليه وتحدث معه 😊</p>
+        </div>
+        <div class="card">
+            <p>🔄 اسحب الصفحة للأسفل ولاحظ أن زر البوت يبقى ثابتاً في مكانه — مهما تحركت الصفحة!</p>
+            <p>هذه خاصية <code>position: fixed</code> اللي تعلمنا عنها ✅</p>
+        </div>
+        <div class="card">
+            <p>🏛️ خدمات حكومية: جوازات، إقامة، مرور، بلدية...</p>
+            <p>💼 مؤسسات: سجل تجاري، تراخيص، زكاة وضريبة...</p>
+            <p>👤 أفراد: دعم، حساب مواطن، قروض...</p>
+            <p>🏗️ بناء: حديد، أسمنت، كهرباء، سباكة...</p>
+        </div>
+        <div class="card">
+            <p>👇 استمر بالسحب للأسفل...</p>
+            <p style="height: 300px;">المزيد من محتوى الموقع...</p>
+            <p>✅ شفت؟ البوت ما تحرك! يبقى ثابت دائماً في الزاوية.</p>
+        </div>
+    </div>
+
+    <!-- ==============================================
+         🤖 البوت العائم — يظهر في كل الصفحة!
+         ============================================== -->
+    
+    <!-- 🔘 زر الفتح والإغلاق -->
+    <button class="chat-toggle-btn" id="chatToggle">💬</button>
+    
+    <!-- 💬 نافذة المحادثة -->
+    <div class="chat-box" id="chatBox">
         <div class="chat-header">
-            <h2>🤖 مساعدك الشامل</h2>
-            <p>حكومي • مؤسسات • أفراد • بناء</p>
+            <h3>🤖 مساعد الخدمات</h3>
+            <button id="closeChat">✕</button>
         </div>
-        
-        <div class="chat-messages" id="messages">
-            <div class="msg bot">أهلاً وسهلاً! 👋 أنا مساعدك الشامل. اكتب لي طلبك أو اكتب "مساعدة" لعرض الخدمات.</div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="msg bot">أهلاً وسهلاً! 👋 أنا مساعدك الذكي. اكتب لي طلبك أو اكتب "مساعدة" لعرض الخدمات.</div>
         </div>
-        
         <div class="chat-input-area">
-            <input type="text" id="userInput" placeholder="اكتب طلبك هنا…" onkeydown="if(event.key === 'Enter') sendMessage()">
-            <button onclick="sendMessage()">➤</button>
+            <input type="text" id="chatInput" placeholder="اكتب رسالتك هنا...">
+            <button id="sendBtn">➤</button>
         </div>
     </div>
 
     <script>
+        // 🧠 فتح وإغلاق البوت
+        const toggleBtn = document.getElementById('chatToggle');
+        const chatBox = document.getElementById('chatBox');
+        const closeBtn = document.getElementById('closeChat');
+        
+        toggleBtn.addEventListener('click', () => {
+            chatBox.classList.toggle('open');
+        });
+        closeBtn.addEventListener('click', () => {
+            chatBox.classList.remove('open');
+        });
+
+        // 📨 إرسال الرسائل
+        const input = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const messages = document.getElementById('chatMessages');
         let isBusy = false;
 
         function addMessage(text, isUser) {
-            const container = document.getElementById('messages');
             const div = document.createElement('div');
             div.className = `msg ${isUser ? 'user' : 'bot'}`;
-            
-            const time = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-            div.innerHTML = text + `<div class="time">${time}</div>`;
-            
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+            div.textContent = text;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
         }
 
         async function sendMessage() {
             if (isBusy) return;
+            const text = input.value.trim();
+            if (!text) return;
             
-            const input = document.getElementById('userInput');
-            const message = input.value.trim();
-            if (!message) return;
-
-            // إضافة رسالة المستخدم
-            addMessage(message, true);
+            addMessage(text, true);
             input.value = '';
             isBusy = true;
 
             // مؤشر الكتابة
-            const container = document.getElementById('messages');
             const typing = document.createElement('div');
-            typing.className = 'msg bot typing';
+            typing.className = 'msg typing bot';
             typing.textContent = '⌛ جاري التفكير...';
-            container.appendChild(typing);
-            container.scrollTop = container.scrollHeight;
+            messages.appendChild(typing);
+            messages.scrollTop = messages.scrollHeight;
 
             // إرسال للخادم
             try {
-                const response = await fetch('/get-response', {
+                const res = await fetch('/get-reply', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ message: text })
                 });
-                
-                const data = await response.json();
+                const data = await res.json();
                 typing.remove();
                 addMessage(data.reply, false);
-                
-            } catch (error) {
+            } catch (err) {
                 typing.remove();
                 addMessage('⚠️ حدث خطأ، حاول مرة أخرى.', false);
             }
@@ -337,33 +368,34 @@ HTML_TEMPLATE = """
             isBusy = false;
             input.focus();
         }
+
+        sendBtn.addEventListener('click', sendMessage);
+        input.addEventListener('keydown', (e) => e.key === 'Enter' && sendMessage());
     </script>
+
 </body>
 </html>
 """
 
 # ==========================================================
-# 🌐 المسارات — ربط الواجهة بالمنطق
+# 🌐 المسارات
 # ==========================================================
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE)
+    return render_template_string(HTML_PAGE)
 
-@app.route('/get-response', methods=['POST'])
-def get_response():
+@app.route('/get-reply', methods=['POST'])
+def get_reply():
     data = request.get_json()
     user_msg = data.get('message', '').strip()
-    
     if not user_msg:
         return jsonify({'reply': '⚠️ الرجاء كتابة رسالة!'})
-    
-    bot_reply_text = get_bot_response(user_msg)
-    return jsonify({'reply': bot_reply_text})
+    return jsonify({'reply': get_bot_response(user_msg)})
 
 # ==========================================================
-# 🚀 تشغيل التطبيق
+# 🚀 تشغيل
 # ==========================================================
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print("✅ التطبيق يعمل! افتح الرابط: http://localhost:5000")
+    print("✅ البوت العائم جاهز! افتح الرابط: http://localhost:5000")
     app.run(host='0.0.0.0', port=port, debug=True)
