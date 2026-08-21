@@ -16,7 +16,7 @@ import sqlite3
 
 app = Flask(__name__)
 
-# ===== إعداد الحماية الخلفية (Rate Limiter) - يمنع الاستنزاف =====
+# ===== إعداد الحماية الخلفية (Rate Limiter) =====
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -203,7 +203,7 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ========== واجهة الدردشة (كودك الأصلي بالضبط + حماية XSS فقط) ==========
+# ========== واجهة الدردشة (نفس كودك الأصلي بلا أي تعديل) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -218,7 +218,6 @@ HTML_TEMPLATE = """
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
-        /* كود الـ CSS الأصلي الخاص بك كما هو تماماً */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
         body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
@@ -228,7 +227,12 @@ HTML_TEMPLATE = """
         .menu-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; }
         .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
         .mute-btn:hover { color: #1a2b3c; }
-        .mute-btn.muted { color: #444444; opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; }
+        .mute-btn.muted { 
+            color: #444444;
+            opacity: 0.4; 
+            transform: scale(0.9);
+            transition: all 0.2s ease;
+        }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1px solid #4a6a8a; color: #4a6a8a; }
@@ -238,7 +242,20 @@ HTML_TEMPLATE = """
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 500; transition: background 0.2s; }
+        .dropdown .conv-item {
+            display: block;
+            padding: 12px 18px;
+            border-bottom: 1px solid #f0f2f5;
+            cursor: pointer;
+            width: 100%;
+            background: none;
+            border: none;
+            text-align: right;
+            font-size: 16px;
+            color: #1a2b3c;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
@@ -362,13 +379,6 @@ HTML_TEMPLATE = """
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
 <script>
-    // ===== إضافة دالة حماية XSS فقط (بدون لمس أي كود آخر) =====
-    function escapeHtml(text) {
-        var div = document.createElement('div');
-        div.appendChild(document.createTextNode(text));
-        return div.innerHTML;
-    }
-
     (function() {
         let conversationHistory = [];
         let pendingImageData = null;
@@ -507,21 +517,18 @@ HTML_TEMPLATE = """
             const time = isSystem ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
             
             if (imageData) {
-                el.innerHTML = `<img src="${imageData}" class="image-upload" /><span class="file-label">${escapeHtml(text || 'صورة')}</span>${time ? ' <span class="time">'+time+'</span>' : ''}`;
+                el.innerHTML = `<img src="${imageData}" class="image-upload" /><span class="file-label">${text || 'صورة'}</span>${time ? ' <span class="time">'+time+'</span>' : ''}`;
                 chatBox.appendChild(el);
                 chatBox.scrollTop = chatBox.scrollHeight;
                 return el;
             }
 
-            // ===== حماية XSS: استخدام escapeHtml للنص القادم من المستخدم فقط =====
-            const cleanText = escapeHtml(text);
-
-            const imageUrlMatch = cleanText.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
-            let displayText = cleanText;
+            const imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
+            let displayText = text;
             let generatedImageUrl = null;
             if (imageUrlMatch) {
                 generatedImageUrl = imageUrlMatch[0];
-                displayText = cleanText.replace(imageUrlMatch[0], '').trim();
+                displayText = text.replace(imageUrlMatch[0], '').trim();
                 if (!displayText) displayText = '🖼️ الصورة المولدة';
             }
 
