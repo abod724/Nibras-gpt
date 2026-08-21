@@ -850,7 +850,7 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # 2) المستخدمون العاديون: نظام تسجيل دخول حقيقي بكلمة مرور
+        # 2) المستخدمون العاديون: فقط المسجلون مسبقاً يستطيعون الدخول
         all_users = load_users()
         
         if email in all_users:
@@ -862,12 +862,8 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة المرور غير صحيحة.")
         else:
-            hashed_password = generate_password_hash(password)
-            all_users[email] = hashed_password
-            save_users(all_users)
-            session.clear()
-            session['user_email'] = email
-            return redirect(url_for('index'))
+            # لا نسمح بالتسجيل التلقائي، نرفض الدخول
+            return render_template_string(LOGIN_HTML, error="البريد الإلكتروني غير مسجل. تواصل مع المدير.")
 
     return render_template_string(LOGIN_HTML)
 
