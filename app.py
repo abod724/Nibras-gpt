@@ -38,7 +38,7 @@ SYSTEM_ENABLED = True
 def serve_robots():
     return send_from_directory('static', 'robots.txt')
 
-# ========== نظام تخزين المستخدمين (لمنع الدخول بكلمة مرور عشوائية) ==========
+# ========== نظام تخزين المستخدمين ==========
 USERS_FILE = "users.json"
 
 def load_users():
@@ -850,7 +850,7 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # 2) المستخدمون العاديون: فقط المسجلون مسبقاً يستطيعون الدخول
+        # 2) المستخدمون العاديون: إذا كان البريد موجوداً تحقق من كلمة المرور، وإلا سجل جديد
         all_users = load_users()
         
         if email in all_users:
@@ -862,8 +862,13 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة المرور غير صحيحة.")
         else:
-            # لا نسمح بالتسجيل التلقائي، نرفض الدخول
-            return render_template_string(LOGIN_HTML, error="البريد الإلكتروني غير مسجل. تواصل مع المدير.")
+            # تسجيل جديد
+            hashed_password = generate_password_hash(password)
+            all_users[email] = hashed_password
+            save_users(all_users)
+            session.clear()
+            session['user_email'] = email
+            return redirect(url_for('index'))
 
     return render_template_string(LOGIN_HTML)
 
