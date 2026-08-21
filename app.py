@@ -357,6 +357,15 @@ HTML_TEMPLATE = """
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 600; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: #f5f7fa; }
         .gender-option.active { background: #4a6a8a; color: white; border-color: #4a6a8a; }
+
+        /* ===== إخفاء مضمون لعناصر رفع الملفات ===== */
+        input[type="file"] {
+            position: absolute !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            width: 1px !important;
+            height: 1px !important;
+        }
     </style>
 </head>
 <body>
