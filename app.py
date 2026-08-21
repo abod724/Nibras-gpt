@@ -1,8 +1,16 @@
 from flask import Flask, request, jsonify, render_template_string
 import random, os
-from personality import EXAMPLE_RESPONSES
 
 app = Flask(__name__)
+
+# ========== الشخصية (كانت في personality.py) ==========
+EXAMPLE_RESPONSES = {
+    "ترحيب": "أهلاً! كيف أقدر أساعدك؟",
+    "شكر": "العفو، تحت أمرك.",
+    "وداع": "مع السلامة.",
+    "عدم فهم": "ما فهمت، حدد المنتج (حديد، اسمنت، سباكة، كهرباء، خشب)."
+}
+# ===================================================
 
 HTML = """
 <!DOCTYPE html>
