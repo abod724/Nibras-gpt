@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template_string, session, redirect, url_for, send_from_directory
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
 from werkzeug.security import generate_password_hash, check_password_hash
 import openai
 import os
@@ -13,8 +14,19 @@ import edge_tts
 import base64
 import re
 import sqlite3
+import logging
+from PIL import Image
+import io
+
+# ===== إعداد التسجيل (Logging) =====
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# ===== إجبار HTTPS =====
+# في بيئة الإنتاج، يفضل تفعيله؛ وفي التطوير يمكن تعطيله
+Talisman(app, force_https=not app.debug, force_https_permanent=True)
 
 # ===== إعداد الحماية الخلفية (Rate Limiter) =====
 limiter = Limiter(
@@ -28,6 +40,7 @@ limiter = Limiter(
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
+    logger.critical("OPENAI_API_KEY غير موجود! سيتم إيقاف التطبيق.")
     raise Exception("OPENAI_API_KEY غير موجود! يجب إضافته في متغيرات البيئة")
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
@@ -46,13 +59,17 @@ def load_users():
         try:
             with open(USERS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
+        except Exception as e:
+            logger.error(f"خطأ في تحميل users.json: {e}")
             return {}
     return {}
 
 def save_users(data):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"خطأ في حفظ users.json: {e}")
 
 # ========== قاعدة البيانات (SQLite) ==========
 DB_FILE = "conversations.db"
@@ -189,7 +206,7 @@ def generate_image(prompt):
         )
         return response.data[0].url
     except Exception as e:
-        print(f"❌ فشل توليد الصورة: {e}")
+        logger.error(f"فشل توليد الصورة: {e}")
         return None
 
 # ========== دالة توليد الصوت البشري (Edge TTS) ==========
@@ -203,7 +220,29 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ========== واجهة الدردشة (الأصلية بدون أي تعديل) ==========
+# ========== دالة التحقق من صورة آمنة ==========
+def is_safe_image(image_base64):
+    try:
+        # الحد الأقصى لحجم الصورة 5 ميجابايت
+        MAX_SIZE = 5 * 1024 * 1024
+        if len(image_base64) > MAX_SIZE:
+            logger.warning("حجم الصورة كبير جداً")
+            return False
+        
+        # فك الترميز وفصل الرأس
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',')[1]
+        
+        # محاولة فتح الصورة للتحقق من صحتها
+        img_data = base64.b64decode(image_base64)
+        img = Image.open(io.BytesIO(img_data))
+        img.verify()  # يتحقق من سلامة الصورة
+        return True
+    except Exception as e:
+        logger.warning(f"ملف صورة غير صالح: {e}")
+        return False
+
+# ========== واجهة الدردشة (مع حماية XSS) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -509,6 +548,7 @@ HTML_TEMPLATE = """
             userInput.value = '';
         });
 
+        // ===== دالة آمنة لإضافة الرسائل (تمنع XSS) =====
         function addMessage(text, sender = 'bot', isSystem = false, imageData = null) {
             const el = document.createElement('div');
             el.className = `msg ${sender}`;
@@ -517,7 +557,20 @@ HTML_TEMPLATE = """
             const time = isSystem ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
             
             if (imageData) {
-                el.innerHTML = `<img src="${imageData}" class="image-upload" /><span class="file-label">${text || 'صورة'}</span>${time ? ' <span class="time">'+time+'</span>' : ''}`;
+                const img = document.createElement('img');
+                img.src = imageData;
+                img.className = 'image-upload';
+                const span = document.createElement('span');
+                span.className = 'file-label';
+                span.textContent = text || 'صورة';
+                el.appendChild(img);
+                el.appendChild(span);
+                if (time) {
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'time';
+                    timeSpan.textContent = time;
+                    el.appendChild(timeSpan);
+                }
                 chatBox.appendChild(el);
                 chatBox.scrollTop = chatBox.scrollHeight;
                 return el;
@@ -533,10 +586,18 @@ HTML_TEMPLATE = """
             }
 
             if (sender === 'bot' && !isSystem && !generatedImageUrl) {
-                el.innerHTML = `<span class="typing-text"></span>${time ? ' <span class="time">'+time+'</span>' : ''}`;
+                const typingSpan = document.createElement('span');
+                typingSpan.className = 'typing-text';
+                el.appendChild(typingSpan);
+                if (time) {
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'time';
+                    timeSpan.textContent = time;
+                    el.appendChild(timeSpan);
+                }
                 chatBox.appendChild(el);
                 chatBox.scrollTop = chatBox.scrollHeight;
-                const typingSpan = el.querySelector('.typing-text');
+                
                 let index = 0;
                 let userInteracted = false;
                 const onUserInteract = () => {
@@ -569,11 +630,23 @@ HTML_TEMPLATE = """
                 return el;
             }
 
-            let content = displayText;
+            // للرسائل العادية (نستخدم textContent لمنع XSS)
+            const contentSpan = document.createElement('span');
+            contentSpan.textContent = displayText;
+            el.appendChild(contentSpan);
+            
             if (generatedImageUrl) {
-                content += `<br/><img src="${generatedImageUrl}" class="generated-image" />`;
+                const imgEl = document.createElement('img');
+                imgEl.src = generatedImageUrl;
+                imgEl.className = 'generated-image';
+                el.appendChild(imgEl);
             }
-            el.innerHTML = `${content}${time ? ' <span class="time">'+time+'</span>' : ''}`;
+            if (time) {
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'time';
+                timeSpan.textContent = time;
+                el.appendChild(timeSpan);
+            }
             chatBox.appendChild(el);
             chatBox.scrollTop = chatBox.scrollHeight;
             return el;
@@ -836,23 +909,25 @@ def login():
         if not email or not password:
             return render_template_string(LOGIN_HTML, error="يرجى إدخال البريد الإلكتروني وكلمة المرور.")
 
-        # 1) حساب الأدمن: يجب أن يكون ADMIN_PASSWORD موجوداً في البيئة
+        # حساب الأدمن
         admin_email = "abdullaha0569361@gmail.com"
         admin_password = os.environ.get("ADMIN_PASSWORD")
         
         if not admin_password:
-            # إذا لم يكن معرفاً، نمنع الدخول ونعرض خطأ عام (لا نذكر السبب تفصيلياً)
+            logger.error("محاولة دخول أدمن ولكن ADMIN_PASSWORD غير موجود في البيئة")
             return render_template_string(LOGIN_HTML, error="خطأ في الإعدادات، يرجى الاتصال بالمدير.")
 
         if email == admin_email:
             if secrets.compare_digest(password, admin_password):
                 session.clear()
                 session['admin_email'] = admin_email
+                logger.info(f"دخول أدمن ناجح: {email}")
                 return redirect(url_for('index'))
             else:
+                logger.warning(f"محاولة دخول أدمن فاشلة: {email}")
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # 2) المستخدمون العاديون: تسجيل تلقائي للمستخدمين الجدد أو التحقق من كلمة المرور للموجودين
+        # المستخدمون العاديون
         all_users = load_users()
         
         if email in all_users:
@@ -860,8 +935,10 @@ def login():
             if check_password_hash(stored_hash, password):
                 session.clear()
                 session['user_email'] = email
+                logger.info(f"دخول مستخدم ناجح: {email}")
                 return redirect(url_for('index'))
             else:
+                logger.warning(f"محاولة دخول فاشلة: {email} (كلمة مرور خاطئة)")
                 return render_template_string(LOGIN_HTML, error="كلمة المرور غير صحيحة.")
         else:
             # تسجيل جديد
@@ -870,6 +947,7 @@ def login():
             save_users(all_users)
             session.clear()
             session['user_email'] = email
+            logger.info(f"مستخدم جديد مسجل: {email}")
             return redirect(url_for('index'))
 
     return render_template_string(LOGIN_HTML)
@@ -901,12 +979,10 @@ def get_user_id():
     elif 'user_email' in session:
         return "user_" + session['user_email']
     else:
-        real_ip = request.headers.get('X-Forwarded-For')
-        if real_ip:
-            real_ip = real_ip.split(',')[0].strip()
-        else:
-            real_ip = request.remote_addr
-        return "guest_" + (real_ip or 'unknown')
+        # تعيين معرف ضيف عشوائي يعتمد على الجلسة بدلاً من IP
+        if 'guest_id' not in session:
+            session['guest_id'] = secrets.token_hex(8)
+        return "guest_" + session['guest_id']
 
 @app.route('/set_gender', methods=['POST'])
 def set_gender():
@@ -922,7 +998,7 @@ def chat():
     try:
         data = request.get_json()
         if not data:
-            return jsonify({"error": "Bad Request"}), 400
+            return jsonify({"error": "طلب غير صحيح"}), 400
 
         user_message = data.get("message", "").strip()
         history = data.get("history", [])
@@ -932,8 +1008,6 @@ def chat():
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
 
         is_admin = 'admin_email' in session and session['admin_email'] == "abdullaha0569361@gmail.com"
-        is_trial_user = 'user_email' in session and not is_admin
-
         user_id = get_user_id()
 
         if conv_id is None:
@@ -943,16 +1017,15 @@ def chat():
             model = "gpt-4o"
             use_web_search = True
             allow_images = True
-            limit_msg = None
         else:
             model = "gpt-4o-mini"
             use_web_search = False
             allow_images = False
-            limit_msg = None
 
+        # التحقق من طلب إنشاء صورة
         draw_keywords = ["ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", "رسم", "ارسمي", "صمم", "ولّد", "generate", "draw", "ارسم لي", "أنشئ لي", "انشئ لي", "انشى لي", "صوره لي"]
         if allow_images and any(keyword in user_message for keyword in draw_keywords):
-            print(f"🎨 اكتشاف طلب رسم: {user_message}")
+            logger.info(f"طلب رسم من {user_id}: {user_message}")
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
@@ -961,7 +1034,7 @@ def chat():
                 new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
                 return jsonify({"reply": reply, "conv_id": new_conv_id})
             else:
-                print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
+                logger.warning(f"فشل توليد الصورة للمستخدم {user_id}")
 
         session_memory[user_id].append({"role": "user", "content": user_message})
         chat_history = session_memory[user_id][-10:]
@@ -970,12 +1043,16 @@ def chat():
         for entry in chat_history:
             messages.append({"role": entry["role"], "content": entry["content"]})
 
+        # معالجة الصورة المرفقة (مع تحقق أمني)
         image_data = data.get("image", None)
         if image_data and allow_images:
-            messages.append({
-                "role": "user",
-                "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
-            })
+            if is_safe_image(image_data):
+                messages.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
+                })
+            else:
+                return jsonify({"error": "صورة غير صالحة أو كبيرة جداً"}), 400
 
         if use_web_search:
             try:
@@ -995,7 +1072,7 @@ def chat():
                 if search_result:
                     messages.append({"role": "user", "content": f"نتيجة البحث:\n{search_result}\n\nاستخدم هذه المعلومات."})
             except Exception as e:
-                print(f"⚠️ فشل البحث بالويب: {e}")
+                logger.error(f"فشل البحث بالويب: {e}")
 
         try:
             response = client.chat.completions.create(
@@ -1008,7 +1085,7 @@ def chat():
             if not reply:
                 reply = "ما قدرت أجيب لك رد، حاول مرة أخرى."
         except openai.BadRequestError as e:
-            print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
+            logger.error(f"فشل نموذج {model}: {e}")
             try:
                 fallback_model = "gpt-4o-mini"
                 response = client.chat.completions.create(
@@ -1021,9 +1098,10 @@ def chat():
                 if not reply:
                     reply = "فشل النموذج المتقدم، تم التبديل للنموذج العادي."
             except Exception as e2:
-                reply = f"حدث خطأ في الاتصال بـ OpenAI: {str(e2)}"
+                logger.error(f"فشل النموذج الاحتياطي: {e2}")
+                reply = "حدث خطأ في الاتصال بالذكاء الاصطناعي، حاول مرة أخرى."
         except Exception as e:
-            print(f"❌ خطأ: {e}")
+            logger.error(f"خطأ غير متوقع في OpenAI: {e}")
             reply = "حدث خطأ في السيرفر، حاول مرة أخرى."
 
         session_memory[user_id].append({"role": "assistant", "content": reply})
@@ -1033,15 +1111,16 @@ def chat():
             user_gender = session.get('voice_gender', 'male')
             audio_base64 = asyncio.run(generate_speech(reply, user_gender))
         except Exception as e:
-            print(f"⚠️ فشل توليد الصوت: {e}")
+            logger.error(f"فشل توليد الصوت: {e}")
             audio_base64 = None
 
         return jsonify({"reply": reply, "audio": audio_base64, "conv_id": new_conv_id})
 
     except Exception as e:
-        print(f"❌ خطأ عام في /chat: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"خطأ عام في /chat: {e}")
+        return jsonify({"error": "حدث خطأ داخلي، حاول مرة أخرى"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    # تشغيل الخادم في وضع debug=False للإنتاج
+    app.run(host='0.0.0.0', port=port, debug=False)
