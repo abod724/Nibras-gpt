@@ -24,7 +24,7 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# إعداد المفاتيح السرية (تأكد من وضع SECRET_KEY و ADMIN_PASSWORD في Render)
+# إعداد المفاتيح السرية
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -38,7 +38,7 @@ SYSTEM_ENABLED = True
 def serve_robots():
     return send_from_directory('static', 'robots.txt')
 
-# ========== نظام تخزين المستخدمين (لمنع انتحال الهوية) ==========
+# ========== نظام تخزين المستخدمين (لمنع الدخول بكلمة مرور عشوائية) ==========
 USERS_FILE = "users.json"
 
 def load_users():
@@ -203,7 +203,7 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ========== واجهة الدردشة (نفس كودك الأصلي بلا أي تعديل) ==========
+# ========== واجهة الدردشة (الأصلية بدون أي تعديل) ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -850,7 +850,7 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # 2) المستخدمون العاديون: نظام تسجيل دخول بكلمة مرور حقيقية
+        # 2) المستخدمون العاديون: نظام تسجيل دخول حقيقي بكلمة مرور
         all_users = load_users()
         
         if email in all_users:
