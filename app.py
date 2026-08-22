@@ -15,7 +15,7 @@ app = Flask(__name__, static_folder='static')
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise Exception("OPENAI_API_KEY ط؛ظٹط± ظ…ظˆط¬ظˆط¯! ظٹط¬ط¨ ط¥ط¶ط§ظپطھظ‡ ظپظٹ ظ…طھط؛ظٹط±ط§طھ ط§ظ„ط¨ظٹط¦ط©")
+    raise Exception("OPENAI_API_KEY غير موجود! يجب إضافته في متغيرات البيئة")
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
@@ -72,38 +72,38 @@ def load_conversation_by_id(user_id, conv_id):
 init_db()
 session_memory = {}
 knowledge_content = ""
-possible_names = ["Knowledge.md", "knowledge.md", "ظ…ط¹ط±ظپط©.md", "README.md", "ظ…ظ„ظپ_ط§ظ„ظ…ط¹ط±ظپط©.md"]
+possible_names = ["Knowledge.md", "knowledge.md", "معرفة.md", "README.md", "ملف_المعرفة.md"]
 for filename in possible_names:
     if os.path.exists(filename):
         try:
             with open(filename, "r", encoding="utf-8") as f: knowledge_content = f.read(); break
         except: pass
-if not knowledge_content: knowledge_content = "ط£ظ†طھ ظ†ط¨ط±ط§ط³طŒ ظ…ط³ط§ط¹ط¯ ط°ظƒظٹ."
+if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== ط§ظ„طھط¹ط¯ظٹظ„ 1: طھط¹ظ„ظٹظ…ط§طھ ط§ظ„ظƒطھط§ط¨ط© (ظٹط·ظ„ط¨ ظپظ‚ط±ط§طھ ظ…طھطµظ„ط©) =====
+# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
 SYSTEM_PROMPT = f"""
-ط£ظ†طھ "ظ†ط¨ط±ط§ط³"طŒ ظ…ط³ط§ط¹ط¯ ط´ط®طµظٹ ط°ظƒظٹ طھطھط­ط¯ط« ط¨ط§ظ„ظ„ظ‡ط¬ط© ط§ظ„ط¹ط§ظ…ظٹط© ط§ظ„ط¨ظٹط¶ط§ط،.
+أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
-**ظ…طµط§ط¯ط± ظ…ط¹ط±ظپطھظƒ:**
-1. **ظ…ظ„ظپ ط§ظ„ظ…ط¹ط±ظپط©** (ط£ط¯ظ†ط§ظ‡) ظ‡ظˆ ظ…ط±ط¬ط¹ظƒ ط§ظ„ط£ط³ط§ط³ظٹ.
-2. **ظ…ط¹ط±ظپطھظƒ ط§ظ„ط¹ط§ظ…ط©**.
-3. **ط§ظ„ط¨ط­ط« ط¨ط§ظ„ظˆظٹط¨** طھط³طھط®ط¯ظ…ظ‡ ط¹ظ†ط¯ظ…ط§ ظٹط³ط£ظ„ظƒ ط¹ظ† ط£ظٹ ط´ظٹط، ط­ط¯ظٹط« ط£ظˆ ط؛ظٹط± ظ…ظˆط¬ظˆط¯ ظپظٹ ظ…ظ„ظپ ط§ظ„ظ…ط¹ط±ظپط©.
+**مصادر معرفتك:**
+1. **ملف المعرفة** (أدناه) هو مرجعك الأساسي.
+2. **معرفتك العامة**.
+3. **البحث بالويب** تستخدمه عندما يسألك عن أي شيء حديث أو غير موجود في ملف المعرفة.
 
-**ظ…ظ„ظپ ط§ظ„ظ…ط¹ط±ظپط© ط§ظ„ط®ط§طµ ط¨ظƒ:**
+**ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**âڑ ï¸ڈ ظ‚ظˆط§ط¹ط¯ ط§ظ„طھظ†ط³ظٹظ‚ ط§ظ„ط¥ظ„ط²ط§ظ…ظٹط© (ظٹط¬ط¨ ط§ظ„ط§ظ„طھط²ط§ظ… ط¨ظ‡ط§):**
-- ط§ظƒطھط¨ ط±ط¯ظƒ ظپظٹ ظپظ‚ط±ط§طھ ظ†طµظٹط© ط¹ط§ط¯ظٹط© ظ…طھطµظ„ط© (ظ…ط«ظ„ ChatGPT ظˆط§ظ„ظ…ظ‚ط§ظ„ط§طھ).
-- **ظ…ظ…ظ†ظˆط¹** ظˆط¶ط¹ ظƒظ„ ط¬ظ…ظ„ط© ظپظٹ ط³ط·ط± ظ…ط³طھظ‚ظ„ (ظ…ظ…ظ†ظˆط¹ ط§ظ„ط´ط¹ط±). ط§ظƒطھط¨ ط¬ظ…ظ„ط© ط·ظˆظٹظ„ط© طھظƒظ…ظ„ ظپظٹ ط§ظ„ط³ط·ط± ط§ظ„طھط§ظ„ظٹ.
-- ط§طھط±ظƒ **ط³ط·ط±ط§ظ‹ ظپط§ط±ط؛ط§ظ‹** ط¨ظٹظ† ظƒظ„ ظپظ‚ط±ط© ظˆط£ط®ط±ظ‰.
-- ط§ط³طھط®ط¯ظ… `**ط§ظ„ط®ط· ط§ظ„ط¹ط±ظٹط¶**` ظ„ط¹ظ†ط§ظˆظٹظ† ط§ظ„ظپظ‚ط±ط§طھطŒ ظˆ `-` ظ„ظ„ظ‚ظˆط§ط¦ظ….
+**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
+- اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
+- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
+- اترك **سطراً فارغاً** بين كل فقرة وأخرى.
+- استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
 
-**طھط¹ظ„ظٹظ…ط§طھ ظ…ظ‡ظ…ط©:**
-- ط¥ط°ط§ ط³ط£ظ„ظƒ ط§ظ„ظ…ط³طھط®ط¯ظ… ط¹ظ† ط£ظٹ ط´ظٹط،طŒ ط­ط§ظˆظ„ ط£ظˆظ„ط§ظ‹ ط§ظ„ط¥ط¬ط§ط¨ط© ظ…ظ† ظ…ظ„ظپ ط§ظ„ظ…ط¹ط±ظپط©.
-- ط¥ط°ط§ ظ„ظ… طھط¬ط¯ ط§ظ„ظ…ط¹ظ„ظˆظ…ط© ظپظٹ ظ…ظ„ظپ ط§ظ„ظ…ط¹ط±ظپط©طŒ ط§ط³طھط®ط¯ظ… ط§ظ„ط¨ط­ط« ط¨ط§ظ„ظˆظٹط¨.
-- ط¯ط§ط¦ظ…ط§ظ‹ ط­ط§ظپط¸ ط¹ظ„ظ‰ ظ„ظ‡ط¬طھظƒ ط§ظ„ط¹ط§ظ…ظٹط© ط§ظ„ط¨ظٹط¶ط§ط،.
-- ط¥ط°ط§ ظ„ظ… طھط¬ط¯ ط§ظ„ظ…ط¹ظ„ظˆظ…ط© ظپظٹ ط£ظٹ ظ…ظ† ط§ظ„ظ…طµط§ط¯ط±طŒ ظ‚ظ„ ط¨طµط±ط§ط­ط© "ظ…ط§ ط¹ظ†ط¯ظٹ ط¹ظ„ظ…".
-- ظ„ط§ طھظƒطھط¨ "ظ„ط­ط¸ط©" ط£ظˆ "ط§ظ†طھط¸ط±"طŒ ظپظ‚ط· ط§ظ†طھط¸ط± ط§ظ„ظ†طھظٹط¬ط© ظˆط±ط¯ ظ…ط¨ط§ط´ط±ط©.
+**تعليمات مهمة:**
+- إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
+- إذا لم تجد المعلومة في ملف المعرفة، استخدم البحث بالويب.
+- دائماً حافظ على لهجتك العامية البيضاء.
+- إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
+- لا تكتب "لحظة" أو "انتظر"، فقط انتظر النتيجة ورد مباشرة.
 """
 
 def remove_emoji(text):
@@ -117,7 +117,7 @@ def generate_image(prompt):
         response = client.images.generate(model="dall-e-3", prompt=prompt, n=1, size="1024x1024")
         return response.data[0].url
     except Exception as e:
-        print(f"â‌Œ ظپط´ظ„ طھظˆظ„ظٹط¯ ط§ظ„طµظˆط±ط©: {e}"); return None
+        print(f"❌ فشل توليد الصورة: {e}"); return None
 
 async def generate_speech(text, gender):
     voice_id = "ar-SA-HamedNeural" if gender == "male" else "ar-SA-ZariyahNeural"
@@ -127,7 +127,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ط¥ط¶ط§ظپط© r ظ„ط¥ط³ظƒط§طھ طھط­ط°ظٹط± ط¨ط§ظٹط«ظˆظ† (ظ„ط§ ظٹط؛ظٹط± ط§ظ„ظˆط§ط¬ظ‡ط©)
+# إضافة r لإسكات تحذير بايثون (لا يغير الواجهة)
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -136,8 +136,8 @@ HTML_TEMPLATE = r"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <meta name="google-site-verification" content="PyOhY3ZXN4LTBbK55EbrmeI5A5kqddF3cJeI_s1FwVc" />
     <meta http-equiv="Content-Language" content="ar" />
-    <meta name="description" content="ظ†ط¨ط±ط§ط³ GPطŒ ظ…ط³ط§ط¹ط¯ ط°ظƒظٹ ط³ط¹ظˆط¯ظٹ ظٹطھط­ط¯ط« ط¨ط§ظ„ظ„ظ‡ط¬ط© ط§ظ„ط¹ط§ظ…ظٹط© ط§ظ„ط¨ظٹط¶ط§ط، ظˆظٹظƒطھط¨ ط¨طµظˆطھ ط¨ط´ط±ظٹ. ط¬ط±ط¨ ط§ظ„ظ…ط­ط§ط¯ط«ط© ط§ظ„طµظˆطھظٹط© ط§ظ„ط¢ظ†!" />
-    <title>ظ†ط¨ط±ط§ط³</title>
+    <meta name="description" content="نبراس GP، مساعد ذكي سعودي يتحدث باللهجة العامية البيضاء ويكتب بصوت بشري. جرب المحادثة الصوتية الآن!" />
+    <title>نبراس</title>
     <link rel="manifest" href="/static/manifest.json" />
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
@@ -167,7 +167,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
-        # ===== ط§ظ„طھط¹ط¯ظٹظ„ 2: طھط؛ظٹظٹط± pre-wrap ط¥ظ„ظ‰ normal ظ„ظٹظ…طھط¯ ط§ظ„ظ†طµ ظƒظپظ‚ط±ط§طھ =====
+        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
         
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
@@ -176,23 +176,6 @@ HTML_TEMPLATE = r"""
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
-        /* ===== طھظ†ط³ظٹظ‚ Markdown ط¯ط§ط®ظ„ ط±ط¯ظˆط¯ ظ†ط¨ط±ط§ط³ ظپظ‚ط· ===== */
-        .bot-content { width: 100%; }
-        .bot-content p { margin: 0 0 14px 0; line-height: 1.9; }
-        .bot-content p:last-child { margin-bottom: 0; }
-        .bot-content h1, .bot-content h2, .bot-content h3 { color: #1a2b3c; line-height: 1.5; margin: 18px 0 10px; font-weight: 700; }
-        .bot-content h1 { font-size: 24px; }
-        .bot-content h2 { font-size: 21px; }
-        .bot-content h3 { font-size: 18px; }
-        .bot-content ul, .bot-content ol { margin: 8px 0 16px; padding-right: 24px; }
-        .bot-content li { margin: 5px 0; line-height: 1.8; }
-        .bot-content blockquote { margin: 12px 0; padding: 8px 14px; border-right: 3px solid #dce1e8; color: #5a6b7c; background: #f8fafc; border-radius: 8px; }
-        .bot-content code { background: #f1f3f5; border: 1px solid #e3e6e8; border-radius: 6px; padding: 2px 6px; font-family: Consolas, monospace; font-size: 0.9em; direction: ltr; unicode-bidi: plaintext; }
-        .bot-content pre { margin: 12px 0; padding: 14px; background: #f5f7fa; border: 1px solid #e0e4e8; border-radius: 12px; overflow-x: auto; direction: ltr; text-align: left; }
-        .bot-content pre code { background: transparent; border: none; padding: 0; white-space: pre; }
-        .bot-content a { color: #4a6a8a; text-decoration: underline; word-break: break-word; }
-        .bot-content hr { border: 0; border-top: 1px solid #e5e9ed; margin: 18px 0; }
-
         .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 600; color: #5a6b7c; }
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
@@ -251,31 +234,31 @@ HTML_TEMPLATE = r"""
 <div class="app">
     <div class="header">
         <div class="header-right">
-            <button class="mute-btn" id="muteBtn" title="ظƒطھظ… ط§ظ„طµظˆطھ / طھظپط¹ظٹظ„ ط§ظ„طµظˆطھ"><i class="fas fa-volume-up"></i></button>
-            <button class="menu-btn" id="menuToggle" aria-label="ط§ظ„ظ‚ط§ط¦ظ…ط©"><i class="fas fa-ellipsis-v"></i></button>
+            <button class="mute-btn" id="muteBtn" title="كتم الصوت / تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
+            <button class="menu-btn" id="menuToggle" aria-label="القائمة"><i class="fas fa-ellipsis-v"></i></button>
         </div>
         <div class="header-left">
             <div class="btn-group">
                 {% if session.get('admin_email') or session.get('user_email') %}
-                    <a href="/logout" class="btn btn-outline">طھط³ط¬ظٹظ„ ط®ط±ظˆط¬</a>
+                    <a href="/logout" class="btn btn-outline">تسجيل خروج</a>
                 {% else %}
-                    <a href="/login" class="btn btn-outline">ط¯ط®ظˆظ„</a>
+                    <a href="/login" class="btn btn-outline">دخول</a>
                 {% endif %}
             </div>
         </div>
     </div>
     
     <div class="dropdown" id="dropdown">
-        <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> ظ…ط­ط§ط¯ط«ط© ط¬ط¯ظٹط¯ط©</button>
-        <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> طھط±ظ‚ظٹط©</button>
+        <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
+        <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid #f0f2f5;">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1a2b3c;">
                 <i class="fas fa-microphone" style="font-size: 18px; color: #5a6b7c;"></i>
-                <span>طµظˆطھ ط§ظ„ظ…ط³ط§ط¹ط¯</span>
+                <span>صوت المساعد</span>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button class="gender-option active" data-gender="male">ًں‘¨ ط°ظƒط±</button>
-                <button class="gender-option" data-gender="female">ًں‘© ط£ظ†ط«ظ‰</button>
+                <button class="gender-option active" data-gender="male">👨 ذكر</button>
+                <button class="gender-option" data-gender="female">👩 أنثى</button>
             </div>
         </div>
         <div id="historyList"></div>
@@ -284,21 +267,21 @@ HTML_TEMPLATE = r"""
     <div id="chat"></div>
 
     <div id="imagePreviewContainer">
-        <img id="imagePreview" src="" alt="ظ…ط¹ط§ظٹظ†ط©" />
-        <span class="label">ًں“ژ طµظˆط±ط© ظ…ط¹ظ„ظ‚ط©</span>
-        <button id="removeImageBtn">âœ• ط¥ط²ط§ظ„ط©</button>
+        <img id="imagePreview" src="" alt="معاينة" />
+        <span class="label">📎 صورة معلقة</span>
+        <button id="removeImageBtn">✕ إزالة</button>
     </div>
 
     <div class="input-area">
-        <button class="btn-icon mic-btn" id="micBtn" aria-label="طھط³ط¬ظٹظ„ طµظˆطھظٹ"><i class="fas fa-microphone"></i></button>
-        <button class="plus-btn" id="plusBtn" aria-label="ط¥ط¶ط§ظپط© ظ…ظ„ظپ"><i class="fas fa-plus"></i></button>
+        <button class="btn-icon mic-btn" id="micBtn" aria-label="تسجيل صوتي"><i class="fas fa-microphone"></i></button>
+        <button class="plus-btn" id="plusBtn" aria-label="إضافة ملف"><i class="fas fa-plus"></i></button>
         <div class="plus-options" id="plusOptions">
             <button class="option-btn camera" id="cameraBtn"><i class="fas fa-camera"></i></button>
             <button class="option-btn gallery" id="galleryBtn"><i class="fas fa-images"></i></button>
             <button class="option-btn files" id="filesBtn"><i class="fas fa-folder"></i></button>
         </div>
-        <textarea id="userInput" placeholder="ط§ظƒطھط¨ ط±ط³ط§ظ„طھظƒ..." autofocus rows="1"></textarea>
-        <button class="send" id="sendBtn" aria-label="ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط³ط§ظ„ط©"><i class="fas fa-arrow-left"></i></button>
+        <textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea>
+        <button class="send" id="sendBtn" aria-label="إرسال الرسالة"><i class="fas fa-arrow-left"></i></button>
     </div>
     
     <input type="file" id="fileInput" accept="image/*" style="display: none;" />
@@ -399,11 +382,11 @@ HTML_TEMPLATE = r"""
                 } else {
                     const empty = document.createElement('div');
                     empty.className = 'item';
-                    empty.textContent = 'ًں“­ ظ„ط§ طھظˆط¬ط¯ ظ…ط­ط§ط¯ط«ط§طھ ط³ط§ط¨ظ‚ط©';
+                    empty.textContent = '📭 لا توجد محادثات سابقة';
                     historyList.appendChild(empty);
                 }
             } catch (e) {
-                console.error('ط®ط·ط£ ظپظٹ طھط­ظ…ظٹظ„ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ:', e);
+                console.error('خطأ في تحميل المحادثات:', e);
             }
         }
 
@@ -422,7 +405,7 @@ HTML_TEMPLATE = r"""
                     dropdown.classList.remove('show');
                 }
             } catch (e) {
-                console.error('ط®ط·ط£ ظپظٹ طھط­ظ…ظٹظ„ ط§ظ„ظ…ط­ط§ط¯ط«ط©:', e);
+                console.error('خطأ في تحميل المحادثة:', e);
             }
         }
 
@@ -436,82 +419,31 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== ط§ظ„طھط¹ط¯ظٹظ„ 3: ط¥ط¶ط§ظپط© ط¯ط§ظ„ط© طھط­ظˆظٹظ„ ط§ظ„ظ…ط§ط±ظƒط¯ط§ظˆظ† (ط´ظƒظ„ ChatGPT) =====
-        // ===== طھظ†ط³ظٹظ‚ Markdown + HTML ط¨ط´ظƒظ„ ط¢ظ…ظ† ظˆظ…ظ†ط¸ظ… =====
+        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
         function formatBotText(text) {
-            if (!text) return '';
-
-            var safe = String(text)
+            var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/\r\n/g, '\n')
-                .replace(/\r/g, '\n');
+                .replace(/>/g, '&gt;');
 
-            var codeBlocks = [];
-            safe = safe.replace(/```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, function(match, code) {
-                var id = '___CODE_BLOCK_' + codeBlocks.length + '___';
-                codeBlocks.push('<pre><code>' + code.replace(/\n$/, '') + '</code></pre>');
-                return id;
-            });
+            // تحويل العناوين
+            safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+            safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+            safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+            
+            // تحويل الخط العريض
+            safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-                '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-
-            safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-            safe = safe.replace(/__(.+?)__/g, '<strong>$1</strong>');
-            safe = safe.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
-            safe = safe.replace(/(?<!_)_([^_\n]+)_(?!_)/g, '<em>$1</em>');
-            safe = safe.replace(/~~(.+?)~~/g, '<del>$1</del>');
-            safe = safe.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-
-            safe = safe.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-            safe = safe.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-            safe = safe.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-            safe = safe.replace(/^>\s?(.*)$/gm, '<blockquote>$1</blockquote>');
-            safe = safe.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr>');
-
-            safe = safe.replace(/(?:^|\n)((?:\s*\d+\.\s+.+(?:\n|$))+)/g, function(match, block) {
-                var items = block.trim().split('\n').filter(function(line) { return line.trim(); });
-                var html = '<ol>';
-                items.forEach(function(item) {
-                    html += '<li>' + item.replace(/^\s*\d+\.\s+/, '') + '</li>';
-                });
-                return '\n' + html + '\n';
-            });
-
-            safe = safe.replace(/(?:^|\n)((?:\s*[-*+]\s+.+(?:\n|$))+)/g, function(match, block) {
-                var items = block.trim().split('\n').filter(function(line) { return line.trim(); });
-                var html = '<ul>';
-                items.forEach(function(item) {
-                    html += '<li>' + item.replace(/^\s*[-*+]\s+/, '') + '</li>';
-                });
-                html += '</ul>';
-                return '\n' + html + '\n';
-            });
-
-            var blocks = safe.split(/\n\s*\n/);
-            var result = [];
-
-            blocks.forEach(function(block) {
-                block = block.trim();
-                if (!block) return;
-
-                if (/^<(h1|h2|h3|ul|ol|blockquote|hr|pre)/.test(block)) {
-                    result.push(block);
-                } else {
-                    block = block.replace(/\n/g, ' ').replace(/\s{2,}/g, ' ');
-                    result.push('<p>' + block + '</p>');
-                }
-            });
-
-            var html = result.join('');
-
-            codeBlocks.forEach(function(block, index) {
-                html = html.replace('___CODE_BLOCK_' + index + '___', block);
-            });
-
-            return html;
+            // تحويل الأسطر الجديدة المفردة إلى مسافات لتكوين فقرة متصلة، مع ترك سطر فارغ بين الفقرات
+            var paragraphs = safe.split(/\n\s*\n/);
+            
+            return paragraphs.map(function(paragraph) {
+                paragraph = paragraph.trim();
+                if (!paragraph) return '';
+                paragraph = paragraph.replace(/\n/g, ' ');
+                return '<p>' + paragraph + '</p>';
+            }).join('');
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -525,7 +457,7 @@ HTML_TEMPLATE = r"""
             var time = isSystem ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
             
             if (imageData) {
-                el.innerHTML = '<img src="' + imageData + '" class="image-upload" /><span class="file-label">' + (text || 'طµظˆط±ط©') + '</span>' + (time ? ' <span class="time">'+time+'</span>' : '');
+                el.innerHTML = '<img src="' + imageData + '" class="image-upload" /><span class="file-label">' + (text || 'صورة') + '</span>' + (time ? ' <span class="time">'+time+'</span>' : '');
                 chatBox.appendChild(el);
                 chatBox.scrollTop = chatBox.scrollHeight;
                 return el;
@@ -538,7 +470,7 @@ HTML_TEMPLATE = r"""
             if (imageUrlMatch) {
                 generatedImageUrl = imageUrlMatch[0];
                 displayText = text.replace(imageUrlMatch[0], '').trim();
-                if (!displayText) displayText = 'ًں–¼ï¸ڈ ط§ظ„طµظˆط±ط© ط§ظ„ظ…ظˆظ„ط¯ط©';
+                if (!displayText) displayText = '🖼️ الصورة المولدة';
             }
 
             if (sender === 'bot' && !isSystem && !generatedImageUrl) {
@@ -600,7 +532,7 @@ HTML_TEMPLATE = r"""
                 var overlay = document.createElement('div');
                 overlay.className = 'welcome-overlay';
 
-                overlay.innerHTML = '<div class="welcome-box"><h2>ًں‘‹ ط£ظ‡ظ„ط§ظ‹ ط¨ظƒ ظپظٹ ظ†ط¨ط±ط§ط³</h2><p>ظ†ظˆط±طھظ†ط§! ظƒظٹظپ ظ†ظ‚ط¯ط± ظ†ط³ط§ط¹ط¯ظƒ ط§ظ„ظٹظˆظ…طں</p></div>';
+                overlay.innerHTML = '<div class="welcome-box"><h2>👋 أهلاً بك في نبراس</h2><p>نورتنا! كيف نقدر نساعدك اليوم؟</p></div>';
 
                 document.body.appendChild(overlay);
                 sessionStorage.setItem('welcomeShown', 'true');
@@ -714,7 +646,7 @@ HTML_TEMPLATE = r"""
             if (text) addMessage(text, 'user');
 
             if (imageToSend) {
-                addMessage('ًں–¼ï¸ڈ طµظˆط±ط© ظ…ط±ظپظ‚ط©', 'user', false, imageToSend);
+                addMessage('🖼️ صورة مرفقة', 'user', false, imageToSend);
                 clearPendingImage();
             }
 
@@ -724,12 +656,12 @@ HTML_TEMPLATE = r"""
 
             var typingDiv = document.createElement('div');
             typingDiv.className = 'msg bot typing-indicator';
-            typingDiv.innerHTML = '<span class="typing-dots">ط¬ط§ط±ظٹ ط§ظ„طھظپظƒظٹط±</span>';
+            typingDiv.innerHTML = '<span class="typing-dots">جاري التفكير</span>';
             chatBox.appendChild(typingDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
 
             var payload = {
-                message: text || "ًں“ژ ظ…ط±ظپظ‚",
+                message: text || "📎 مرفق",
                 image: imageToSend || null,
                 history: conversationHistory,
                 conv_id: currentConvId
@@ -766,7 +698,7 @@ HTML_TEMPLATE = r"""
                         currentConvId = data.conv_id;
                     }
                 } else {
-                    addMessage('ط®ط·ط£: ' + (data.error || 'ظ…ط´ظƒظ„ط© ظپظٹ ط§ظ„ط³ظٹط±ظپط±'), 'error');
+                    addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
                 }
 
             } catch (e) {
@@ -774,7 +706,7 @@ HTML_TEMPLATE = r"""
                     typingDiv.remove();
                 }
 
-                addMessage('طھط¹ط°ط± ط§ظ„ط§طھطµط§ظ„ ط¨ط§ظ„ط³ظٹط±ظپط±طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰.', 'error');
+                addMessage('تعذر الاتصال بالسيرفر، حاول مرة أخرى.', 'error');
 
             } finally {
                 isWaiting = false;
@@ -800,7 +732,7 @@ HTML_TEMPLATE = r"""
 
         micBtn.addEventListener('click', function() {
             if (!('webkitSpeechRecognition' in window)) {
-                addMessage('ط§ظ„ظ…طھطµظپط­ ظ„ط§ ظٹط¯ط¹ظ… ط§ظ„طھط¹ط±ظپ ط¹ظ„ظ‰ ط§ظ„طµظˆطھ.', 'bot', true);
+                addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true);
                 return;
             }
 
@@ -815,7 +747,7 @@ HTML_TEMPLATE = r"""
             recognition.lang = 'ar-SA';
 
             this.classList.add('listening');
-            addMessage('ط¬ط§ط±ظٹ ط§ظ„ط§ط³طھظ…ط§ط¹...', 'bot', true);
+            addMessage('جاري الاستماع...', 'bot', true);
 
             recognition.onresult = function(event) {
                 var transcript = event.results[0][0].transcript;
@@ -842,7 +774,7 @@ HTML_TEMPLATE = r"""
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ط¯ط®ظˆظ„ - ظ†ط¨ط±ط§ط³</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>دخول - نبراس</title>
 <style>
     * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; padding: 15px; }
@@ -858,21 +790,21 @@ LOGIN_HTML = """
 </head>
 <body>
 <div class="box">
-    <h2>ًں”گ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„</h2>
+    <h2>🔐 تسجيل الدخول</h2>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
     <form method="POST">
-        <input type="email" name="email" placeholder="ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ" required>
-        <input type="password" name="password" placeholder="ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±" required>
-        <button type="submit">ط¯ط®ظˆظ„</button>
+        <input type="email" name="email" placeholder="البريد الإلكتروني" required>
+        <input type="password" name="password" placeholder="كلمة المرور" required>
+        <button type="submit">دخول</button>
     </form>
-    <a href="/">â¬… ط§ظ„ط¹ظˆط¯ط© ظ„ظ„ط±ط¦ظٹط³ظٹط©</a>
+    <a href="/">⬅ العودة للرئيسية</a>
 </div></body></html>
 """
 
 PLANS_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ط®ط·ط· ظ†ط¨ط±ط§ط³</title>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>خطط نبراس</title>
 <style>
     * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background: #f0f2f5; padding: 20px; margin: 0; }
@@ -895,20 +827,20 @@ PLANS_HTML = """
 </head>
 <body>
 <div class="container">
-    <a href="/" class="back">â¬… ط§ظ„ط¹ظˆط¯ط© ظ„ظ„ط±ط¦ظٹط³ظٹط©</a>
-    <h1>ًں’ژ ط®ط·ط· ظ†ط¨ط±ط§ط³</h1>
+    <a href="/" class="back">⬅ العودة للرئيسية</a>
+    <h1>💎 خطط نبراس</h1>
     <div class="plan">
-        <span class="badge free">ظ…ط¬ط§ظ†ظٹ</span>
-        <h3>ط§ظ„ط®ط·ط© ط§ظ„ظ…ط¬ط§ظ†ظٹط©</h3>
-        <div class="price">0 <span>ط±.ط³ / ط´ظ‡ط±ظٹط§ظ‹</span></div>
-        <ul><li>âœ… ظ…ط­ط§ط¯ط«ط§طھ ط؛ظٹط± ظ…ط­ط¯ظˆط¯ط©</li><li>âœ… ط¥ط¬ط§ط¨ط§طھ ط³ط±ظٹط¹ط© ظˆط°ظƒظٹط©</li></ul>
+        <span class="badge free">مجاني</span>
+        <h3>الخطة المجانية</h3>
+        <div class="price">0 <span>ر.س / شهرياً</span></div>
+        <ul><li>✅ محادثات غير محدودة</li><li>✅ إجابات سريعة وذكية</li></ul>
     </div>
     <div class="plan premium">
-        <span class="badge premium">ظ…ظ…ظٹط²</span>
-        <h3>ط§ظ„ط®ط·ط© ط§ظ„ظ…ط¯ظپظˆط¹ط©</h3>
-        <div class="price">7 <span>ط±.ط³ / ط´ظ‡ط±ظٹط§ظ‹</span></div>
-        <ul><li>âœ… ط°ظƒط§ط، ظ…طھظ‚ط¯ظ… (ط¥ط¬ط§ط¨ط§طھ ط£ط¹ظ…ظ‚)</li><li>âœ… ط¨ط­ط« ط¨ط§ظ„ظˆظٹط¨ (ظ…ط¹ظ„ظˆظ…ط§طھ ط­ط¯ظٹط«ط©)</li><li>âœ… طھط­ظ„ظٹظ„ ط§ظ„طµظˆط±</li><li>âœ… ط¥ظ†ط´ط§ط، ط§ظ„طµظˆط± (DALL-E 3)</li><li>âœ… ط±ط¯ظˆط¯ ط£ط³ط±ط¹</li></ul>
-        <a href="#" class="btn gold">ًں’ژ ط§ط´طھط±ظƒ ط§ظ„ط¢ظ†</a>
+        <span class="badge premium">مميز</span>
+        <h3>الخطة المدفوعة</h3>
+        <div class="price">7 <span>ر.س / شهرياً</span></div>
+        <ul><li>✅ ذكاء متقدم (إجابات أعمق)</li><li>✅ بحث بالويب (معلومات حديثة)</li><li>✅ تحليل الصور</li><li>✅ إنشاء الصور (DALL-E 3)</li><li>✅ ردود أسرع</li></ul>
+        <a href="#" class="btn gold">💎 اشترك الآن</a>
     </div>
 </div></body></html>
 """
@@ -927,20 +859,20 @@ def login():
 
         if email == admin_email:
             if not admin_password:
-                return render_template_string(LOGIN_HTML, error="ط®ط·ط£: ظ„ظ… ظٹطھظ… ط¥ط¹ط¯ط§ط¯ ظƒظ„ظ…ط© ظ…ط±ظˆط± ط§ظ„ط£ط¯ظ…ظ† ظپظٹ ط§ظ„ط®ط§ط¯ظ….")
+                return render_template_string(LOGIN_HTML, error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
             if secrets.compare_digest(password, admin_password):
                 session.clear()
                 session['admin_email'] = admin_email
                 return redirect(url_for('index'))
             else:
-                return render_template_string(LOGIN_HTML, error="ظƒظ„ظ…ط© ظ…ط±ظˆط± ط§ظ„ط£ط¯ظ…ظ† ط؛ظٹط± طµط­ظٹط­ط©.")
+                return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
         elif email and "@" in email:
             session['user_email'] = email
             session['trial_remaining'] = 5
             session['is_trial_expired'] = False
             return redirect(url_for('index'))
         else:
-            return render_template_string(LOGIN_HTML, error="ظٹط±ط¬ظ‰ ط¥ط¯ط®ط§ظ„ ط¨ط±ظٹط¯ ط¥ظ„ظƒطھط±ظˆظ†ظٹ طµط­ظٹط­.")
+            return render_template_string(LOGIN_HTML, error="يرجى إدخال بريد إلكتروني صحيح.")
     return render_template_string(LOGIN_HTML)
 
 @app.route('/logout')
@@ -996,7 +928,7 @@ def chat():
         conv_id = data.get("conv_id", None)
 
         if not user_message:
-            return jsonify({"reply": "ط§ظƒطھط¨ ط´ظٹط، ط£ط³ط§ط¹ط¯ظƒ ظپظٹظ‡"})
+            return jsonify({"reply": "اكتب شيء أساعدك فيه"})
 
         is_admin = 'admin_email' in session and session['admin_email'] == "abdullaha0569361@gmail.com"
         is_trial_user = 'user_email' in session and not is_admin
@@ -1016,20 +948,20 @@ def chat():
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
-            limit_msg = f"ًں’ژ طھط¨ظ‚ظ‰ ظ„ظƒ {trial_remaining} ظ…ط­ط§ط¯ط«ط© طھط¬ط±ظٹط¨ظٹط© ظ…ظ…ظٹط²ط©!"
+            limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
         else:
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
             if is_trial_user and trial_remaining == 0:
-                limit_msg = "âڑ ï¸ڈ ط§ظ†طھظ‡طھ ط§ظ„ظ…ط­ط§ط¯ط«ط§طھ ط§ظ„طھط¬ط±ظٹط¨ظٹط©. ط§ظ„طھط±ظ‚ظٹط© ظ„ظ„ط§ط³طھظ…ط±ط§ط±."
+                limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
-        draw_keywords = ["ط§ط±ط³ظ…", "ط£ظ†ط´ط¦", "ط§ظ†ط´ط¦", "ط§ظ†ط´ظ‰", "طµظˆط±ظ‡", "طµظˆط±ط©", "طµظˆط±", "ط±ط³ظ…", "ط§ط±ط³ظ…ظٹ", "طµظ…ظ…", "ظˆظ„ظ‘ط¯", "generate", "draw", "ط§ط±ط³ظ… ظ„ظٹ", "ط£ظ†ط´ط¦ ظ„ظٹ", "ط§ظ†ط´ط¦ ظ„ظٹ", "ط§ظ†ط´ظ‰ ظ„ظٹ", "طµظˆط±ظ‡ ظ„ظٹ"]
+        draw_keywords = ["ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", "رسم", "ارسمي", "صمم", "ولّد", "generate", "draw", "ارسم لي", "أنشئ لي", "انشئ لي", "انشى لي", "صوره لي"]
         if allow_images and any(keyword in user_message for keyword in draw_keywords):
-            print(f"ًںژ¨ ط§ظƒطھط´ط§ظپ ط·ظ„ط¨ ط±ط³ظ…: {user_message}")
+            print(f"🎨 اكتشاف طلب رسم: {user_message}")
             image_url = generate_image(user_message)
             if image_url:
-                reply = f"ًں–¼ï¸ڈ ط¥ظ„ظٹظƒ ط§ظ„طµظˆط±ط© ط§ظ„طھظٹ ط·ظ„ط¨طھظ‡ط§:\n{image_url}"
+                reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
                 session_memory[user_id].append({"role": "user", "content": user_message})
                 session_memory[user_id].append({"role": "assistant", "content": reply})
                 new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
@@ -1037,10 +969,10 @@ def chat():
                     session['trial_remaining'] = trial_remaining - 1
                     if session['trial_remaining'] == 0:
                         session['is_trial_expired'] = True
-                        reply += "\n\nâڑ ï¸ڈ ط§ظ†طھظ‡طھ ظ…ط­ط§ط¯ط«ط§طھظƒ ط§ظ„طھط¬ط±ظٹط¨ظٹط©. ط§ظ„طھط±ظ‚ظٹط© ظ„ظ„ط§ط³طھظ…ط±ط§ط±."
+                        reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار."
                 return jsonify({"reply": reply, "conv_id": new_conv_id})
             else:
-                print("âڑ ï¸ڈ ظپط´ظ„ طھظˆظ„ظٹط¯ ط§ظ„طµظˆط±ط©طŒ ظ†ظƒظ…ظ„ ظ„ظ„ط±ط¯ ط§ظ„ظ†طµظٹ.")
+                print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
         session_memory[user_id].append({"role": "user", "content": user_message})
         chat_history = session_memory[user_id][-10:]
@@ -1053,7 +985,7 @@ def chat():
         if image_data and allow_images:
             messages.append({
                 "role": "user",
-                "content": [{"type": "text", "text": user_message or "ط­ظ„ظ„ ظ‡ط°ظ‡ ط§ظ„طµظˆط±ط©"}, {"type": "image_url", "image_url": {"url": image_data}}]
+                "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
             })
 
         if use_web_search:
@@ -1063,18 +995,18 @@ def chat():
                     if msg["role"] == "user":
                         full_context += msg["content"] + "\n"
                     elif msg["role"] == "assistant":
-                        full_context += "ظ†ط¨ط±ط§ط³: " + msg["content"] + "\n"
+                        full_context += "نبراس: " + msg["content"] + "\n"
                 search_response = client.responses.create(
                     model="gpt-4o",
-                    instructions=f"{SYSTEM_PROMPT}\n\nط³ظٹط§ظ‚ ط§ظ„ظ…ط­ط§ط¯ط«ط© ط§ظ„ط³ط§ط¨ظ‚ط©:\n{full_context}",
-                    input=f"ط§ط¨ط­ط« ظپظٹ ط§ظ„ظˆظٹط¨ ط¹ظ† ط£ط­ط¯ط« ط§ظ„ظ…ط¹ظ„ظˆظ…ط§طھ ط­ظˆظ„: {user_message}طŒ ظˆظ‚ط¯ظ… ظ„ظٹ ظ…ظ„ط®طµط§ظ‹ ظ…ظپظٹط¯ط§ظ‹.",
+                    instructions=f"{SYSTEM_PROMPT}\n\nسياق المحادثة السابقة:\n{full_context}",
+                    input=f"ابحث في الويب عن أحدث المعلومات حول: {user_message}، وقدم لي ملخصاً مفيداً.",
                     tools=[{"type": "web_search"}]
                 )
                 search_result = search_response.output_text.strip()
                 if search_result:
-                    messages.append({"role": "user", "content": f"ظ†طھظٹط¬ط© ط§ظ„ط¨ط­ط«:\n{search_result}\n\nط§ط³طھط®ط¯ظ… ظ‡ط°ظ‡ ط§ظ„ظ…ط¹ظ„ظˆظ…ط§طھ."})
+                    messages.append({"role": "user", "content": f"نتيجة البحث:\n{search_result}\n\nاستخدم هذه المعلومات."})
             except Exception as e:
-                print(f"âڑ ï¸ڈ ظپط´ظ„ ط§ظ„ط¨ط­ط« ط¨ط§ظ„ظˆظٹط¨: {e}")
+                print(f"⚠️ فشل البحث بالويب: {e}")
 
         try:
             response = client.chat.completions.create(
@@ -1085,9 +1017,9 @@ def chat():
             )
             reply = response.choices[0].message.content.strip()
             if not reply:
-                reply = "ظ…ط§ ظ‚ط¯ط±طھ ط£ط¬ظٹط¨ ظ„ظƒ ط±ط¯طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰."
+                reply = "ما قدرت أجيب لك رد، حاول مرة أخرى."
         except openai.BadRequestError as e:
-            print(f"âڑ ï¸ڈ ظپط´ظ„ ظ†ظ…ظˆط°ط¬ {model}: {e}. ط¬ط§ط±ظچ ط§ظ„طھط¨ط¯ظٹظ„ ظ„ظ€ gpt-4o-mini.")
+            print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
             try:
                 fallback_model = "gpt-4o-mini"
                 response = client.chat.completions.create(
@@ -1098,12 +1030,12 @@ def chat():
                 )
                 reply = response.choices[0].message.content.strip()
                 if not reply:
-                    reply = "ظپط´ظ„ ط§ظ„ظ†ظ…ظˆط°ط¬ ط§ظ„ظ…طھظ‚ط¯ظ…طŒ طھظ… ط§ظ„طھط¨ط¯ظٹظ„ ظ„ظ„ظ†ظ…ظˆط°ط¬ ط§ظ„ط¹ط§ط¯ظٹ."
+                    reply = "فشل النموذج المتقدم، تم التبديل للنموذج العادي."
             except Exception as e2:
-                reply = f"ط­ط¯ط« ط®ط·ط£ ظپظٹ ط§ظ„ط§طھطµط§ظ„ ط¨ظ€ OpenAI: {str(e2)}"
+                reply = f"حدث خطأ في الاتصال بـ OpenAI: {str(e2)}"
         except Exception as e:
-            print(f"â‌Œ ط®ط·ط£: {e}")
-            reply = "ط­ط¯ط« ط®ط·ط£ ظپظٹ ط§ظ„ط³ظٹط±ظپط±طŒ ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰."
+            print(f"❌ خطأ: {e}")
+            reply = "حدث خطأ في السيرفر، حاول مرة أخرى."
 
         session_memory[user_id].append({"role": "assistant", "content": reply})
         new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
@@ -1112,19 +1044,19 @@ def chat():
             session['trial_remaining'] = trial_remaining - 1
             if session['trial_remaining'] == 0:
                 session['is_trial_expired'] = True
-                reply += "\n\nâڑ ï¸ڈ ط§ظ†طھظ‡طھ ظ…ط­ط§ط¯ط«ط§طھظƒ ط§ظ„طھط¬ط±ظٹط¨ظٹط©. ط§ظ„طھط±ظ‚ظٹط© ظ„ظ„ط§ط³طھظ…ط±ط§ط± ظ…ط¹ ط§ظ„ط¨ط­ط« ط¨ط§ظ„ظˆظٹط¨ ظˆط§ظ„طµظˆط±."
+                reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار مع البحث بالويب والصور."
 
         try:
             user_gender = session.get('voice_gender', 'male')
             audio_base64 = asyncio.run(generate_speech(reply, user_gender))
         except Exception as e:
-            print(f"âڑ ï¸ڈ ظپط´ظ„ طھظˆظ„ظٹط¯ ط§ظ„طµظˆطھ: {e}")
+            print(f"⚠️ فشل توليد الصوت: {e}")
             audio_base64 = None
 
         return jsonify({"reply": reply, "audio": audio_base64, "conv_id": new_conv_id})
 
     except Exception as e:
-        print(f"â‌Œ ط®ط·ط£ ط¹ط§ظ… ظپظٹ /chat: {e}")
+        print(f"❌ خطأ عام في /chat: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
