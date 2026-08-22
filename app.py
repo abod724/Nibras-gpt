@@ -538,3 +538,92 @@ HTML_TEMPLATE = r"""
 </body>
 </html>
 """
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/set_gender', methods=['POST'])
+def set_gender():
+    data = request.json
+    session['voice_gender'] = data.get('gender', 'male')
+    return jsonify({"status": "ok"})
+
+@app.route('/history')
+def history():
+    user_id = session.get('user_id', 'guest')
+    return jsonify({"conversations": get_user_conversations(user_id)})
+
+@app.route('/load_conversation/<conv_id>')
+def load_conv(conv_id):
+    user_id = session.get('user_id', 'guest')
+    messages = load_conversation_by_id(user_id, conv_id)
+    if messages:
+        session['current_conv_id'] = conv_id
+        return jsonify({"messages": messages, "conv_id": conv_id})
+    return jsonify({"error": "غير موجود"}), 404
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    try:
+        data = request.json
+        user_message = data.get('message', '').strip()
+        image_data = data.get('image')
+        history = data.get('history', [])
+        conv_id = data.get('conv_id')
+        user_id = session.get('user_id', 'guest')
+        gender = session.get('voice_gender', 'male')
+
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        
+        for msg in history:
+            messages.append(msg)
+
+        user_content = []
+        if user_message:
+            user_content.append({"type": "text", "text": user_message})
+        if image_data:
+            if ',' in image_data:
+                image_data = image_data.split(',')[1]
+            user_content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}
+            })
+
+        messages.append({"role": "user", "content": user_content})
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            temperature=0.7
+        )
+
+        bot_reply = response.choices[0].message.content.strip()
+
+        history.append({"role": "user", "content": user_message or "مرفق صورة"})
+        history.append({"role": "assistant", "content": bot_reply})
+        
+        conv_id = save_user_conversation(user_id, history, conv_id)
+
+        audio_base64 = None
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            audio_base64 = loop.run_until_complete(generate_speech(bot_reply, gender))
+            loop.close()
+        except Exception as e:
+            print(f"⚠️ فشل توليد الصوت: {e}")
+
+        return jsonify({
+            "reply": bot_reply,
+            "conv_id": conv_id,
+            "history": history,
+            "audio": audio_base64
+        })
+
+    except Exception as e:
+        print(f"❌ خطأ في /chat: {e}")
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
