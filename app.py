@@ -14,7 +14,6 @@ import sqlite3
 # ===== تعريف التطبيق مع مجلد الملفات الثابتة =====
 app = Flask(__name__, static_folder='static')
 
-# إعداد المفاتيح السرية
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -23,15 +22,10 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
 
-# ===== مسار ملف robots.txt =====
 @app.route('/robots.txt')
 def serve_robots():
     return send_from_directory('static', 'robots.txt')
 
-# ===== تم حذف المسار العام الخطير =====
-# الآن أي ملف في مجلد static يمكن الوصول إليه عبر /static/اسم_الملف
-
-# ========== قاعدة البيانات (SQLite) ==========
 DB_FILE = "conversations.db"
 
 def init_db():
@@ -93,10 +87,8 @@ def load_conversation_by_id(user_id, conv_id):
 
 init_db()
 
-# ========== الذاكرة المؤقتة ==========
 session_memory = {}
 
-# ========== تحميل ملف المعرفة ==========
 knowledge_content = ""
 possible_names = ["Knowledge.md", "knowledge.md", "معرفة.md", "README.md", "ملف_المعرفة.md"]
 for filename in possible_names:
@@ -111,7 +103,6 @@ for filename in possible_names:
 if not knowledge_content:
     knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ========== تعليمات النظام ==========
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -131,7 +122,6 @@ SYSTEM_PROMPT = f"""
 - **لا تكتب "لحظة" أو "انتظر" أو أي نص انتظار**، فقط انتظر النتيجة ورد مباشرة.
 """
 
-# ========== دالة إزالة الإيموجي ==========
 def remove_emoji(text):
     emoji_pattern = re.compile("["
         u"\U0001F600-\U0001F64F"  
@@ -154,7 +144,6 @@ def remove_emoji(text):
     "]+", flags=re.UNICODE)
     return emoji_pattern.sub(r'', text)
 
-# ========== دالة إنشاء الصور ==========
 def generate_image(prompt):
     try:
         response = client.images.generate(
@@ -168,7 +157,6 @@ def generate_image(prompt):
         print(f"❌ فشل توليد الصورة: {e}")
         return None
 
-# ========== دالة توليد الصوت البشري (Edge TTS) ==========
 async def generate_speech(text, gender):
     voice_id = "ar-SA-HamedNeural" if gender == "male" else "ar-SA-ZariyahNeural"
     clean_text = remove_emoji(text) 
@@ -179,7 +167,6 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ========== واجهة الدردشة ==========
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -188,7 +175,6 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <meta name="google-site-verification" content="PyOhY3ZXN4LTBbK55EbrmeI5A5kqddF3cJeI_s1FwVc" />
     <meta http-equiv="Content-Language" content="ar" />
-    <!-- ===== وصف الموقع للبحث ===== -->
     <meta name="description" content="نبراس GP، مساعد ذكي سعودي يتحدث باللهجة العامية البيضاء ويكتب بصوت بشري. جرب المحادثة الصوتية الآن!" />
     <title>نبراس</title>
     <link rel="manifest" href="/static/manifest.json" />
@@ -204,12 +190,7 @@ HTML_TEMPLATE = """
         .menu-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; }
         .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
         .mute-btn:hover { color: #1a2b3c; }
-        .mute-btn.muted { 
-            color: #444444;
-            opacity: 0.4; 
-            transform: scale(0.9);
-            transition: all 0.2s ease;
-        }
+        .mute-btn.muted { color: #444444; opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1px solid #4a6a8a; color: #4a6a8a; }
@@ -220,118 +201,31 @@ HTML_TEMPLATE = """
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        .dropdown .conv-item {
-            display: block;
-            padding: 12px 18px;
-            border-bottom: 1px solid #f0f2f5;
-            cursor: pointer;
-            width: 100%;
-            background: none;
-            border: none;
-            text-align: right;
-            font-size: 16px;
-            color: #1a2b3c;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
+        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 500; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
-
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
-
-        /* ===== تنسيق ردود نبراس ===== */
-        .msg { 
-            max-width: 90%; 
-            padding: 12px 18px; 
-            border-radius: 20px; 
-            font-size: 16px; 
-            font-weight: 600; 
-            line-height: 1.8; 
-            word-wrap: break-word; 
-            color: #111111; 
-        }
-
-        .msg.user { 
-            align-self: flex-end; 
-            background: transparent; 
-            border-bottom-left-radius: 6px; 
-            white-space: pre-wrap;
-        }
-
-        .msg.bot { 
-            align-self: flex-start; 
-            background: #ffffff; 
-            border-bottom-right-radius: 6px; 
-            white-space: normal;
-        }
-
-        .msg .bot-content {
-            line-height: 1.9;
-            text-align: right;
-        }
-
-        .msg .bot-content p {
-            margin: 0 0 14px 0;
-        }
-
-        .msg .bot-content p:last-child {
-            margin-bottom: 0;
-        }
-
-        .msg .bot-content strong {
-            font-weight: 700;
-        }
-
-        .msg .bot-content h1,
-        .msg .bot-content h2,
-        .msg .bot-content h3 {
-            margin: 18px 0 10px 0;
-            line-height: 1.5;
-        }
-
-        .msg .bot-content ul,
-        .msg .bot-content ol {
-            margin: 8px 0 16px 0;
-            padding-right: 25px;
-        }
-
-        .msg .bot-content li {
-            margin-bottom: 8px;
-        }
-
-        .msg .bot-content code {
-            background: #f1f3f5;
-            padding: 2px 6px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-weight: 500;
-        }
-
-        .msg .bot-content pre {
-            background: #f5f7fa;
-            padding: 14px;
-            border-radius: 12px;
-            overflow-x: auto;
-            direction: ltr;
-            text-align: left;
-            margin: 12px 0;
-        }
-
-        .msg .bot-content pre code {
-            background: transparent;
-            padding: 0;
-        }
-
+        .msg { max-width: 90%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 1.8; word-wrap: break-word; color: #111111; }
+        .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; white-space: pre-wrap; }
+        .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; white-space: normal; }
+        .msg .bot-content { line-height: 1.9; text-align: right; }
+        .msg .bot-content p { margin: 0 0 14px 0; }
+        .msg .bot-content p:last-child { margin-bottom: 0; }
+        .msg .bot-content strong { font-weight: 700; }
+        .msg .bot-content h1, .msg .bot-content h2, .msg .bot-content h3 { margin: 18px 0 10px 0; line-height: 1.5; }
+        .msg .bot-content ul, .msg .bot-content ol { margin: 8px 0 16px 0; padding-right: 25px; }
+        .msg .bot-content li { margin-bottom: 8px; }
+        .msg .bot-content code { background: #f1f3f5; padding: 2px 6px; border-radius: 5px; font-family: monospace; font-weight: 500; }
+        .msg .bot-content pre { background: #f5f7fa; padding: 14px; border-radius: 12px; overflow-x: auto; direction: ltr; text-align: left; margin: 12px 0; }
+        .msg .bot-content pre code { background: transparent; padding: 0; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
-
         .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 600; color: #5a6b7c; }
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
         @keyframes dotAnimation { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
-
         .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
         .welcome-overlay .welcome-box { background: #ffffff; padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; }
         .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; }
@@ -339,13 +233,11 @@ HTML_TEMPLATE = """
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .welcome-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         @keyframes fadeOut { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(0.9); } }
-
         #imagePreviewContainer { display: none; padding: 6px 18px; align-items: center; gap: 10px; background: #f5f7fa; margin: 0 14px; border-radius: 20px 20px 0 0; border: 1px solid #dce1e8; border-bottom: none; flex-wrap: wrap; flex-shrink: 0; }
         #imagePreviewContainer img { max-height: 60px; border-radius: 8px; border: 1px solid #ddd; }
         #imagePreviewContainer .label { font-size: 13px; color: #5a6b7c; }
         #removeImageBtn { background: none; border: none; color: #c33; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: #fde8e8; }
-
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: #f5f7fa; border-radius: 40px; border: 1px solid #dce1e8; flex-shrink: 0; min-height: 60px; }
         .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: #9aabbc; }
@@ -362,7 +254,6 @@ HTML_TEMPLATE = """
         .plus-options.show { display: flex; }
         .plus-options .option-btn { background: #f5f7fa; border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #1a2b3c; cursor: pointer; transition: 0.2s; }
         .plus-options .option-btn:hover { background: #e8ecf0; }
-
         @media (max-width: 420px) {
             .header { padding: 12px 14px; }
             .btn { font-size: 12px; padding: 5px 12px; }
@@ -380,7 +271,6 @@ HTML_TEMPLATE = """
             .welcome-overlay .welcome-box h2 { font-size: 22px; }
             .welcome-overlay .welcome-box p { font-size: 16px; }
         }
-
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 600; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: #f5f7fa; }
         .gender-option.active { background: #4a6a8a; color: white; border-color: #4a6a8a; }
@@ -577,31 +467,23 @@ HTML_TEMPLATE = """
             userInput.value = '';
         });
 
-        // ===== تنسيق نص نبراس =====
+        // ===== تنسيق نص نبراس (النسخة الآمنة) =====
         function formatBotText(text) {
-            // حماية النص من HTML
             let safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            // الأكواد بين ```
             safe = safe.replace(/```([\s\S]*?)```/g, function(match, code) {
                 return '<pre><code>' + code.trim() + '</code></pre>';
             });
 
-            // العناوين
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-
-            // العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-            // الكود القصير
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // القوائم المرقمة
             safe = safe.replace(
                 /(?:^|\n)((?:\d+\.\s+.+(?:\n|$))+)/g,
                 function(match, list) {
@@ -612,12 +494,10 @@ HTML_TEMPLATE = """
                         .filter(Boolean)
                         .map(item => '<li>' + item + '</li>')
                         .join('');
-
                     return '<ol>' + items + '</ol>';
                 }
             );
 
-            // القوائم النقطية
             safe = safe.replace(
                 /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
                 function(match, list) {
@@ -628,12 +508,10 @@ HTML_TEMPLATE = """
                         .filter(Boolean)
                         .map(item => '<li>' + item + '</li>')
                         .join('');
-
                     return '<ul>' + items + '</ul>';
                 }
             );
 
-            // تقسيم الرد إلى فقرات
             const blocks = safe
                 .split(/\n\s*\n/)
                 .map(block => block.trim())
@@ -650,7 +528,6 @@ HTML_TEMPLATE = """
                 ) {
                     return block;
                 }
-
                 return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
             }).join('');
         }
@@ -680,7 +557,6 @@ HTML_TEMPLATE = """
                 if (!displayText) displayText = '🖼️ الصورة المولدة';
             }
 
-            // ===== رد نبراس مع تأثير الكتابة =====
             if (sender === 'bot' && !isSystem && !generatedImageUrl) {
                 el.innerHTML = `<div class="bot-content"><span class="typing-text"></span></div>${time ? ' <span class="time">'+time+'</span>' : ''}`;
                 chatBox.appendChild(el);
@@ -711,7 +587,6 @@ HTML_TEMPLATE = """
 
                         setTimeout(typeChar, 20);
                     } else {
-                        // بعد انتهاء الكتابة نطبق التنسيق
                         typingSpan.innerHTML = formatBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
@@ -721,7 +596,6 @@ HTML_TEMPLATE = """
                 return el;
             }
 
-            // ===== الرسائل الأخرى =====
             let content = displayText;
 
             if (sender === 'bot') {
@@ -852,7 +726,6 @@ HTML_TEMPLATE = """
             }
         });
 
-        // ===== دالة sendMessage =====
         async function sendMessage() {
             if (isWaiting) return;
 
@@ -872,7 +745,6 @@ HTML_TEMPLATE = """
             userInput.style.height = 'auto';
             isWaiting = true;
 
-            // ===== مؤشر "جاري التفكير" =====
             const typingDiv = document.createElement('div');
             typingDiv.className = 'msg bot typing-indicator';
             typingDiv.innerHTML = '<span class="typing-dots">جاري التفكير</span>';
@@ -995,7 +867,6 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# ========== صفحات الدخول والخطط ==========
 LOGIN_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -1070,7 +941,6 @@ PLANS_HTML = """
 </div></body></html>
 """
 
-# ========== مسارات التطبيق ==========
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
@@ -1084,7 +954,6 @@ def login():
         admin_email = "abdullaha0569361@gmail.com"
         admin_password = os.environ.get("ADMIN_PASSWORD")
 
-        # التحقق من الأدمن
         if email == admin_email:
             if not admin_password:
                 return render_template_string(LOGIN_HTML, error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
@@ -1096,7 +965,6 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # المستخدم العادي
         elif email and "@" in email:
             session['user_email'] = email
             session['trial_remaining'] = 5
@@ -1199,24 +1067,8 @@ def chat():
                 limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
         draw_keywords = [
-            "ارسم",
-            "أنشئ",
-            "انشئ",
-            "انشى",
-            "صوره",
-            "صورة",
-            "صور",
-            "رسم",
-            "ارسمي",
-            "صمم",
-            "ولّد",
-            "generate",
-            "draw",
-            "ارسم لي",
-            "أنشئ لي",
-            "انشئ لي",
-            "انشى لي",
-            "صوره لي"
+            "ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", "رسم", "ارسمي", "صمم", "ولّد",
+            "generate", "draw", "ارسم لي", "أنشئ لي", "انشئ لي", "انشى لي", "صوره لي"
         ]
 
         if allow_images and any(keyword in user_message for keyword in draw_keywords):
@@ -1399,7 +1251,6 @@ def chat():
     except Exception as e:
         print(f"❌ خطأ عام في /chat: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
