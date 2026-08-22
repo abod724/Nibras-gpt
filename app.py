@@ -98,7 +98,6 @@ for filename in possible_names:
 if not knowledge_content:
     knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== أهم تعديل: جعل الـ Prompt صارم جداً في التنسيق =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء، ومتخصص في الإجابة بأسلوب تعليمي منظم وجميل.
 
@@ -110,16 +109,11 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️⚠️ قواعد التنسيق الإلزامية (ممنوع كسرها أبداً):**
+**⚠️ قواعد التنسيق الإلزامية (ممنوع كسرها):**
 - **ممنوع منعاً باتاً** كتابة النص ككتلة واحدة متصلة "تحت بعض".
-- **يجب عليك دائماً** تقسيم ردك إلى فقرات قصيرة جداً، واترك سطراً فارغاً بين كل فقرة وأخرى.
-- **يجب** استخدام رموز Markdown لتنسيق ردك:
-  - استخدم `##` لعنوان رئيسي (مثال: `## واش يعني الهروب؟`)
-  - استخدم `**نص عريض**` للكلمات المهمة.
-  - استخدم `-` للقوائم النقطية (مثال: `- هذا مثال`).
-  - استخدم `1.` للقوائم المرقمة.
-- **إذا طلب منك المستخدم قصة**: لا تجعلها كتلة واحدة. قسّمها لفقرات قصيرة (3 إلى 4 أسطر كحد أقصى في كل فقرة) مع ترك سطر فارغ بينها.
-- **إذا طلب منك المستخدم شرحاً**: ابدأ بـ `## السؤال`، ثم اشرح، ثم ضع `## أمثلة` مع قائمة نقطية.
+- **يجب** تقسيم ردك إلى فقرات قصيرة جداً، مع ترك سطر فارغ بين كل فقرة (استخدم \n\n).
+- **يجب** استخدام رموز Markdown: `##` للعناوين الرئيسية، و `-` للقوائم النقطية، و `**نص عريض**` للكلمات المهمة، و `1.` للقوائم المرقمة.
+- ابدأ دائماً بسؤال تفاعلي أو عنوان جذاب، واختم بنصيحة مفيدة.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -174,6 +168,7 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
+# ===== الحل النهائي: استخدام r""" فقط، مع استخدام \s في الجافاسكربت (وليس \\s) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -474,26 +469,23 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== أهم تعديل: دالة التنسيق الفائقة التي تقسم النص تلقائياً =====
+        // ===== تنسيق نص نبراس (بدون أخطاء هروب، يعمل مع r""" و \s الصحيحة) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            // تحويل الكود
-            safe = safe.replace(/```([\\s\\S]*?)```/g, function(match, code) {
+            safe = safe.replace(/```([\s\S]*?)```/g, function(match, code) {
                 return '<pre><code>' + code.trim() + '</code></pre>';
             });
 
-            // تحويل العناوين
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // تحويل القوائم المرقمة
             safe = safe.replace(
                 /(?:^|\n)((?:\\d+\\.\\s+.+(?:\\n|$))+)/g,
                 function(match, list) {
@@ -508,7 +500,6 @@ HTML_TEMPLATE = r"""
                 }
             );
 
-            // تحويل القوائم النقطية
             safe = safe.replace(
                 /(?:^|\n)((?:[-*]\\s+.+(?:\\n|$))+)/g,
                 function(match, list) {
@@ -523,7 +514,6 @@ HTML_TEMPLATE = r"""
                 }
             );
 
-            // تقسيم النص إلى فقرات (حتى لو وضع النموذج سطر واحد فقط)
             var blocks = safe
                 .split(/\\n\\s*\\n/)
                 .map(function(block) { return block.trim(); })
@@ -540,7 +530,6 @@ HTML_TEMPLATE = r"""
                 ) {
                     return block;
                 }
-                // استخدام <br> لكل سطر جديد مفرد لضمان عدم التصاق الفقرات
                 return '<p>' + block.replace(/\\n/g, '<br>') + '</p>';
             }).join('');
         }
@@ -562,7 +551,7 @@ HTML_TEMPLATE = r"""
                 return el;
             }
 
-            var imageUrlMatch = text.match(/(https?:\\/\\/[^\\s]+\\.(png|jpg|jpeg|gif|webp))/i);
+            var imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
             var displayText = text;
             var generatedImageUrl = null;
 
