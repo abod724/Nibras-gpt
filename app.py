@@ -80,7 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل 1: تحسين تعليمات الكتابة فقط (لا يمس الواجهة) =====
+# ===== التعديل الأول: فقط تعليمات الكتابة (لا يمس الواجهة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -92,12 +92,12 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️ قواعد التنسيق الإلزامية (ممنوع كسرها):**
-- ممنوع منعاً باتاً كتابة النص ككتلة واحدة متصلة.
-- ممنوع استخدام القوائم النقطية المتصلة في القصص.
-- يجب تقسيم الرد إلى فقرات قصيرة (من 2 إلى 3 أسطر كحد أقصى لكل فقرة).
-- اترك سطراً فارغاً بين كل فقرة.
-- استخدم **الخط العريض** مثل `**العنوان:**` في بداية كل فقرة.
+**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
+- ممنوع كتابة النص ككتلة واحدة متصلة.
+- اكتب دائمًا جملًا قصيرة، واترك سطرًا فارغًا بعد كل 2 أو 3 أسطر.
+- استخدم **خط عريض** مثل `**العنوان:**` في بداية الفقرات أو الأفكار الرئيسية.
+- استخدم القوائم النقطية `-` فقط عند سرد المعلومات، ولا تستخدمها في سرد القصص.
+- إذا كتبت قصة، قسّمها لفقرات صغيرة جدًا مع أسطر فارغة بينها.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -128,7 +128,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ===== التعديل 2: إضافة r فقط لإصلاح تحذير الهروب (لا يمس الأزرار) =====
+# ===== التعديل الثاني: r فقط لإصلاح تحذير الهروب في السجل (لا يمس الواجهة) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -417,7 +417,7 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل 3: إضافة دالة تنسيق الكتابة فقط (بدون لمس باقي الكود) =====
+        // ===== التعديل الثالث: إضافة دالة تنسيق الكتابة (لا تمس أي أزرار) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -449,12 +449,12 @@ HTML_TEMPLATE = r"""
             );
 
             safe = safe.replace(
-                /(?:^|\n)((?:[-*]\\s+.+(?:\\n|$))+)/g,
+                /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
                 function(match, list) {
                     var items = list
                         .trim()
-                        .split('\\n')
-                        .map(function(item) { return item.replace(/^[-*]\\s+/, '').trim(); })
+                        .split('\n')
+                        .map(function(item) { return item.replace(/^[-*]\s+/, '').trim(); })
                         .filter(Boolean)
                         .map(function(item) { return '<li>' + item + '</li>'; })
                         .join('');
@@ -462,28 +462,14 @@ HTML_TEMPLATE = r"""
                 }
             );
 
-            // تقطيع النص الطويل لفقرة قصيرة
-            var blocks = safe
-                .split(/\n\s*\n/)
-                .map(function(block) { return block.trim(); })
-                .filter(Boolean);
-
-            // إذا كان النص طويلاً بدون أسطر فارغة، نقسمه عند النقاط
-            if (blocks.length === 1 && safe.length > 120) {
-                blocks = safe.split(/(?<=[.!؟?])\s+/);
+            var paragraphs = safe.split(/\n\s*\n/);
+            if (paragraphs.length === 1 && safe.length > 120) {
+                paragraphs = safe.split(/(?<=[.!؟?])\s+/);
             }
 
-            return blocks.map(function(block) {
-                if (
-                    block.startsWith('<h1>') ||
-                    block.startsWith('<h2>') ||
-                    block.startsWith('<h3>') ||
-                    block.startsWith('<ol>') ||
-                    block.startsWith('<ul>') ||
-                    block.startsWith('<pre>')
-                ) {
-                    return block;
-                }
+            return paragraphs.map(function(block) {
+                block = block.trim();
+                if (block.startsWith('<h') || block.startsWith('<ol') || block.startsWith('<ul') || block.startsWith('<pre')) return block;
                 return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
             }).join('');
         }
