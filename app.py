@@ -80,7 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل الوحيد: تعديل تعليمات الكتابة (لا يمس الواجهة) =====
+# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -92,11 +92,11 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**قواعد الكتابة الإلزامية:**
-- اكتب ردك على شكل فقرات نصية عادية ومتصلة مثل المقالات.
-- **يجب أن تتكون الفقرة من 3 إلى 4 أسطر متدفقة** (تكتب الجمل وتكملها).
-- **ممنوع منعاً باتاً** وضع كل جملة في سطر مستقل، أو كتابة "شعر".
-- اترك سطراً فارغاً بين كل فقرة وأخرى.
+**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
+- اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
+- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
+- اترك **سطراً فارغاً** بين كل فقرة وأخرى.
+- استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -127,7 +127,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ===== التعديل الثاني: r فقط لإصلاح تحذير بايثون (لا يمس الواجهة إطلاقاً) =====
+# إضافة r لإسكات تحذير بايثون (لا يغير الواجهة)
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -166,7 +166,10 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 1.8; word-wrap: break-word; white-space: pre-wrap; color: #111111; }
+        
+        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
+        
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
@@ -416,6 +419,33 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
+        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
+        function formatBotText(text) {
+            var safe = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            // تحويل العناوين
+            safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+            safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+            safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+            
+            // تحويل الخط العريض
+            safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // تحويل الأسطر الجديدة المفردة إلى مسافات لتكوين فقرة متصلة، مع ترك سطر فارغ بين الفقرات
+            var paragraphs = safe.split(/\n\s*\n/);
+            
+            return paragraphs.map(function(paragraph) {
+                paragraph = paragraph.trim();
+                if (!paragraph) return '';
+                paragraph = paragraph.replace(/\n/g, ' ');
+                return '<p>' + paragraph + '</p>';
+            }).join('');
+        }
+
         function addMessage(text, sender, isSystem, imageData) {
             sender = sender || 'bot';
             isSystem = isSystem || false;
@@ -472,7 +502,7 @@ HTML_TEMPLATE = r"""
 
                         setTimeout(typeChar, 20);
                     } else {
-                        typingSpan.innerHTML = displayText.replace(/\n/g, '<br>');
+                        typingSpan.innerHTML = formatBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
                 }
@@ -484,7 +514,7 @@ HTML_TEMPLATE = r"""
             var content = displayText;
 
             if (sender === 'bot') {
-                content = '<div class="bot-content">' + displayText.replace(/\n/g, '<br>') + '</div>';
+                content = '<div class="bot-content">' + formatBotText(displayText) + '</div>';
             }
 
             if (generatedImageUrl) {
