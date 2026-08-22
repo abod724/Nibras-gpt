@@ -80,7 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل الأول: فقط تعليمات الكتابة (لا يمس الواجهة) =====
+# ===== التعديل: البرومبت الجديد لكتابة فقرات متصلة (سطر يمتد لليمين ثم ينزل) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -92,12 +92,12 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
-- ممنوع كتابة النص ككتلة واحدة متصلة.
-- اكتب دائمًا جملًا قصيرة، واترك سطرًا فارغًا بعد كل 2 أو 3 أسطر.
-- استخدم **خط عريض** مثل `**العنوان:**` في بداية الفقرات أو الأفكار الرئيسية.
-- استخدم القوائم النقطية `-` فقط عند سرد المعلومات، ولا تستخدمها في سرد القصص.
-- إذا كتبت قصة، قسّمها لفقرات صغيرة جدًا مع أسطر فارغة بينها.
+**⚠️ قواعد التنسيق الإلزامية:**
+- **اكتب ردك في فقرات نصية عادية ومتصلة** (مثل الكتب والمقالات). كل فقرة يجب أن تتكون من 2 إلى 4 أسطر (السطر يبدأ من اليمين ويملأ المساحة، ثم ينزل لسطر تحته).
+- **ممنوع منعاً باتاً** كتابة جمل قصيرة في أسطر منفصلة تحت بعض.
+- **ممنوع** استخدام القوائم النقطية للقصص.
+- اترك سطراً فارغاً بين كل فقرة وأخرى.
+- إذا أردت توضيح معلومة، ابدأها بعنوان عريض مثل **الشرح:** في بداية الفقرة.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -128,7 +128,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ===== التعديل الثاني: r فقط لإصلاح تحذير الهروب في السجل (لا يمس الواجهة) =====
+# ===== التعديل: r فقط لإصلاح تحذير الهروب (لا يمس الواجهة) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -167,7 +167,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; color: #111111; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 1.8; word-wrap: break-word; white-space: pre-wrap; color: #111111; }
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
@@ -417,61 +417,16 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل الثالث: إضافة دالة تنسيق الكتابة (لا تمس أي أزرار) =====
-        function formatBotText(text) {
-            var safe = text
+        // ===== التعديل الجوهري: إزالة دالة التقطيع نهائياً! (ليكتب النص بشكل طبيعي متدفق) =====
+        // لم نعد نستخدم formatBotText، سنعرض النص كما هو (white-space: pre-wrap في CSS يضمن الأسطر الطبيعية)
+        function displayBotText(text) {
+            return text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-
-            safe = safe.replace(/```([\s\S]*?)```/g, function(match, code) {
-                return '<pre><code>' + code.trim() + '</code></pre>';
-            });
-
-            safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-            safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-            safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-            safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-            safe = safe.replace(
-                /(?:^|\n)((?:\\d+\\.\\s+.+(?:\\n|$))+)/g,
-                function(match, list) {
-                    var items = list
-                        .trim()
-                        .split('\\n')
-                        .map(function(item) { return item.replace(/^\\d+\\.\\s+/, '').trim(); })
-                        .filter(Boolean)
-                        .map(function(item) { return '<li>' + item + '</li>'; })
-                        .join('');
-                    return '<ol>' + items + '</ol>';
-                }
-            );
-
-            safe = safe.replace(
-                /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
-                function(match, list) {
-                    var items = list
-                        .trim()
-                        .split('\n')
-                        .map(function(item) { return item.replace(/^[-*]\s+/, '').trim(); })
-                        .filter(Boolean)
-                        .map(function(item) { return '<li>' + item + '</li>'; })
-                        .join('');
-                    return '<ul>' + items + '</ul>';
-                }
-            );
-
-            var paragraphs = safe.split(/\n\s*\n/);
-            if (paragraphs.length === 1 && safe.length > 120) {
-                paragraphs = safe.split(/(?<=[.!؟?])\s+/);
-            }
-
-            return paragraphs.map(function(block) {
-                block = block.trim();
-                if (block.startsWith('<h') || block.startsWith('<ol') || block.startsWith('<ul') || block.startsWith('<pre')) return block;
-                return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
-            }).join('');
+                .replace(/>/g, '&gt;')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -530,7 +485,7 @@ HTML_TEMPLATE = r"""
 
                         setTimeout(typeChar, 20);
                     } else {
-                        typingSpan.innerHTML = formatBotText(displayText);
+                        typingSpan.innerHTML = displayBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
                 }
@@ -542,7 +497,7 @@ HTML_TEMPLATE = r"""
             var content = displayText;
 
             if (sender === 'bot') {
-                content = '<div class="bot-content">' + formatBotText(displayText) + '</div>';
+                content = '<div class="bot-content">' + displayBotText(displayText) + '</div>';
             }
 
             if (generatedImageUrl) {
