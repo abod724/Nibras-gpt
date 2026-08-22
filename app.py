@@ -98,7 +98,6 @@ for filename in possible_names:
 if not knowledge_content:
     knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# تم تحسين هذا الجزء لفصل الفقرات
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -169,7 +168,8 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-HTML_TEMPLATE = """
+# ===== الحل الجذري: وضع حرف r ليقول لبايثون "اترك الأسطر كما هي" =====
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -469,7 +469,7 @@ HTML_TEMPLATE = """
             userInput.value = '';
         });
 
-        // ===== التعديل النهائي: إصلاح الهروب الخاطئ [\s\S] ليصبح [\\s\\S] =====
+        // ===== تنسيق نص نبراس (نسخة آمنة تماماً) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -551,7 +551,7 @@ HTML_TEMPLATE = """
                 return el;
             }
 
-            var imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
+            var imageUrlMatch = text.match(/(https?:\/\/[^\\s]+\\.(png|jpg|jpeg|gif|webp))/i);
             var displayText = text;
             var generatedImageUrl = null;
 
