@@ -80,7 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
+# ===== تعديل التعليمات (لا يمس الواجهة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -92,11 +92,13 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
-- اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
-- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
-- اترك **سطراً فارغاً** بين كل فقرة وأخرى.
-- استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
+**قواعد التنسيق الإلزامية (مهم جداً):**
+- اكتب ردك في فقرات متصلة (مثل المقالات) - لا تكتب شعراً.
+- استخدم `##` لعناوين الأقسام الكبيرة.
+- استخدم `###` للعناوين الفرعية.
+- استخدم `**نص عريض**` للكلمات المهمة.
+- استخدم `-` للقوائم النقطية عند سرد النقاط.
+- اترك سطراً فارغاً بين كل فقرة.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -127,7 +129,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# إضافة r لإسكات تحذير بايثون (لا يغير الواجهة)
+# ===== الواجهة (لم ألمس أي زر، أضفت أنماط CSS للعناوين فقط) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -167,9 +169,18 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
-        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
         
+        /* ===== أنماط العناوين والأحجام (جديدة فقط) ===== */
+        .msg .bot-content h1 { font-size: 26px; font-weight: 800; margin: 15px 0 10px; }
+        .msg .bot-content h2 { font-size: 22px; font-weight: 700; margin: 15px 0 10px; }
+        .msg .bot-content h3 { font-size: 18px; font-weight: 700; margin: 10px 0 8px; }
+        .msg .bot-content strong { font-weight: 800; }
+        .msg .bot-content ul, .msg .bot-content ol { margin: 10px 0 10px 0; padding-right: 25px; }
+        .msg .bot-content li { margin-bottom: 5px; }
+        .msg .bot-content p { margin: 0 0 15px 0; }
+        /* ===== نهاية الأنماط المضافة ===== */
+
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
@@ -419,7 +430,7 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
+        // ===== دالة تحويل الماركداون إلى HTML (تقوم بتحويل العناوين والأحجام) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -433,16 +444,29 @@ HTML_TEMPLATE = r"""
             
             // تحويل الخط العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-            // تحويل الأسطر الجديدة المفردة إلى مسافات لتكوين فقرة متصلة، مع ترك سطر فارغ بين الفقرات
-            var paragraphs = safe.split(/\n\s*\n/);
             
-            return paragraphs.map(function(paragraph) {
-                paragraph = paragraph.trim();
-                if (!paragraph) return '';
-                paragraph = paragraph.replace(/\n/g, ' ');
-                return '<p>' + paragraph + '</p>';
+            // تحويل القوائم النقطية
+            safe = safe.replace(
+                /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
+                function(match, list) {
+                    var items = list
+                        .trim()
+                        .split('\n')
+                        .map(function(item) { return item.replace(/^[-*]\s+/, '').trim(); })
+                        .filter(Boolean)
+                        .map(function(item) { return '<li>' + item + '</li>'; })
+                        .join('');
+                    return '<ul>' + items + '</ul>';
+                }
+            );
+
+            // تحويل الأسطر المفردة إلى مسافات (لتصبح فقرات متصلة)
+            var paragraphs = safe.split(/\n\s*\n/);
+            return paragraphs.map(function(p) {
+                p = p.trim();
+                if (!p) return '';
+                p = p.replace(/\n/g, ' ');
+                return '<p>' + p + '</p>';
             }).join('');
         }
 
