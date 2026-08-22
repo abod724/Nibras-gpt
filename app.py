@@ -98,7 +98,7 @@ for filename in possible_names:
 if not knowledge_content:
     knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ======= التعديل الأول: تحسين الـ SYSTEM_PROMPT ليفصل الفقرات =======
+# تم تحسين هذا الجزء لفصل الفقرات
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -469,14 +469,14 @@ HTML_TEMPLATE = """
             userInput.value = '';
         });
 
-        // ===== التعديل الثاني: تحسين تنسيق نبراس (منع التصاق النص) =====
+        // ===== التعديل النهائي: إصلاح الهروب الخاطئ [\s\S] ليصبح [\\s\\S] =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            safe = safe.replace(/```([\s\S]*?)```/g, function(match, code) {
+            safe = safe.replace(/```([\\s\\S]*?)```/g, function(match, code) {
                 return '<pre><code>' + code.trim() + '</code></pre>';
             });
 
