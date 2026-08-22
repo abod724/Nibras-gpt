@@ -80,7 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل: البرومبت الجديد لكتابة فقرات متصلة (سطر يمتد لليمين ثم ينزل) =====
+# ===== التعديل الأول فقط: تعليمات الكتابة (لا يلمس الواجهة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -92,12 +92,11 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️ قواعد التنسيق الإلزامية:**
-- **اكتب ردك في فقرات نصية عادية ومتصلة** (مثل الكتب والمقالات). كل فقرة يجب أن تتكون من 2 إلى 4 أسطر (السطر يبدأ من اليمين ويملأ المساحة، ثم ينزل لسطر تحته).
-- **ممنوع منعاً باتاً** كتابة جمل قصيرة في أسطر منفصلة تحت بعض.
-- **ممنوع** استخدام القوائم النقطية للقصص.
+**⚠️ قواعد الكتابة الإلزامية:**
+- اكتب ردك على شكل فقرات نصية عادية ومتصلة (مثل المقالات والكتب).
+- ممنوع منعاً باتاً وضع كل جملة في سطر مستقل (ممنوع كتابة "الشعر").
+- اجعل الجمل تتدفق داخل الفقرة بشكل طبيعي.
 - اترك سطراً فارغاً بين كل فقرة وأخرى.
-- إذا أردت توضيح معلومة، ابدأها بعنوان عريض مثل **الشرح:** في بداية الفقرة.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -128,16 +127,13 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ===== التعديل: r فقط لإصلاح تحذير الهروب (لا يمس الواجهة) =====
+# ===== التعديل الثاني: إضافة r (لإصلاح تحذير الهروب في بايثون دون تغيير الواجهة) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
-    <meta name="google-site-verification" content="PyOhY3ZXN4LTBbK55EbrmeI5A5kqddF3cJeI_s1FwVc" />
-    <meta http-equiv="Content-Language" content="ar" />
-    <meta name="description" content="نبراس GP، مساعد ذكي سعودي يتحدث باللهجة العامية البيضاء ويكتب بصوت بشري. جرب المحادثة الصوتية الآن!" />
     <title>نبراس</title>
     <link rel="manifest" href="/static/manifest.json" />
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
@@ -167,7 +163,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 1.8; word-wrap: break-word; white-space: pre-wrap; color: #111111; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
@@ -417,16 +413,25 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل الجوهري: إزالة دالة التقطيع نهائياً! (ليكتب النص بشكل طبيعي متدفق) =====
-        // لم نعد نستخدم formatBotText، سنعرض النص كما هو (white-space: pre-wrap في CSS يضمن الأسطر الطبيعية)
+        // ===== التعديل الثالث: دالة تعمل على دمج الأسطر القصيرة (لكتابة فقرات متصلة طبيعية) =====
         function displayBotText(text) {
-            return text
+            var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                .replace(/\n/g, '<br>');
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // تقسيم النص على الأسطر الفارغة (للحفاظ على الفقرات)
+            var paragraphs = safe.split(/\n\s*\n/);
+
+            return paragraphs.map(function(p) {
+                p = p.trim();
+                if (!p) return '';
+                // دمج كل الأسطر القصيرة داخل الفقرة في سطر واحد لتشكيل فقرة طويلة ملتفة
+                p = p.replace(/\n/g, ' ');
+                p = p.replace(/\s+/g, ' ');
+                return '<p>' + p + '</p>';
+            }).join('');
         }
 
         function addMessage(text, sender, isSystem, imageData) {
