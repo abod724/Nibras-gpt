@@ -108,7 +108,7 @@ for filename in possible_names:
 if not knowledge_content:
     knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل الأول: تحديث تعليمات النظام لجعل نبراس يكتب بفقرات وعناوين =====
+# ===== التعديل الأول: تقوية قواعد التنسيق الإلزامية =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -120,10 +120,14 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**تعليمات التنسيق الإلزامية (مهم جداً، لا تكسرها):**
-- ممنوع منعاً باتاً كتابة النص ككتلة واحدة متصلة.
-- قسّم إجابتك دائماً إلى **فقرات قصيرة**، واترك سطراً فارغاً بين كل فقرة (استخدم \n\n).
-- استخدم **رموز Markdown** لتنظيم الرد: استخدم `##` للعناوين الرئيسية، و `-` للقوائم النقطية، و `**نص عريض**` للكلمات المهمة.
+**⚠️⚠️ أنماط التنسيق الإلزامية (يجب تطبيقها في كل رد، ممنوع تجاهلها نهائياً):**
+- **ممنوع منعاً باتاً** كتابة النص ككتلة واحدة متصلة "تحت بعض".
+- **يجب** أن يكون ردك منظمًا تمامًا.
+- ابدأ دائمًا بعنوان رئيسي بصيغة `##`.
+- اشرح النقاط باستخدام قوائم نقطية `-` أو رقمية `1.`.
+- استخدم `**نص عريض**` للكلمات المهمة.
+- اترك **سطرًا فارغًا** بين كل فقرة `\n\n` وبين كل قائمة والعنوان.
+- حتى لو طلب منك المستخدم قصة، قسّمها إلى فقرات قصيرة جداً (3-4 أسطر كحد أقصى) واترك سطرًا فارغًا بينها.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -181,7 +185,7 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ===== التعديل الثاني: إضافة r قبل HTML_TEMPLATE لإصلاح تحذير الهروب فقط =====
+# ===== التعديل الثاني: إضافة r لإخفاء تحذير الهروب (لا يغير أي وظيفة) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -190,7 +194,6 @@ HTML_TEMPLATE = r"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <meta name="google-site-verification" content="PyOhY3ZXN4LTBbK55EbrmeI5A5kqddF3cJeI_s1FwVc" />
     <meta http-equiv="Content-Language" content="ar" />
-    <!-- ===== وصف الموقع للبحث ===== -->
     <meta name="description" content="نبراس GP، مساعد ذكي سعودي يتحدث باللهجة العامية البيضاء ويكتب بصوت بشري. جرب المحادثة الصوتية الآن!" />
     <title>نبراس</title>
     <link rel="manifest" href="/static/manifest.json" />
@@ -206,12 +209,7 @@ HTML_TEMPLATE = r"""
         .menu-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; }
         .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
         .mute-btn:hover { color: #1a2b3c; }
-        .mute-btn.muted { 
-            color: #444444;
-            opacity: 0.4; 
-            transform: scale(0.9);
-            transition: all 0.2s ease;
-        }
+        .mute-btn.muted { color: #444444; opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1px solid #4a6a8a; color: #4a6a8a; }
@@ -222,20 +220,7 @@ HTML_TEMPLATE = r"""
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        .dropdown .conv-item {
-            display: block;
-            padding: 12px 18px;
-            border-bottom: 1px solid #f0f2f5;
-            cursor: pointer;
-            width: 100%;
-            background: none;
-            border: none;
-            text-align: right;
-            font-size: 16px;
-            color: #1a2b3c;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
+        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 500; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
@@ -521,12 +506,12 @@ HTML_TEMPLATE = r"""
             );
 
             safe = safe.replace(
-                /(?:^|\n)((?:[-*]\\s+.+(?:\\n|$))+)/g,
+                /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
                 function(match, list) {
                     var items = list
                         .trim()
-                        .split('\\n')
-                        .map(function(item) { return item.replace(/^[-*]\\s+/, '').trim(); })
+                        .split('\n')
+                        .map(function(item) { return item.replace(/^[-*]\s+/, '').trim(); })
                         .filter(Boolean)
                         .map(function(item) { return '<li>' + item + '</li>'; })
                         .join('');
@@ -535,7 +520,7 @@ HTML_TEMPLATE = r"""
             );
 
             var blocks = safe
-                .split(/\\n\\s*\\n/)
+                .split(/\n\s*\n/)
                 .map(function(block) { return block.trim(); })
                 .filter(Boolean);
 
@@ -550,7 +535,7 @@ HTML_TEMPLATE = r"""
                 ) {
                     return block;
                 }
-                return '<p>' + block.replace(/\\n/g, '<br>') + '</p>';
+                return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
             }).join('');
         }
 
@@ -601,7 +586,6 @@ HTML_TEMPLATE = r"""
                         }
                         setTimeout(typeChar, 20);
                     } else {
-                        // ===== التعديل: استبدال النص الخام بالتنسيق المنسق (عناوين وقوائم) =====
                         typingSpan.innerHTML = formatBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
                         
@@ -740,7 +724,6 @@ HTML_TEMPLATE = r"""
             userInput.style.height = 'auto';
             isWaiting = true;
 
-            // ===== مؤشر "جاري التفكير" =====
             const typingDiv = document.createElement('div');
             typingDiv.className = 'msg bot typing-indicator';
             typingDiv.innerHTML = '<span class="typing-dots">جاري التفكير</span>';
