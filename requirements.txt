@@ -1,2 +1,7 @@
-Flask
+flask
+openai
+requests
 gunicorn
+edge-tts
+uvicorn
+flask-limiter
