@@ -28,9 +28,6 @@ SYSTEM_ENABLED = True
 def serve_robots():
     return send_from_directory('static', 'robots.txt')
 
-# ===== تم حذف المسار العام الخطير =====
-# الآن أي ملف في مجلد static يمكن الوصول إليه عبر /static/اسم_الملف
-
 # ========== قاعدة البيانات (SQLite) ==========
 DB_FILE = "conversations.db"
 
@@ -111,7 +108,7 @@ for filename in possible_names:
 if not knowledge_content:
     knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ========== تعليمات النظام ==========
+# ===== التعديل الأول: تحديث تعليمات النظام لجعل نبراس يكتب بفقرات وعناوين =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -122,6 +119,11 @@ SYSTEM_PROMPT = f"""
 
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
+
+**تعليمات التنسيق الإلزامية (مهم جداً، لا تكسرها):**
+- ممنوع منعاً باتاً كتابة النص ككتلة واحدة متصلة.
+- قسّم إجابتك دائماً إلى **فقرات قصيرة**، واترك سطراً فارغاً بين كل فقرة (استخدم \n\n).
+- استخدم **رموز Markdown** لتنظيم الرد: استخدم `##` للعناوين الرئيسية، و `-` للقوائم النقطية، و `**نص عريض**` للكلمات المهمة.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -179,8 +181,8 @@ async def generate_speech(text, gender):
             audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ========== واجهة الدردشة ==========
-HTML_TEMPLATE = """
+# ===== التعديل الثاني: إضافة r قبل HTML_TEMPLATE لإصلاح تحذير الهروب فقط =====
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -236,102 +238,18 @@ HTML_TEMPLATE = """
         }
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
-
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
-
-        /* ===== تنسيق ردود نبراس ===== */
-        .msg { 
-            max-width: 90%; 
-            padding: 12px 18px; 
-            border-radius: 20px; 
-            font-size: 16px; 
-            font-weight: 600; 
-            line-height: 1.8; 
-            word-wrap: break-word; 
-            color: #111111; 
-        }
-
-        .msg.user { 
-            align-self: flex-end; 
-            background: transparent; 
-            border-bottom-left-radius: 6px; 
-            white-space: pre-wrap;
-        }
-
-        .msg.bot { 
-            align-self: flex-start; 
-            background: #ffffff; 
-            border-bottom-right-radius: 6px; 
-            white-space: normal;
-        }
-
-        .msg .bot-content {
-            line-height: 1.9;
-            text-align: right;
-        }
-
-        .msg .bot-content p {
-            margin: 0 0 14px 0;
-        }
-
-        .msg .bot-content p:last-child {
-            margin-bottom: 0;
-        }
-
-        .msg .bot-content strong {
-            font-weight: 700;
-        }
-
-        .msg .bot-content h1,
-        .msg .bot-content h2,
-        .msg .bot-content h3 {
-            margin: 18px 0 10px 0;
-            line-height: 1.5;
-        }
-
-        .msg .bot-content ul,
-        .msg .bot-content ol {
-            margin: 8px 0 16px 0;
-            padding-right: 25px;
-        }
-
-        .msg .bot-content li {
-            margin-bottom: 8px;
-        }
-
-        .msg .bot-content code {
-            background: #f1f3f5;
-            padding: 2px 6px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-weight: 500;
-        }
-
-        .msg .bot-content pre {
-            background: #f5f7fa;
-            padding: 14px;
-            border-radius: 12px;
-            overflow-x: auto;
-            direction: ltr;
-            text-align: left;
-            margin: 12px 0;
-        }
-
-        .msg .bot-content pre code {
-            background: transparent;
-            padding: 0;
-        }
-
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; color: #111111; }
+        .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
+        .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
-
         .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 600; color: #5a6b7c; }
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
         @keyframes dotAnimation { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
-
         .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
         .welcome-overlay .welcome-box { background: #ffffff; padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; }
         .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; }
@@ -339,13 +257,11 @@ HTML_TEMPLATE = """
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .welcome-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         @keyframes fadeOut { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(0.9); } }
-
         #imagePreviewContainer { display: none; padding: 6px 18px; align-items: center; gap: 10px; background: #f5f7fa; margin: 0 14px; border-radius: 20px 20px 0 0; border: 1px solid #dce1e8; border-bottom: none; flex-wrap: wrap; flex-shrink: 0; }
         #imagePreviewContainer img { max-height: 60px; border-radius: 8px; border: 1px solid #ddd; }
         #imagePreviewContainer .label { font-size: 13px; color: #5a6b7c; }
         #removeImageBtn { background: none; border: none; color: #c33; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: #fde8e8; }
-
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: #f5f7fa; border-radius: 40px; border: 1px solid #dce1e8; flex-shrink: 0; min-height: 60px; }
         .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: #9aabbc; }
@@ -362,7 +278,6 @@ HTML_TEMPLATE = """
         .plus-options.show { display: flex; }
         .plus-options .option-btn { background: #f5f7fa; border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #1a2b3c; cursor: pointer; transition: 0.2s; }
         .plus-options .option-btn:hover { background: #e8ecf0; }
-
         @media (max-width: 420px) {
             .header { padding: 12px 14px; }
             .btn { font-size: 12px; padding: 5px 12px; }
@@ -380,7 +295,6 @@ HTML_TEMPLATE = """
             .welcome-overlay .welcome-box h2 { font-size: 22px; }
             .welcome-overlay .welcome-box p { font-size: 16px; }
         }
-
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 600; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: #f5f7fa; }
         .gender-option.active { background: #4a6a8a; color: white; border-color: #4a6a8a; }
@@ -444,7 +358,6 @@ HTML_TEMPLATE = """
     <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" />
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
-
 <script>
     (function() {
         let conversationHistory = [];
@@ -493,7 +406,6 @@ HTML_TEMPLATE = """
 
         let isMale = true;
         const genderOptions = document.querySelectorAll('.gender-option');
-
         menuToggle.addEventListener('click', function(e) {
             e.stopPropagation();
             dropdown.classList.toggle('show');
@@ -577,69 +489,57 @@ HTML_TEMPLATE = """
             userInput.value = '';
         });
 
-        // ===== تنسيق نص نبراس =====
+        // ===== التعديل الثالث: إضافة دالة تنسيق النصوص (لجعل الردود مثل الصورة الأولى) =====
         function formatBotText(text) {
-            // حماية النص من HTML
-            let safe = text
+            var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            // الأكواد بين ```
             safe = safe.replace(/```([\s\S]*?)```/g, function(match, code) {
                 return '<pre><code>' + code.trim() + '</code></pre>';
             });
 
-            // العناوين
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-
-            // العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-            // الكود القصير
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // القوائم المرقمة
             safe = safe.replace(
-                /(?:^|\n)((?:\d+\.\s+.+(?:\n|$))+)/g,
+                /(?:^|\n)((?:\\d+\\.\\s+.+(?:\\n|$))+)/g,
                 function(match, list) {
-                    const items = list
+                    var items = list
                         .trim()
-                        .split('\n')
-                        .map(item => item.replace(/^\d+\.\s+/, '').trim())
+                        .split('\\n')
+                        .map(function(item) { return item.replace(/^\\d+\\.\\s+/, '').trim(); })
                         .filter(Boolean)
-                        .map(item => '<li>' + item + '</li>')
+                        .map(function(item) { return '<li>' + item + '</li>'; })
                         .join('');
-
                     return '<ol>' + items + '</ol>';
                 }
             );
 
-            // القوائم النقطية
             safe = safe.replace(
-                /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
+                /(?:^|\n)((?:[-*]\\s+.+(?:\\n|$))+)/g,
                 function(match, list) {
-                    const items = list
+                    var items = list
                         .trim()
-                        .split('\n')
-                        .map(item => item.replace(/^[-*]\s+/, '').trim())
+                        .split('\\n')
+                        .map(function(item) { return item.replace(/^[-*]\\s+/, '').trim(); })
                         .filter(Boolean)
-                        .map(item => '<li>' + item + '</li>')
+                        .map(function(item) { return '<li>' + item + '</li>'; })
                         .join('');
-
                     return '<ul>' + items + '</ul>';
                 }
             );
 
-            // تقسيم الرد إلى فقرات
-            const blocks = safe
-                .split(/\n\s*\n/)
-                .map(block => block.trim())
+            var blocks = safe
+                .split(/\\n\\s*\\n/)
+                .map(function(block) { return block.trim(); })
                 .filter(Boolean);
 
-            return blocks.map(block => {
+            return blocks.map(function(block) {
                 if (
                     block.startsWith('<h1>') ||
                     block.startsWith('<h2>') ||
@@ -650,8 +550,7 @@ HTML_TEMPLATE = """
                 ) {
                     return block;
                 }
-
-                return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+                return '<p>' + block.replace(/\\n/g, '<br>') + '</p>';
             }).join('');
         }
 
@@ -659,7 +558,6 @@ HTML_TEMPLATE = """
             const el = document.createElement('div');
             el.className = `msg ${sender}`;
             if (sender === 'error') el.classList.add('error');
-
             const now = new Date();
             const time = isSystem ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
             
@@ -673,30 +571,24 @@ HTML_TEMPLATE = """
             const imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
             let displayText = text;
             let generatedImageUrl = null;
-
             if (imageUrlMatch) {
                 generatedImageUrl = imageUrlMatch[0];
                 displayText = text.replace(imageUrlMatch[0], '').trim();
                 if (!displayText) displayText = '🖼️ الصورة المولدة';
             }
 
-            // ===== رد نبراس مع تأثير الكتابة =====
             if (sender === 'bot' && !isSystem && !generatedImageUrl) {
-                el.innerHTML = `<div class="bot-content"><span class="typing-text"></span></div>${time ? ' <span class="time">'+time+'</span>' : ''}`;
+                el.innerHTML = `<span class="typing-text"></span>${time ? ' <span class="time">'+time+'</span>' : ''}`;
                 chatBox.appendChild(el);
                 chatBox.scrollTop = chatBox.scrollHeight;
-
                 const typingSpan = el.querySelector('.typing-text');
-
                 let index = 0;
                 let userInteracted = false;
-
                 const onUserInteract = () => {
                     userInteracted = true;
                     chatBox.removeEventListener('touchstart', onUserInteract);
                     chatBox.removeEventListener('scroll', onUserInteract);
                 };
-
                 chatBox.addEventListener('touchstart', onUserInteract);
                 chatBox.addEventListener('scroll', onUserInteract);
 
@@ -704,36 +596,33 @@ HTML_TEMPLATE = """
                     if (index < displayText.length) {
                         typingSpan.textContent += displayText.charAt(index);
                         index++;
-
                         if (!userInteracted) {
                             chatBox.scrollTop = chatBox.scrollHeight;
                         }
-
                         setTimeout(typeChar, 20);
                     } else {
-                        // بعد انتهاء الكتابة نطبق التنسيق
+                        // ===== التعديل: استبدال النص الخام بالتنسيق المنسق (عناوين وقوائم) =====
                         typingSpan.innerHTML = formatBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
+                        
+                        if (generatedImageUrl) {
+                            const imgEl = document.createElement('img');
+                            imgEl.src = generatedImageUrl;
+                            imgEl.className = 'generated-image';
+                            el.appendChild(imgEl);
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        }
                     }
                 }
-
                 typeChar();
                 return el;
             }
 
-            // ===== الرسائل الأخرى =====
             let content = displayText;
-
-            if (sender === 'bot') {
-                content = `<div class="bot-content">${formatBotText(displayText)}</div>`;
-            }
-
             if (generatedImageUrl) {
                 content += `<br/><img src="${generatedImageUrl}" class="generated-image" />`;
             }
-
             el.innerHTML = `${content}${time ? ' <span class="time">'+time+'</span>' : ''}`;
-
             chatBox.appendChild(el);
             chatBox.scrollTop = chatBox.scrollHeight;
             return el;
@@ -743,17 +632,14 @@ HTML_TEMPLATE = """
             if (!sessionStorage.getItem('welcomeShown')) {
                 const overlay = document.createElement('div');
                 overlay.className = 'welcome-overlay';
-
                 overlay.innerHTML = `
                     <div class="welcome-box">
                         <h2>👋 أهلاً بك في نبراس</h2>
                         <p>نورتنا! كيف نقدر نساعدك اليوم؟</p>
                     </div>
                 `;
-
                 document.body.appendChild(overlay);
                 sessionStorage.setItem('welcomeShown', 'true');
-
                 setTimeout(() => {
                     if (document.body.contains(overlay)) {
                         overlay.classList.add('fade-out');
@@ -762,7 +648,6 @@ HTML_TEMPLATE = """
                         }, 500);
                     }
                 }, 5000);
-
                 const removeWelcome = function() {
                     if (document.body.contains(overlay)) {
                         overlay.classList.add('fade-out');
@@ -770,11 +655,9 @@ HTML_TEMPLATE = """
                             if (document.body.contains(overlay)) overlay.remove();
                         }, 500);
                     }
-
                     document.removeEventListener('click', removeWelcome);
                     userInput.removeEventListener('keydown', removeWelcome);
                 };
-
                 document.addEventListener('click', removeWelcome);
                 userInput.addEventListener('keydown', removeWelcome);
             }
@@ -799,13 +682,11 @@ HTML_TEMPLATE = """
         });
 
         let plusOpen = false;
-
         plusBtn.addEventListener('click', function() {
             plusOpen = !plusOpen;
             plusOptions.classList.toggle('show', plusOpen);
             this.classList.toggle('rotate', plusOpen);
         });
-
         document.addEventListener('click', function(e) {
             if (!plusBtn.contains(e.target) && !plusOptions.contains(e.target)) {
                 plusOptions.classList.remove('show');
@@ -814,40 +695,28 @@ HTML_TEMPLATE = """
             }
         });
 
-        galleryBtn.addEventListener('click', function() {
-            fileInput.click();
-            plusOptions.classList.remove('show');
-        });
-
+        galleryBtn.addEventListener('click', function() { fileInput.click(); plusOptions.classList.remove('show'); });
         fileInput.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
-
                 reader.onload = function(ev) {
                     pendingImageData = ev.target.result;
                     showImagePreview(pendingImageData);
                     fileInput.value = '';
                 };
-
                 reader.readAsDataURL(this.files[0]);
             }
         });
 
-        cameraBtn.addEventListener('click', function() {
-            cameraInput.click();
-            plusOptions.classList.remove('show');
-        });
-
+        cameraBtn.addEventListener('click', function() { cameraInput.click(); plusOptions.classList.remove('show'); });
         cameraInput.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
-
                 reader.onload = function(ev) {
                     pendingImageData = ev.target.result;
                     showImagePreview(pendingImageData);
                     cameraInput.value = '';
                 };
-
                 reader.readAsDataURL(this.files[0]);
             }
         });
@@ -862,7 +731,6 @@ HTML_TEMPLATE = """
             if (!text && !imageToSend) return;
 
             if (text) addMessage(text, 'user');
-
             if (imageToSend) {
                 addMessage('🖼️ صورة مرفقة', 'user', false, imageToSend);
                 clearPendingImage();
@@ -892,7 +760,6 @@ HTML_TEMPLATE = """
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
                 const data = await res.json();
                 
                 if (typingDiv && typingDiv.parentNode) {
@@ -901,39 +768,32 @@ HTML_TEMPLATE = """
 
                 if (res.ok) {
                     addMessage(data.reply, 'bot');
-
                     if (!isMuted && data.audio) {
                         if (currentAudio) { 
                             currentAudio.pause(); 
                             currentAudio.currentTime = 0; 
                         }
-
                         const audioSrc = `data:audio/mp3;base64,${data.audio}`;
                         currentAudio = new Audio(audioSrc);
                         currentAudio.play();
                     }
-
                     if (data.conv_id) {
                         currentConvId = data.conv_id;
                     }
                 } else {
                     addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
                 }
-
             } catch (e) {
                 if (typingDiv && typingDiv.parentNode) {
                     typingDiv.remove();
                 }
-
                 addMessage('تعذر الاتصال بالسيرفر، حاول مرة أخرى.', 'error');
-
             } finally {
                 isWaiting = false;
             }
         }
 
         sendBtn.addEventListener('click', sendMessage);
-
         userInput.addEventListener('keypress', (e) => { 
             if (e.key === 'Enter') { 
                 e.preventDefault(); 
@@ -948,42 +808,28 @@ HTML_TEMPLATE = """
         });
 
         let recognition = null;
-
         micBtn.addEventListener('click', function() {
             if (!('webkitSpeechRecognition' in window)) {
                 addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true);
                 return;
             }
-
             if (this.classList.contains('listening')) {
                 this.classList.remove('listening');
-
                 if (recognition) recognition.stop();
-
                 return;
             }
-
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SR();
             recognition.lang = 'ar-SA';
-
             this.classList.add('listening');
-
             addMessage('جاري الاستماع...', 'bot', true);
-
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
                 userInput.value = transcript;
-
                 micBtn.classList.remove('listening');
-
                 setTimeout(() => sendMessage(), 300);
             };
-
-            recognition.onerror = () => {
-                micBtn.classList.remove('listening');
-            };
-
+            recognition.onerror = () => { micBtn.classList.remove('listening'); };
             recognition.start();
         });
 
@@ -1079,7 +925,7 @@ def index():
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
-        password = request.form.get('password')
+        password = request.form.get('password')  # استلام كلمة المرور
 
         admin_email = "abdullaha0569361@gmail.com"
         admin_password = os.environ.get("ADMIN_PASSWORD")
@@ -1088,7 +934,6 @@ def login():
         if email == admin_email:
             if not admin_password:
                 return render_template_string(LOGIN_HTML, error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
-
             if secrets.compare_digest(password, admin_password):
                 session.clear()
                 session['admin_email'] = admin_email
@@ -1096,13 +941,12 @@ def login():
             else:
                 return render_template_string(LOGIN_HTML, error="كلمة مرور الأدمن غير صحيحة.")
 
-        # المستخدم العادي
+        # المستخدم العادي (يسمح بأي بريد صالح بدون كلمة مرور)
         elif email and "@" in email:
             session['user_email'] = email
             session['trial_remaining'] = 5
             session['is_trial_expired'] = False
             return redirect(url_for('index'))
-
         else:
             return render_template_string(LOGIN_HTML, error="يرجى إدخال بريد إلكتروني صحيح.")
 
@@ -1129,27 +973,21 @@ def history():
 def load_conversation(conv_id):
     user_id = get_user_id()
     messages = load_conversation_by_id(user_id, conv_id)
-
     if messages:
         return jsonify({"messages": messages})
-
     return jsonify({"messages": None}), 404
 
 def get_user_id():
     if 'admin_email' in session:
         return "admin_" + session['admin_email']
-
     elif 'user_email' in session:
         return "user_" + session['user_email']
-
     else:
         real_ip = request.headers.get('X-Forwarded-For')
-
         if real_ip:
             real_ip = real_ip.split(',')[0].strip()
         else:
             real_ip = request.remote_addr
-
         return "guest_" + (real_ip or 'unknown')
 
 @app.route('/set_gender', methods=['POST'])
@@ -1183,144 +1021,67 @@ def chat():
             use_web_search = True
             allow_images = True
             limit_msg = None
-
         elif is_trial_user and trial_remaining > 0 and not session.get('is_trial_expired'):
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
             limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
-
         else:
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
-
             if is_trial_user and trial_remaining == 0:
                 limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
-        draw_keywords = [
-            "ارسم",
-            "أنشئ",
-            "انشئ",
-            "انشى",
-            "صوره",
-            "صورة",
-            "صور",
-            "رسم",
-            "ارسمي",
-            "صمم",
-            "ولّد",
-            "generate",
-            "draw",
-            "ارسم لي",
-            "أنشئ لي",
-            "انشئ لي",
-            "انشى لي",
-            "صوره لي"
-        ]
-
+        draw_keywords = ["ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", "رسم", "ارسمي", "صمم", "ولّد", "generate", "draw", "ارسم لي", "أنشئ لي", "انشئ لي", "انشى لي", "صوره لي"]
         if allow_images and any(keyword in user_message for keyword in draw_keywords):
             print(f"🎨 اكتشاف طلب رسم: {user_message}")
-
             image_url = generate_image(user_message)
-
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
-
-                session_memory[user_id].append({
-                    "role": "user",
-                    "content": user_message
-                })
-
-                session_memory[user_id].append({
-                    "role": "assistant",
-                    "content": reply
-                })
-
-                new_conv_id = save_user_conversation(
-                    user_id,
-                    session_memory[user_id],
-                    conv_id
-                )
-
+                session_memory[user_id].append({"role": "user", "content": user_message})
+                session_memory[user_id].append({"role": "assistant", "content": reply})
+                new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
                 if is_trial_user and trial_remaining > 0:
                     session['trial_remaining'] = trial_remaining - 1
-
                     if session['trial_remaining'] == 0:
                         session['is_trial_expired'] = True
                         reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار."
-
-                return jsonify({
-                    "reply": reply,
-                    "conv_id": new_conv_id
-                })
-
+                return jsonify({"reply": reply, "conv_id": new_conv_id})
             else:
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
-        session_memory[user_id].append({
-            "role": "user",
-            "content": user_message
-        })
-
+        session_memory[user_id].append({"role": "user", "content": user_message})
         chat_history = session_memory[user_id][-10:]
 
-        messages = [{
-            "role": "system",
-            "content": SYSTEM_PROMPT
-        }]
-
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for entry in chat_history:
-            messages.append({
-                "role": entry["role"],
-                "content": entry["content"]
-            })
+            messages.append({"role": entry["role"], "content": entry["content"]})
 
         image_data = data.get("image", None)
-
         if image_data and allow_images:
             messages.append({
                 "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": user_message or "حلل هذه الصورة"
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": image_data
-                        }
-                    }
-                ]
+                "content": [{"type": "text", "text": user_message or "حلل هذه الصورة"}, {"type": "image_url", "image_url": {"url": image_data}}]
             })
 
         if use_web_search:
             try:
                 full_context = ""
-
                 for msg in messages:
                     if msg["role"] == "user":
                         full_context += msg["content"] + "\n"
-
                     elif msg["role"] == "assistant":
                         full_context += "نبراس: " + msg["content"] + "\n"
-
                 search_response = client.responses.create(
                     model="gpt-4o",
                     instructions=f"{SYSTEM_PROMPT}\n\nسياق المحادثة السابقة:\n{full_context}",
                     input=f"ابحث في الويب عن أحدث المعلومات حول: {user_message}، وقدم لي ملخصاً مفيداً.",
                     tools=[{"type": "web_search"}]
                 )
-
                 search_result = search_response.output_text.strip()
-
                 if search_result:
-                    messages.append({
-                        "role": "user",
-                        "content": f"نتيجة البحث:\n{search_result}\n\nاستخدم هذه المعلومات."
-                    })
-
+                    messages.append({"role": "user", "content": f"نتيجة البحث:\n{search_result}\n\nاستخدم هذه المعلومات."})
             except Exception as e:
                 print(f"⚠️ فشل البحث بالويب: {e}")
 
@@ -1331,75 +1092,49 @@ def chat():
                 max_completion_tokens=1000,
                 temperature=0.8
             )
-
             reply = response.choices[0].message.content.strip()
-
             if not reply:
                 reply = "ما قدرت أجيب لك رد، حاول مرة أخرى."
-
         except openai.BadRequestError as e:
             print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
-
             try:
                 fallback_model = "gpt-4o-mini"
-
                 response = client.chat.completions.create(
                     model=fallback_model,
                     messages=messages,
                     max_completion_tokens=800,
                     temperature=0.8
                 )
-
                 reply = response.choices[0].message.content.strip()
-
                 if not reply:
                     reply = "فشل النموذج المتقدم، تم التبديل للنموذج العادي."
-
             except Exception as e2:
                 reply = f"حدث خطأ في الاتصال بـ OpenAI: {str(e2)}"
-
         except Exception as e:
             print(f"❌ خطأ: {e}")
             reply = "حدث خطأ في السيرفر، حاول مرة أخرى."
 
-        session_memory[user_id].append({
-            "role": "assistant",
-            "content": reply
-        })
-
-        new_conv_id = save_user_conversation(
-            user_id,
-            session_memory[user_id],
-            conv_id
-        )
+        session_memory[user_id].append({"role": "assistant", "content": reply})
+        new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
 
         if is_trial_user and trial_remaining > 0:
             session['trial_remaining'] = trial_remaining - 1
-
             if session['trial_remaining'] == 0:
                 session['is_trial_expired'] = True
                 reply += "\n\n⚠️ انتهت محادثاتك التجريبية. الترقية للاستمرار مع البحث بالويب والصور."
 
         try:
             user_gender = session.get('voice_gender', 'male')
-            audio_base64 = asyncio.run(
-                generate_speech(reply, user_gender)
-            )
-
+            audio_base64 = asyncio.run(generate_speech(reply, user_gender))
         except Exception as e:
             print(f"⚠️ فشل توليد الصوت: {e}")
             audio_base64 = None
 
-        return jsonify({
-            "reply": reply,
-            "audio": audio_base64,
-            "conv_id": new_conv_id
-        })
+        return jsonify({"reply": reply, "audio": audio_base64, "conv_id": new_conv_id})
 
     except Exception as e:
         print(f"❌ خطأ عام في /chat: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
