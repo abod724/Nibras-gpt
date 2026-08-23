@@ -80,7 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== تعليمات الكتابة مع دعم العناوين والمائل =====
+# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -92,16 +92,11 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️ قواعد التنسيق الإلزامية (مهم جداً):**
+**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
 - اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
-- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر).
+- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
 - اترك **سطراً فارغاً** بين كل فقرة وأخرى.
-- للعناوين الرئيسية الكبيرة استخدم `##` (مثال: `## قصة جميلة`).
-- للعناوين الفرعية الصغيرة استخدم `###`.
-- للكلمات المهمة استخدم `**الخط العريض**`.
-- للكلمات الثانوية استخدم `*الخط المائل*`.
-- استخدم `-` للقوائم النقطية.
-- استخدم `` ` `` (ثلاث علامات) للأكواد البرمجية.
+- استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -132,6 +127,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
+# إضافة r لإسكات تحذير بايثون (لا يغير الواجهة)
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -171,25 +167,9 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
+        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
         
-        /* ===== أنماط الماركداون الشاملة (عناوين، مائل، أكواد) ===== */
-        .msg .bot-content h1 { font-size: 26px; font-weight: 800; margin: 15px 0 10px; display: block; }
-        .msg .bot-content h2 { font-size: 22px; font-weight: 800; margin: 15px 0 10px; display: block; }
-        .msg .bot-content h3 { font-size: 18px; font-weight: 700; margin: 10px 0 8px; display: block; }
-        .msg .bot-content strong { font-weight: 800; }
-        .msg .bot-content em { font-style: italic; }
-        .msg .bot-content del { text-decoration: line-through; }
-        .msg .bot-content ul, .msg .bot-content ol { margin: 10px 0; padding-right: 25px; }
-        .msg .bot-content li { margin-bottom: 5px; }
-        .msg .bot-content code { background: #f1f3f5; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 14px; }
-        .msg .bot-content pre { background: #f5f7fa; border: 1px solid #dce1e8; border-radius: 8px; padding: 12px; direction: ltr; text-align: left; overflow-x: auto; margin: 10px 0; position: relative; }
-        .msg .bot-content pre code { background: transparent; padding: 0; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.5; display: block; white-space: pre-wrap; }
-        /* زر نسخ الكود */
-        .copy-code-btn { position: absolute; top: 8px; right: 8px; background: #4a6a8a; color: white; border: none; border-radius: 5px; padding: 4px 8px; font-size: 12px; cursor: pointer; z-index: 10; }
-        .copy-code-btn:hover { background: #3a5a7a; }
-        /* نهاية الأنماط */
-
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
@@ -439,92 +419,31 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== دالة تنسيق نصوص البوت وتحويل الماركداون إلى HTML (مع العناوين والأحجام والمائل) =====
+        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            // 1. التقاط كتل الأكواد ``` ... ``` وحفظها مؤقتاً
-            var codeBlocks = [];
-            safe = safe.replace(/```([\s\S]*?)```/g, function(match, code) {
-                var placeholder = "CODEBLOCK_" + codeBlocks.length;
-                codeBlocks.push(code);
-                return placeholder;
-            });
-
-            // 2. تحويل العناوين الكبيرة والصغيرة
+            // تحويل العناوين
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-
-            // 3. تحويل الخط العريض
+            
+            // تحويل الخط العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // 4. تحويل الخط المائل (جديد)
-            safe = safe.replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-            // 5. تحويل القوائم
-            safe = safe.replace(
-                /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
-                function(match, list) {
-                    var items = list
-                        .trim()
-                        .split('\n')
-                        .map(function(item) { return item.replace(/^[-*]\s+/, '').trim(); })
-                        .filter(Boolean)
-                        .map(function(item) { return '<li>' + item + '</li>'; })
-                        .join('');
-                    return '<ul>' + items + '</ul>';
-                }
-            );
-
-            // 6. تقسيم النص إلى فقرات ودمج الأسطر
+            // تحويل الأسطر الجديدة المفردة إلى مسافات لتكوين فقرة متصلة، مع ترك سطر فارغ بين الفقرات
             var paragraphs = safe.split(/\n\s*\n/);
-            var html = paragraphs.map(function(paragraph) {
+            
+            return paragraphs.map(function(paragraph) {
                 paragraph = paragraph.trim();
                 if (!paragraph) return '';
-                
-                // إذا كانت فقرة عنوان أو قائمة، اتركها كما هي لتحافظ على حجمها
-                if (paragraph.startsWith('<h') || paragraph.startsWith('<ul') || paragraph.startsWith('<ol')) {
-                    return paragraph;
-                }
-                
-                // إعادة الأكواد المؤقتة
-                var hasCode = paragraph.indexOf("CODEBLOCK_") !== -1;
-                if (hasCode) {
-                    return paragraph.replace(/CODEBLOCK_(\d+)/g, function(m, i) {
-                        return '<div class="code-block-wrapper"><pre><code>' + codeBlocks[i] + '</code></pre></div>';
-                    });
-                }
-
-                // دمج الأسطر العادية لتصبح فقرة متصلة
                 paragraph = paragraph.replace(/\n/g, ' ');
                 return '<p>' + paragraph + '</p>';
             }).join('');
-
-            return html;
-        }
-
-        // دالة إضافة زر النسخ
-        function attachCopyButtons() {
-            var preBlocks = document.querySelectorAll('.msg.bot pre');
-            preBlocks.forEach(function(pre) {
-                if (!pre.querySelector('.copy-code-btn')) {
-                    var btn = document.createElement('button');
-                    btn.className = 'copy-code-btn';
-                    btn.textContent = 'نسخ';
-                    btn.onclick = function() {
-                        var code = pre.querySelector('code');
-                        navigator.clipboard.writeText(code.innerText).then(function() {
-                            btn.textContent = 'تم النسخ!';
-                            setTimeout(function() { btn.textContent = 'نسخ'; }, 2000);
-                        });
-                    };
-                    pre.appendChild(btn);
-                }
-            });
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -584,7 +503,6 @@ HTML_TEMPLATE = r"""
                         setTimeout(typeChar, 20);
                     } else {
                         typingSpan.innerHTML = formatBotText(displayText);
-                        attachCopyButtons(); // إضافة أزرار النسخ
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
                 }
