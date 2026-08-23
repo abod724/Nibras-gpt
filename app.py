@@ -80,6 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
+# ===== تعليمات الكتابة مع دعم العناوين والمائل =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -93,11 +94,14 @@ SYSTEM_PROMPT = f"""
 
 **⚠️ قواعد التنسيق الإلزامية (مهم جداً):**
 - اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
-- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
+- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر).
 - اترك **سطراً فارغاً** بين كل فقرة وأخرى.
-- استخدم `##` للعناوين الكبيرة، و `###` للعناوين الصغيرة.
-- استخدم `**الخط العريض**` للكلمات المهمة، و `-` للقوائم النقطية.
-- إذا كتبت أكواد برمجية، ضعها داخل ``` ``` ```.
+- للعناوين الرئيسية الكبيرة استخدم `##` (مثال: `## قصة جميلة`).
+- للعناوين الفرعية الصغيرة استخدم `###`.
+- للكلمات المهمة استخدم `**الخط العريض**`.
+- للكلمات الثانوية استخدم `*الخط المائل*`.
+- استخدم `-` للقوائم النقطية.
+- استخدم `` ` `` (ثلاث علامات) للأكواد البرمجية.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -169,11 +173,13 @@ HTML_TEMPLATE = r"""
         
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
         
-        /* ===== أنماط الماركداون، العناوين، والأكواد (جديد) ===== */
-        .msg .bot-content h1 { font-size: 26px; font-weight: 800; margin: 15px 0 10px; }
-        .msg .bot-content h2 { font-size: 22px; font-weight: 800; margin: 15px 0 10px; }
-        .msg .bot-content h3 { font-size: 18px; font-weight: 700; margin: 10px 0 8px; }
+        /* ===== أنماط الماركداون الشاملة (عناوين، مائل، أكواد) ===== */
+        .msg .bot-content h1 { font-size: 26px; font-weight: 800; margin: 15px 0 10px; display: block; }
+        .msg .bot-content h2 { font-size: 22px; font-weight: 800; margin: 15px 0 10px; display: block; }
+        .msg .bot-content h3 { font-size: 18px; font-weight: 700; margin: 10px 0 8px; display: block; }
         .msg .bot-content strong { font-weight: 800; }
+        .msg .bot-content em { font-style: italic; }
+        .msg .bot-content del { text-decoration: line-through; }
         .msg .bot-content ul, .msg .bot-content ol { margin: 10px 0; padding-right: 25px; }
         .msg .bot-content li { margin-bottom: 5px; }
         .msg .bot-content code { background: #f1f3f5; padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 14px; }
@@ -433,7 +439,7 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== دالة تنسيق نصوص البوت وتحويل الماركداون إلى HTML (مع الأكواد وزر النسخ) =====
+        // ===== دالة تنسيق نصوص البوت وتحويل الماركداون إلى HTML (مع العناوين والأحجام والمائل) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -448,7 +454,7 @@ HTML_TEMPLATE = r"""
                 return placeholder;
             });
 
-            // 2. تحويل العناوين
+            // 2. تحويل العناوين الكبيرة والصغيرة
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
@@ -456,7 +462,10 @@ HTML_TEMPLATE = r"""
             // 3. تحويل الخط العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-            // 4. تحويل القوائم
+            // 4. تحويل الخط المائل (جديد)
+            safe = safe.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+            // 5. تحويل القوائم
             safe = safe.replace(
                 /(?:^|\n)((?:[-*]\s+.+(?:\n|$))+)/g,
                 function(match, list) {
@@ -471,13 +480,13 @@ HTML_TEMPLATE = r"""
                 }
             );
 
-            // 5. تقسيم النص إلى فقرات ودمج الأسطر
+            // 6. تقسيم النص إلى فقرات ودمج الأسطر
             var paragraphs = safe.split(/\n\s*\n/);
             var html = paragraphs.map(function(paragraph) {
                 paragraph = paragraph.trim();
                 if (!paragraph) return '';
                 
-                // إذا كانت فقرة عنوان أو قائمة، اتركها
+                // إذا كانت فقرة عنوان أو قائمة، اتركها كما هي لتحافظ على حجمها
                 if (paragraph.startsWith('<h') || paragraph.startsWith('<ul') || paragraph.startsWith('<ol')) {
                     return paragraph;
                 }
