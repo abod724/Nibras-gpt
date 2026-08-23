@@ -80,6 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
+# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -126,6 +127,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
+# إضافة r لإسكات تحذير بايثون (لا يغير الواجهة)
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -416,7 +418,7 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== دالة تحويل الماركداون (شكل ChatGPT) =====
+        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -1057,7 +1059,8 @@ def chat():
         return jsonify({"error": str(e)}), 500
 
 # =====================================================================
-# إضافة مسار قراءة أي ملف من مجلد static (مثل sitemap.xml أو أي ملف جديد)
+# (الإضافة الوحيدة): مسار لقراءة أي ملف من مجلد static (مثل robots.txt, sitemap.xml, manifest.json, أي صورة أو ملف)
+# يجب وضع هذا المسار في النهاية حتى لا يعترض المسارات الخاصة بالدردشة
 # =====================================================================
 @app.route('/<path:filename>')
 def serve_static_files(filename):
