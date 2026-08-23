@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string, session, redirect, url_for, send_from_directory
+from flask import Flask, request, jsonify, render_template_string, session, redirect, url_for, send_from_directory, make_response
 import openai
 import os
 import secrets
@@ -167,7 +167,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
-        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
+        /* ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات (تم إصلاح التعليق) ===== */
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
         
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
@@ -1058,6 +1058,26 @@ def chat():
     except Exception as e:
         print(f"❌ خطأ عام في /chat: {e}")
         return jsonify({"error": str(e)}), 500
+
+# ===== التعديل 4: إضافة مسار Sitemap.xml =====
+@app.route('/sitemap.xml')
+def sitemap():
+    private_endpoints = ("/login", "/logout", "/plans")
+    static_urls = []
+    for rule in app.url_map.iter_rules():
+        if not str(rule).startswith(private_endpoints):
+            if "GET" in rule.methods and len(rule.arguments) == 0:
+                # قم بتغيير الرابط هنا ليتوافق مع رابط موقعك الأصلي
+                static_urls.append(f"https://test-bot-001.onrender.com{str(rule)}")
+
+    xml_sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for url in static_urls:
+        xml_sitemap += f"  <url><loc>{url}</loc></url>\n"
+    xml_sitemap += "</urlset>"
+
+    response = make_response(xml_sitemap)
+    response.headers["Content-Type"] = "application/xml"
+    return response
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
