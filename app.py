@@ -127,7 +127,7 @@ async def generate_speech(text, gender):
     return base64.b64encode(audio_data).decode('utf-8')
 
 # =====================================================================
-# الواجهة الجديدة بتصميم DeepSeek (تم تطبيقها في هذا الملف بالكامل)
+# الواجهة الجديدة (مطابقة تماماً لتصميم DeepSeek مع الحوت والنعومة)
 # =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -146,15 +146,17 @@ HTML_TEMPLATE = r"""
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; }
         .header-right, .header-left { display: flex; align-items: center; gap: 10px; }
         .logo-text { font-weight: bold; color: #1a2b3c; text-decoration: none; }
-        .menu-btn, .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; border-radius: 50%; }
+        .menu-btn, .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; border-radius: 50%; transition: 0.2s; }
+        .menu-btn:hover, .mute-btn:hover { background: #f5f7fa; }
         
         .welcome-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; }
-        .brand-logo { font-size: 50px; color: #4a6a8a; }
-        .mode-title { font-size: 26px; font-weight: bold; color: #1a2b3c; display: flex; gap: 10px; align-items: center; }
-        .mode-title i { color: #4a6a8a; font-size: 30px; }
-        .mode-buttons { display: flex; gap: 8px; background: #f5f7fa; padding: 6px; border-radius: 40px; }
-        .mode-btn { border: none; background: transparent; padding: 10px 24px; border-radius: 40px; font-size: 16px; font-weight: 600; color: #5a6b7c; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .mode-btn.active { background: #ffffff; color: #1a2b3c; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .brand-logo { font-size: 70px; line-height: 1; }
+        .mode-title { font-size: 26px; font-weight: bold; color: #1a2b3c; display: flex; gap: 8px; align-items: center; }
+        
+        .mode-buttons { display: flex; gap: 8px; background: #f0f2f5; padding: 6px; border-radius: 40px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        .mode-btn { border: none; background: transparent; padding: 10px 24px; border-radius: 40px; font-size: 16px; font-weight: 600; color: #5a6b7c; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .mode-btn.active { background: #ffffff; color: #1a2b3c; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .mode-btn:hover { opacity: 0.9; }
         .mode-btn i { font-size: 18px; }
 
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
@@ -169,12 +171,19 @@ HTML_TEMPLATE = r"""
         .msg .time { font-size: 10px; opacity: 0.4; margin-top: 4px; }
 
         .input-wrap { padding: 10px 14px 16px; flex-shrink: 0; }
-        .input-area { display: flex; align-items: center; gap: 10px; background: #f5f7fa; border-radius: 40px; border: 1px solid #eaeef2; padding: 8px 16px; min-height: 60px; }
+        .input-area { display: flex; align-items: center; gap: 8px; background: #f5f7fa; border-radius: 40px; border: 1px solid #eaeef2; padding: 8px 16px; min-height: 60px; transition: 0.2s; }
+        .input-area:focus-within { border-color: #dce1e8; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
         .input-area textarea { flex: 1; border: none; background: transparent; padding: 10px 0; font-size: 17px; outline: none; color: #111; direction: rtl; resize: none; overflow: hidden; max-height: 80px; line-height: 1.5; }
         .input-area textarea::placeholder { color: #9aabbc; }
-        .icon-btn { background: none; border: none; color: #6a7b8c; font-size: 20px; cursor: pointer; padding: 5px; border-radius: 50%; flex-shrink: 0; }
+        
+        .icon-btn { background: none; border: none; color: #6a7b8c; font-size: 20px; cursor: pointer; padding: 5px; border-radius: 50%; flex-shrink: 0; transition: 0.2s; }
         .icon-btn:hover { background: #e8ecf0; }
-        .send-btn { background: #4a6a8a; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        
+        .mode-btn.small { background: #f0f2f5; padding: 8px 12px; font-size: 13px; border-radius: 20px; flex-shrink: 0; }
+        .mode-btn.small.active { background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); color: #1a2b3c; }
+        
+        .send-btn { background: #4a6a8a; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .send-btn:hover { background: #3a5a7a; }
         
         .typing-indicator { align-self: flex-start; background: transparent; padding: 12px 18px; font-size: 16px; color: #5a6b7c; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
@@ -206,9 +215,10 @@ HTML_TEMPLATE = r"""
         <div id="historyList" style="border-top: 1px solid #f0f2f5;"></div>
     </div>
 
+    <!-- منطقة الترحيب (حوت نبراس، أزرار بنفس ترتيب DeepSeek) -->
     <div class="welcome-area" id="welcomeArea">
-        <div class="brand-logo"><i class="fas fa-robot"></i></div>
-        <div class="mode-title">وضع سريع <i class="fas fa-bolt"></i></div>
+        <div class="brand-logo">🐋</div>
+        <div class="mode-title">وضع سريع 🐋</div>
         <div class="mode-buttons">
             <button class="mode-btn" onclick="setMode('vision')"><i class="fas fa-eye"></i> الرؤية</button>
             <button class="mode-btn" onclick="setMode('expert')"><i class="fas fa-gem"></i> خبير</button>
@@ -218,12 +228,15 @@ HTML_TEMPLATE = r"""
 
     <div id="chat" style="display: none;"></div>
 
+    <!-- شريط الإدخال (مع أزرار بحث وتفكير) -->
     <div class="input-wrap">
         <div class="input-area">
             <input type="file" id="fileInput" accept="image/*" style="display: none;" />
             <button class="icon-btn" id="micBtn"><i class="fas fa-microphone"></i></button>
             <button class="icon-btn" id="plusBtn"><i class="fas fa-plus"></i></button>
             <textarea id="userInput" placeholder="رسالة أو اضغط للتحدث..." autofocus rows="1"></textarea>
+            <button class="mode-btn small" id="searchBtn"><i class="fas fa-globe"></i> بحث</button>
+            <button class="mode-btn small active" id="thinkBtn"><i class="fas fa-network-wired"></i> تفكير</button>
             <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
         </div>
     </div>
