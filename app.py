@@ -140,10 +140,13 @@ HTML_TEMPLATE = r"""
     <title>نبراس</title>
     <link rel="manifest" href="/static/manifest.json" />
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; }
+        body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; font-weight: 400; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; background: #ffffff; }
         .header-right { display: flex; align-items: center; gap: 6px; }
@@ -162,13 +165,14 @@ HTML_TEMPLATE = r"""
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 500; transition: background 0.2s; }
+        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 700; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
-        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
+        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; font-weight: 400; }
         
-        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 400; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
+        .msg h1, .msg h2, .msg h3 { font-weight: 800; margin: 0.5em 0 0.3em; }
+        .msg strong { font-weight: 700; }
         
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
@@ -176,14 +180,14 @@ HTML_TEMPLATE = r"""
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
-        .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 600; color: #5a6b7c; }
+        .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 400; color: #5a6b7c; }
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
         @keyframes dotAnimation { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
         .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
         .welcome-overlay .welcome-box { background: #ffffff; padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; }
-        .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; }
-        .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; }
+        .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; font-weight: 800; }
+        .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; font-weight: 400; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .welcome-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         @keyframes fadeOut { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(0.9); } }
@@ -193,7 +197,7 @@ HTML_TEMPLATE = r"""
         #removeImageBtn { background: none; border: none; color: #c33; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: #fde8e8; }
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: #f5f7fa; border-radius: 40px; border: 1px solid #dce1e8; flex-shrink: 0; min-height: 60px; }
-        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
+        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 400; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: #9aabbc; }
         .input-area .btn-icon { background: none; border: none; color: #6a7b8c; font-size: 20px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .input-area .btn-icon:hover { background: #e8ecf0; }
@@ -225,7 +229,7 @@ HTML_TEMPLATE = r"""
             .welcome-overlay .welcome-box h2 { font-size: 22px; }
             .welcome-overlay .welcome-box p { font-size: 16px; }
         }
-        .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 600; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 700; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: #f5f7fa; }
         .gender-option.active { background: #4a6a8a; color: white; border-color: #4a6a8a; }
     </style>
@@ -250,7 +254,7 @@ HTML_TEMPLATE = r"""
     
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
-        <!-- تم حذف زر الترقية من هنا -->
+        <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid #f0f2f5;">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1a2b3c;">
                 <i class="fas fa-microphone" style="font-size: 18px; color: #5a6b7c;"></i>
@@ -801,7 +805,49 @@ LOGIN_HTML = """
 </div></body></html>
 """
 
-# ===== تم حذف صفحة الخطط (PLANS_HTML) بالكامل =====
+PLANS_HTML = """
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>خطط نبراس</title>
+<style>
+    * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #f0f2f5; padding: 20px; margin: 0; }
+    .container { max-width: 500px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 25px; padding: 12px 24px; background: #4a6a8a; color: white; text-decoration: none; border-radius: 12px; font-size: 16px; }
+    h1 { font-size: 32px; color: #1a2b3c; text-align: center; margin-bottom: 30px; }
+    .plan { background: white; border-radius: 16px; padding: 30px 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-right: 6px solid #4a6a8a; }
+    .plan.premium { border-right-color: #f1c40f; }
+    .plan h3 { font-size: 26px; margin: 0 0 10px 0; color: #1a2b3c; }
+    .price { font-size: 34px; font-weight: bold; color: #2d7d46; }
+    .plan ul { margin: 20px 0 25px 0; padding: 0; list-style: none; font-size: 18px; line-height: 2.2; }
+    .plan ul li { border-bottom: 1px solid #f0f2f5; padding: 4px 0; }
+    .plan ul li:last-child { border-bottom: none; }
+    .badge { display: inline-block; padding: 6px 18px; border-radius: 30px; font-size: 16px; }
+    .badge.free { background: #eef2f7; color: #1a2b3c; }
+    .badge.premium { background: #2d7d46; color: white; }
+    .btn { display: block; padding: 18px; background: #4a6a8a; color: white; text-align: center; text-decoration: none; border-radius: 14px; font-size: 20px; font-weight: bold; margin-top: 10px; }
+    .btn.gold { background: #f1c40f; color: #1a2b3c; }
+</style>
+</head>
+<body>
+<div class="container">
+    <a href="/" class="back">⬅ العودة للرئيسية</a>
+    <h1>💎 خطط نبراس</h1>
+    <div class="plan">
+        <span class="badge free">مجاني</span>
+        <h3>الخطة المجانية</h3>
+        <div class="price">0 <span>ر.س / شهرياً</span></div>
+        <ul><li>✅ محادثات غير محدودة</li><li>✅ إجابات سريعة وذكية</li></ul>
+    </div>
+    <div class="plan premium">
+        <span class="badge premium">مميز</span>
+        <h3>الخطة المدفوعة</h3>
+        <div class="price">7 <span>ر.س / شهرياً</span></div>
+        <ul><li>✅ ذكاء متقدم (إجابات أعمق)</li><li>✅ بحث بالويب (معلومات حديثة)</li><li>✅ تحليل الصور</li><li>✅ إنشاء الصور (DALL-E 3)</li><li>✅ ردود أسرع</li></ul>
+        <a href="#" class="btn gold">💎 اشترك الآن</a>
+    </div>
+</div></body></html>
+"""
 
 @app.route('/')
 def index():
@@ -838,7 +884,9 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# ===== تم حذف مسار /plans بالكامل =====
+@app.route('/plans')
+def plans():
+    return render_template_string(PLANS_HTML)
 
 @app.route('/history')
 def history():
@@ -1017,6 +1065,7 @@ def chat():
 
 # =====================================================================
 # (الإضافة الوحيدة): مسار لقراءة أي ملف من مجلد static (مثل robots.txt, sitemap.xml, manifest.json, أي صورة أو ملف)
+# يجب وضع هذا المسار في النهاية حتى لا يعترض المسارات الخاصة بالدردشة
 # =====================================================================
 @app.route('/<path:filename>')
 def serve_static_files(filename):
