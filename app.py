@@ -22,8 +22,9 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
 
-# ===== إعداد الحماية الخلفية (Flask-Limiter) =====
-limiter = Limiter(app, key_func=get_remote_address, default_limits=["100 per day", "20 per hour"])
+# ===== إعداد الحماية الخلفية (Flask-Limiter) - الطريقة الصحيحة للإصدارات الجديدة =====
+limiter = Limiter(key_func=get_remote_address, default_limits=["100 per day", "20 per hour"])
+limiter.init_app(app)
 
 @app.route('/robots.txt')
 def serve_robots():
