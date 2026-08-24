@@ -418,23 +418,17 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== دالة تحويل الماركداون (مترجم النصوص) =====
+        // ===== دالة تحويل الماركداون إلى HTML (مدمجة) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
-
-            // تحويل العناوين الكبيرة والصغيرة
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-            
-            // تحويل الخط العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-            // تحويل الأسطر الجديدة إلى فقرة متصلة
             var paragraphs = safe.split(/\n\s*\n/);
             return paragraphs.map(function(paragraph) {
                 paragraph = paragraph.trim();
