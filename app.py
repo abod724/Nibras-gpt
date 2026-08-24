@@ -127,7 +127,7 @@ async def generate_speech(text, gender):
     return base64.b64encode(audio_data).decode('utf-8')
 
 # =====================================================================
-# الواجهة الجديدة (إضافة قائمة رفع الملفات عند الضغط على +)
+# الواجهة النهائية (إظهار الصورة في مربع الكتابة + إصلاح الصوت)
 # =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -170,6 +170,15 @@ HTML_TEMPLATE = r"""
         .msg .image-upload { max-width: 100%; max-height: 150px; width: auto; height: auto; border-radius: 10px; margin: 4px 0; border: 1px solid #ddd; display: block; object-fit: contain; }
 
         .input-wrap { padding: 8px 14px 14px; flex-shrink: 0; }
+        
+        /* ===== معاينة الصورة في مربع الكتابة ===== */
+        #previewContainer { display: none; position: relative; background: #f5f7fa; border: 1px solid #eaeef2; border-radius: 12px; padding: 8px; margin-bottom: 10px; }
+        #previewContainer.show { display: flex; align-items: center; gap: 10px; }
+        #previewContainer img { max-width: 60px; max-height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #ddd; }
+        #previewContainer .file-label { font-size: 13px; color: #5a6b7c; flex: 1; word-break: break-word; }
+        #removePreviewBtn { background: none; border: none; color: #c33; font-size: 16px; cursor: pointer; padding: 4px; border-radius: 50%; }
+        #removePreviewBtn:hover { background: #fde8e8; }
+        
         .input-area { display: flex; align-items: center; gap: 8px; background: #f5f7fa; border-radius: 40px; border: 1px solid #eaeef2; padding: 5px 12px; min-height: 48px; }
         .input-area textarea { flex: 1; border: none; background: transparent; padding: 8px 0; font-size: 16px; outline: none; color: #111; direction: rtl; resize: none; overflow: hidden; max-height: 80px; }
         .input-area textarea::placeholder { color: #9aabbc; }
@@ -228,6 +237,14 @@ HTML_TEMPLATE = r"""
     <div id="chat" style="display: none;"></div>
 
     <div class="input-wrap">
+        
+        <!-- معاينة المرفقات -->
+        <div id="previewContainer">
+            <img id="previewImage" src="" />
+            <span class="file-label" id="previewText">صورة مرفقة</span>
+            <button id="removePreviewBtn"><i class="fas fa-times"></i></button>
+        </div>
+
         <div class="input-area">
             <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
             <textarea id="userInput" placeholder="رسالة أو اضغط للتحدث..." autofocus rows="1"></textarea>
@@ -274,6 +291,11 @@ HTML_TEMPLATE = r"""
         const galleryBtn = document.getElementById('galleryBtn');
         const filesBtn = document.getElementById('filesBtn');
         
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const previewText = document.getElementById('previewText');
+        const removePreviewBtn = document.getElementById('removePreviewBtn');
+        
         const menuToggle = document.getElementById('menuToggle');
         const dropdown = document.getElementById('dropdown');
         const muteBtn = document.getElementById('muteBtn');
@@ -308,34 +330,45 @@ HTML_TEMPLATE = r"""
 
         document.addEventListener('click', function(e) {
             if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
-            // إغلاق قائمة الملفات عند الضغط خارجها
             if (!plusBtn.contains(e.target) && !fileOptions.contains(e.target)) {
                 fileOptions.classList.remove('show');
                 plusBtn.classList.remove('rotated');
             }
         });
 
-        // عند الضغط على + تفتح القائمة وتدور الأيقونة
         plusBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             fileOptions.classList.toggle('show');
             plusBtn.classList.toggle('rotated');
         });
 
-        cameraBtn.addEventListener('click', function() { cameraInput.click(); fileOptions.classList.remove('show'); plusBtn.classList.remove('rotated'); });
-        galleryBtn.addEventListener('click', function() { fileInput.click(); fileOptions.classList.remove('show'); plusBtn.classList.remove('rotated'); });
-        filesBtn.addEventListener('click', function() { fileInputGeneric.click(); fileOptions.classList.remove('show'); plusBtn.classList.remove('rotated'); });
+        // دالة إظهار المعاينة للمرفق
+        function showPreview(dataUrl, text) {
+            pendingImageData = dataUrl;
+            previewImage.src = dataUrl;
+            previewText.textContent = text;
+            previewContainer.classList.add('show');
+        }
 
-        // التعامل مع الصور المرفوعة من الألبوم
+        function clearPreview() {
+            pendingImageData = null;
+            previewContainer.classList.remove('show');
+            previewImage.src = '';
+        }
+
+        removePreviewBtn.addEventListener('click', clearPreview);
+
+        // التعامل مع اختيار الصور من الألبوم
         fileInput.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
                 reader.onload = function(ev) {
-                    pendingImageData = ev.target.result;
-                    addMessage('🖼️ صورة مرفقة', 'user', false, ev.target.result);
+                    showPreview(ev.target.result, 'صورة مرفقة من الألبوم');
                 };
                 reader.readAsDataURL(this.files[0]); this.value = '';
             }
+            fileOptions.classList.remove('show');
+            plusBtn.classList.remove('rotated');
         });
 
         // التعامل مع الصور الملتقطة بالكاميرا
@@ -343,20 +376,27 @@ HTML_TEMPLATE = r"""
             if (this.files && this.files.length > 0) {
                 const reader = new FileReader();
                 reader.onload = function(ev) {
-                    pendingImageData = ev.target.result;
-                    addMessage('🖼️ صورة مرفقة', 'user', false, ev.target.result);
+                    showPreview(ev.target.result, 'صورة مرفقة من الكاميرا');
                 };
                 reader.readAsDataURL(this.files[0]); this.value = '';
             }
+            fileOptions.classList.remove('show');
+            plusBtn.classList.remove('rotated');
         });
 
         // التعامل مع الملفات العامة
         fileInputGeneric.addEventListener('change', function(e) {
             if (this.files && this.files.length > 0) {
-                addMessage('📎 ملف مرفق: ' + this.files[0].name, 'user');
-                this.value = '';
+                showPreview('', '📎 ملف: ' + this.files[0].name);
             }
+            this.value = '';
+            fileOptions.classList.remove('show');
+            plusBtn.classList.remove('rotated');
         });
+
+        cameraBtn.addEventListener('click', function() { cameraInput.click(); });
+        galleryBtn.addEventListener('click', function() { fileInput.click(); });
+        filesBtn.addEventListener('click', function() { fileInputGeneric.click(); });
 
         async function loadHistory() {
             const res = await fetch('/history'); const data = await res.json();
@@ -436,6 +476,7 @@ HTML_TEMPLATE = r"""
             userInput.value = ''; 
             isWaiting = true;
             toggleWelcome();
+            clearPreview();
 
             const typingDiv = showTyping();
 
@@ -474,13 +515,55 @@ HTML_TEMPLATE = r"""
         sendBtn.addEventListener('click', sendMessage);
         userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
         
+        // إصلاح الصوت: التحقق من دعم المتصفح ومعالجة الأخطاء
         micBtn.addEventListener('click', function() {
-            if (!('webkitSpeechRecognition' in window)) { addMessage('المتصفح لا يدعم الصوت.', 'bot', true); return; }
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-            let recognition = new SR(); recognition.lang = 'ar-SA'; this.classList.add('listening');
-            recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; this.classList.remove('listening'); sendMessage(); };
-            recognition.onerror = () => { this.classList.remove('listening'); };
-            recognition.start();
+            if (!SR) {
+                addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true);
+                return;
+            }
+
+            if (this.classList.contains('listening')) {
+                this.classList.remove('listening');
+                if (currentRecognition) currentRecognition.stop();
+                return;
+            }
+
+            let currentRecognition = new SR();
+            currentRecognition.lang = 'ar-SA';
+            
+            currentRecognition.onstart = () => {
+                this.classList.add('listening');
+            };
+            
+            currentRecognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                this.classList.remove('listening');
+                // لا نرسل تلقائياً حتى لا يحدث خطأ، فقط نكتب في المربع
+            };
+
+            currentRecognition.onerror = (event) => {
+                this.classList.remove('listening');
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    addMessage('يرجى السماح بالوصول إلى الميكروفون من إعدادات المتصفح.', 'bot', true);
+                } else if (event.error === 'no-speech') {
+                    addMessage('لم يتم سماع أي صوت، حاول مرة أخرى.', 'bot', true);
+                } else {
+                    addMessage('حدث خطأ في الميكروفون.', 'bot', true);
+                }
+            };
+
+            currentRecognition.onend = () => {
+                this.classList.remove('listening');
+            };
+
+            try {
+                currentRecognition.start();
+            } catch(e) {
+                addMessage('تعذر تشغيل الميكروفون، تأكد من الإذن.', 'bot', true);
+                this.classList.remove('listening');
+            }
         });
 
         toggleWelcome();
