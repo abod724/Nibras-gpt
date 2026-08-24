@@ -80,7 +80,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
+# ===== تعليمات الكتابة (يطلب فقرات متصلة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -168,26 +168,55 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 700; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
-        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; font-weight: 400; }
-        
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 400; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
-        .msg h1, .msg h2, .msg h3 { font-weight: 800; margin: 0.5em 0 0.3em; }
-        .msg strong { font-weight: 700; }
-        
+        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
+
+        /* ===== تعديل الأوزان حسب الطلب ===== */
+        /* رسائل المحادثة (نبراس والمستخدم) بوزن 800 (ثقيل) */
+        .msg { 
+            max-width: 80%; 
+            padding: 12px 18px; 
+            border-radius: 20px; 
+            font-size: 16px; 
+            font-weight: 800 !important;  /* ثقيل جداً */
+            line-height: 2; 
+            word-wrap: break-word; 
+            white-space: normal; 
+            color: #111111; 
+        }
+        .msg h1, .msg h2, .msg h3 {
+            font-weight: 800 !important;  /* عناوين داخلية ثقيلة */
+            margin: 0.5em 0 0.3em;
+        }
+        .msg strong {
+            font-weight: 800 !important;  /* النص الغامق ثقيل أيضاً */
+        }
+        .msg p {
+            font-weight: 800 !important;  /* فقرات الرسائل ثقيلة */
+        }
+        .msg .bot-content {
+            font-weight: 800 !important;
+        }
+        .msg .typing-text {
+            font-weight: 800 !important;
+        }
+        /* نهاية تعديل الرسائل */
+
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
         .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
-        .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 400; color: #5a6b7c; }
+        .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 800; color: #5a6b7c; }
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
         @keyframes dotAnimation { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+        /* رسالة الترحيب: وزن خفيف (400) */
         .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
         .welcome-overlay .welcome-box { background: #ffffff; padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; }
-        .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; font-weight: 800; }
-        .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; font-weight: 400; }
+        .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; font-weight: 400 !important; } /* خفيف */
+        .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; font-weight: 400 !important; } /* خفيف */
+        /* نهاية تعديل الترحيب */
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .welcome-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         @keyframes fadeOut { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(0.9); } }
@@ -197,7 +226,7 @@ HTML_TEMPLATE = r"""
         #removeImageBtn { background: none; border: none; color: #c33; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: #fde8e8; }
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: #f5f7fa; border-radius: 40px; border: 1px solid #dce1e8; flex-shrink: 0; min-height: 60px; }
-        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 400; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
+        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 800; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: #9aabbc; }
         .input-area .btn-icon { background: none; border: none; color: #6a7b8c; font-size: 20px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .input-area .btn-icon:hover { background: #e8ecf0; }
@@ -423,7 +452,7 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
+        // دالة تحويل الماركداون (شكل ChatGPT)
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -1064,8 +1093,7 @@ def chat():
         return jsonify({"error": str(e)}), 500
 
 # =====================================================================
-# (الإضافة الوحيدة): مسار لقراءة أي ملف من مجلد static (مثل robots.txt, sitemap.xml, manifest.json, أي صورة أو ملف)
-# يجب وضع هذا المسار في النهاية حتى لا يعترض المسارات الخاصة بالدردشة
+# مسار لقراءة أي ملف من مجلد static
 # =====================================================================
 @app.route('/<path:filename>')
 def serve_static_files(filename):
