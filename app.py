@@ -167,7 +167,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
-        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
+        
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 800; line-height: 2; word-wrap: break-word; white-space: normal; color: #000000; }
         
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
