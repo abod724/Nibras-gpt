@@ -127,7 +127,7 @@ async def generate_speech(text, gender):
     return base64.b64encode(audio_data).decode('utf-8')
 
 # =====================================================================
-# الواجهة الجديدة المصغرة (مطابقة تماماً لتصميم DeepSeek الحقيقي)
+# الواجهة الجديدة المصغرة (حذف الحوت الكبير + حذف بحث/تفكير + تصغير الصور)
 # =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -149,7 +149,7 @@ HTML_TEMPLATE = r"""
         .menu-btn, .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; border-radius: 50%; }
         
         .welcome-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; }
-        .brand-logo { font-size: 35px; line-height: 1; }
+        /* تم إزالة .brand-logo هنا */
         .mode-title { font-size: 17px; font-weight: 700; color: #1a2b3c; display: flex; gap: 5px; align-items: center; }
         
         .mode-buttons { display: flex; gap: 5px; background: #f0f2f5; padding: 4px; border-radius: 30px; }
@@ -168,15 +168,14 @@ HTML_TEMPLATE = r"""
         .msg.bot p { margin: 0 0 10px; }
         .msg .time { font-size: 10px; opacity: 0.4; margin-top: 4px; }
 
+        /* ===== تصغير الصور المرفوعة حتى لا تملأ الواجهة ===== */
+        .msg .image-upload { max-width: 100%; max-height: 150px; width: auto; height: auto; border-radius: 10px; margin: 4px 0; border: 1px solid #ddd; display: block; object-fit: contain; }
+
         .input-wrap { padding: 8px 14px 14px; flex-shrink: 0; }
         .input-area { display: flex; align-items: center; gap: 8px; background: #f5f7fa; border-radius: 40px; border: 1px solid #eaeef2; padding: 5px 12px; min-height: 48px; }
         .input-area textarea { flex: 1; border: none; background: transparent; padding: 8px 0; font-size: 16px; outline: none; color: #111; direction: rtl; resize: none; overflow: hidden; max-height: 80px; }
         .input-area textarea::placeholder { color: #9aabbc; }
         .icon-btn { background: none; border: none; color: #6a7b8c; font-size: 18px; cursor: pointer; padding: 4px; border-radius: 50%; flex-shrink: 0; }
-        
-        .mode-btn.small { background: #f0f2f5; padding: 5px 10px; font-size: 12px; border-radius: 20px; flex-shrink: 0; display: flex; align-items: center; gap: 3px; color: #5a6b7c; }
-        .mode-btn.small i { font-size: 12px; }
-        .mode-btn.small.active { background: #eef2f7; color: #1a2b3c; }
         
         .send-btn { background: #4a6a8a; color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 14px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
         .send-btn:hover { background: #3a5a7a; }
@@ -211,12 +210,10 @@ HTML_TEMPLATE = r"""
         <div id="historyList" style="border-top: 1px solid #f0f2f5;"></div>
     </div>
 
-    <!-- منطقة الترحيب (الحوت الصغير والأنيق) -->
+    <!-- منطقة الترحيب (بدون الحوت الكبير، الحوت الصغير بجانب النص فقط) -->
     <div class="welcome-area" id="welcomeArea">
-        <div class="brand-logo">🐋</div>
         <div class="mode-title">وضع سريع 🐋</div>
         <div class="mode-buttons">
-            <!-- الترتيب الصحيح: الرؤية (يمين)، خبير، سريع (يسار) -->
             <button class="mode-btn" onclick="setMode('vision')"><i class="fas fa-eye"></i> الرؤية</button>
             <button class="mode-btn" onclick="setMode('expert')"><i class="fas fa-gem"></i> خبير</button>
             <button class="mode-btn active" onclick="setMode('fast')"><i class="fas fa-bolt"></i> سريع</button>
@@ -225,13 +222,10 @@ HTML_TEMPLATE = r"""
 
     <div id="chat" style="display: none;"></div>
 
-    <!-- شريط الإدخال (مصغر وأنيق) -->
+    <!-- شريط الإدخال (بدون أزرار بحث وتفكير) -->
     <div class="input-wrap">
         <div class="input-area">
-            <!-- زر الإرسال في أقصى اليمين (كما في التصميم الأصلي لـ RTL) -->
             <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
-            <button class="mode-btn small active" id="thinkBtn"><i class="fas fa-network-wired"></i> تفكير</button>
-            <button class="mode-btn small" id="searchBtn"><i class="fas fa-globe"></i> بحث</button>
             <textarea id="userInput" placeholder="رسالة أو اضغط للتحدث..." autofocus rows="1"></textarea>
             <button class="icon-btn" id="plusBtn"><i class="fas fa-plus"></i></button>
             <button class="icon-btn" id="micBtn"><i class="fas fa-microphone"></i></button>
@@ -338,6 +332,7 @@ HTML_TEMPLATE = r"""
             const time = isSystem ? '' : ' <span class="time">' + new Date().toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'}) + '</span>';
             
             if (imageData) {
+                // الصورة الآن مصغرة بفضل CSS
                 el.innerHTML = '<img src="' + imageData + '" class="image-upload" /><span class="file-label">' + (text || 'صورة') + '</span>' + time;
                 chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight;
                 return el;
