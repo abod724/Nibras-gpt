@@ -10,6 +10,8 @@ import edge_tts
 import base64
 import re
 import sqlite3
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
@@ -19,6 +21,9 @@ if not OPENAI_API_KEY:
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
+
+# ===== إعداد الحماية الخلفية (Flask-Limiter) =====
+limiter = Limiter(app, key_func=get_remote_address, default_limits=["100 per day", "20 per hour"])
 
 @app.route('/robots.txt')
 def serve_robots():
@@ -80,6 +85,7 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
+# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -126,6 +132,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
+# إضافة r لإسكات تحذير بايثون (لا يغير الواجهة)
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -134,48 +141,15 @@ HTML_TEMPLATE = r"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     <meta name="google-site-verification" content="PyOhY3ZXN4LTBbK55EbrmeI5A5kqddF3cJeI_s1FwVc" />
     <meta http-equiv="Content-Language" content="ar" />
-    <meta name="description" content="نبراس GP، مساعد ذكي سعودي يتحدث باللهجة العامية البيضاء ويكتب بصوت بشري. جرب المحادثة الصوتية الآن!" />
+    <meta name="description" content="نبراس مساعد ذكي سعودي يكتب ويتحدث صوتي" />
     <title>نبراس</title>
     <link rel="manifest" href="/static/manifest.json" />
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
-    <!-- إضافة marked.js لتحويل الماركداون -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        /* ===== إعادة تعيين الهوامش والخطوط ===== */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background: #ffffff;
-            height: 100dvh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            padding: 0;
-            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
-            font-weight: 400;
-        }
-
-        .app {
-            width: 100%;
-            max-width: 450px;
-            height: 100dvh;
-            background: #ffffff;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
-        }
-
-        /* ===== باقي الأنماط كما هي (لم تتغير) ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
+        .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; background: #ffffff; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
@@ -193,102 +167,38 @@ HTML_TEMPLATE = r"""
         .dropdown .item:last-child { border-bottom: none; }
         .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
         .dropdown .item:hover { background: #f5f7fa; }
-        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 700; transition: background 0.2s; }
+        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 500; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: #f5f7fa; }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
-
-        /* ===== رسائل المحادثة: الخط والوزن واللون ===== */
-        .msg {
-            max-width: 80%;
-            padding: 12px 18px;
-            border-radius: 20px;
-            font-size: 16px;
-            line-height: 2;
-            word-wrap: break-word;
-            white-space: normal;
-            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
-            font-weight: 800;
-            color: #000000;
-        }
-
-        /* ===== تنسيق الماركداون داخل رسائل البوت ===== */
-        .msg.bot * {
-            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
-            font-weight: 800;
-            color: #000000;
-        }
-
-        .msg.bot p {
-            margin-bottom: 8px;
-        }
-        .msg.bot ul, .msg.bot ol {
-            padding-right: 20px;
-            margin: 8px 0;
-        }
-        .msg.bot li {
-            margin-bottom: 4px;
-        }
-        .msg.bot code {
-            background-color: #f0f0f0;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace !important;
-            font-weight: 400 !important;
-            color: #222 !important;
-        }
-        .msg.bot pre {
-            background-color: #f0f0f0;
-            padding: 10px;
-            border-radius: 6px;
-            overflow-x: auto;
-            font-family: monospace !important;
-            font-weight: 400 !important;
-            color: #222 !important;
-        }
-        .msg.bot pre code {
-            background-color: transparent;
-            padding: 0;
-        }
-        .msg.bot blockquote {
-            border-right: 4px solid #ccc;
-            padding-right: 12px;
-            margin: 8px 0;
-            color: #555;
-        }
-        .msg.bot h1, .msg.bot h2, .msg.bot h3, .msg.bot h4, .msg.bot h5, .msg.bot h6 {
-            margin: 0.5em 0 0.3em;
-            font-weight: 800;
-        }
-
-        /* ===== بقية الأنماط (لم تتغير) ===== */
+        
+        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
+        
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
-        .msg.error { background: #fde8e8; color: #a33 !important; align-self: center; max-width: 90%; }
+        .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
         .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
         .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
-        .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 800; color: #000000; }
+        .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 600; color: #5a6b7c; }
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
         @keyframes dotAnimation { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
-
         .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
         .welcome-overlay .welcome-box { background: #ffffff; padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; }
-        .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; font-weight: 400 !important; }
-        .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; font-weight: 400 !important; }
+        .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; }
+        .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .welcome-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         @keyframes fadeOut { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(0.9); } }
-
         #imagePreviewContainer { display: none; padding: 6px 18px; align-items: center; gap: 10px; background: #f5f7fa; margin: 0 14px; border-radius: 20px 20px 0 0; border: 1px solid #dce1e8; border-bottom: none; flex-wrap: wrap; flex-shrink: 0; }
         #imagePreviewContainer img { max-height: 60px; border-radius: 8px; border: 1px solid #ddd; }
         #imagePreviewContainer .label { font-size: 13px; color: #5a6b7c; }
         #removeImageBtn { background: none; border: none; color: #c33; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: #fde8e8; }
-
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: #f5f7fa; border-radius: 40px; border: 1px solid #dce1e8; flex-shrink: 0; min-height: 60px; }
-        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 800; outline: none; color: #000000; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
+        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: #9aabbc; }
         .input-area .btn-icon { background: none; border: none; color: #6a7b8c; font-size: 20px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .input-area .btn-icon:hover { background: #e8ecf0; }
@@ -303,7 +213,6 @@ HTML_TEMPLATE = r"""
         .plus-options.show { display: flex; }
         .plus-options .option-btn { background: #f5f7fa; border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #1a2b3c; cursor: pointer; transition: 0.2s; }
         .plus-options .option-btn:hover { background: #e8ecf0; }
-
         @media (max-width: 420px) {
             .header { padding: 12px 14px; }
             .btn { font-size: 12px; padding: 5px 12px; }
@@ -321,7 +230,7 @@ HTML_TEMPLATE = r"""
             .welcome-overlay .welcome-box h2 { font-size: 22px; }
             .welcome-overlay .welcome-box p { font-size: 16px; }
         }
-        .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 700; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 600; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: #f5f7fa; }
         .gender-option.active { background: #4a6a8a; color: white; border-color: #4a6a8a; }
     </style>
@@ -515,14 +424,31 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== دالة تحويل الماركداون باستخدام marked.parse =====
+        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
         function formatBotText(text) {
-            try {
-                return marked.parse(text);
-            } catch (e) {
-                console.warn('فشل تحويل الماركداون، نعرض النص العادي:', e);
-                return text;
-            }
+            var safe = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            // تحويل العناوين
+            safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+            safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+            safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+            
+            // تحويل الخط العريض
+            safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // تحويل الأسطر الجديدة المفردة إلى مسافات لتكوين فقرة متصلة، مع ترك سطر فارغ بين الفقرات
+            var paragraphs = safe.split(/\n\s*\n/);
+            
+            return paragraphs.map(function(paragraph) {
+                paragraph = paragraph.trim();
+                if (!paragraph) return '';
+                paragraph = paragraph.replace(/\n/g, ' ');
+                return '<p>' + paragraph + '</p>';
+            }).join('');
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -581,7 +507,6 @@ HTML_TEMPLATE = r"""
 
                         setTimeout(typeChar, 20);
                     } else {
-                        // تحويل النص النهائي باستخدام marked.parse
                         typingSpan.innerHTML = formatBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
@@ -1000,6 +925,7 @@ def set_gender():
     return jsonify({"status": "ok"})
 
 @app.route('/chat', methods=['POST'])
+@limiter.limit("5 per minute")  # <--- الحماية الخلفية: يسمح بـ 5 رسائل فقط لكل IP في الدقيقة
 def chat():
     try:
         data = request.get_json()
@@ -1140,7 +1066,8 @@ def chat():
         return jsonify({"error": str(e)}), 500
 
 # =====================================================================
-# مسار لقراءة أي ملف من مجلد static
+# (الإضافة الوحيدة): مسار لقراءة أي ملف من مجلد static (مثل robots.txt, sitemap.xml, manifest.json, أي صورة أو ملف)
+# يجب وضع هذا المسار في النهاية حتى لا يعترض المسارات الخاصة بالدردشة
 # =====================================================================
 @app.route('/<path:filename>')
 def serve_static_files(filename):
