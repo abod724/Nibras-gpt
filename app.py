@@ -127,7 +127,7 @@ async def generate_speech(text, gender):
     return base64.b64encode(audio_data).decode('utf-8')
 
 # =====================================================================
-# الواجهة الجديدة (مطابقة تماماً لتصميم DeepSeek مع الحوت والنعومة)
+# الواجهة الجديدة المصغرة (مطابقة تماماً لتصميم DeepSeek الحقيقي)
 # =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -145,22 +145,20 @@ HTML_TEMPLATE = r"""
         .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; }
         .header-right, .header-left { display: flex; align-items: center; gap: 10px; }
-        .logo-text { font-weight: bold; color: #1a2b3c; text-decoration: none; }
-        .menu-btn, .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; border-radius: 50%; transition: 0.2s; }
-        .menu-btn:hover, .mute-btn:hover { background: #f5f7fa; }
+        .logo-text { font-weight: 600; color: #1a2b3c; text-decoration: none; font-size: 15px; }
+        .menu-btn, .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; border-radius: 50%; }
         
-        .welcome-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px; }
-        .brand-logo { font-size: 70px; line-height: 1; }
-        .mode-title { font-size: 26px; font-weight: bold; color: #1a2b3c; display: flex; gap: 8px; align-items: center; }
+        .welcome-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; }
+        .brand-logo { font-size: 35px; line-height: 1; }
+        .mode-title { font-size: 17px; font-weight: 700; color: #1a2b3c; display: flex; gap: 5px; align-items: center; }
         
-        .mode-buttons { display: flex; gap: 8px; background: #f0f2f5; padding: 6px; border-radius: 40px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
-        .mode-btn { border: none; background: transparent; padding: 10px 24px; border-radius: 40px; font-size: 16px; font-weight: 600; color: #5a6b7c; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
-        .mode-btn.active { background: #ffffff; color: #1a2b3c; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .mode-btn:hover { opacity: 0.9; }
-        .mode-btn i { font-size: 18px; }
+        .mode-buttons { display: flex; gap: 5px; background: #f0f2f5; padding: 4px; border-radius: 30px; }
+        .mode-btn { border: none; background: transparent; padding: 8px 18px; border-radius: 30px; font-size: 14px; font-weight: 600; color: #5a6b7c; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .mode-btn.active { background: #ffffff; color: #1a2b3c; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .mode-btn i { font-size: 14px; }
 
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
-        .msg { max-width: 90%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 700; line-height: 1.8; word-wrap: break-word; white-space: normal; color: #000000; }
+        .msg { max-width: 90%; padding: 12px 16px; border-radius: 20px; font-size: 16px; font-weight: 700; line-height: 1.8; word-wrap: break-word; white-space: normal; color: #000000; }
         .msg.user { align-self: flex-end; background: #eef2f7; border-bottom-right-radius: 6px; }
         .msg.bot { align-self: flex-start; background: transparent; border-bottom-left-radius: 6px; }
         
@@ -170,19 +168,17 @@ HTML_TEMPLATE = r"""
         .msg.bot p { margin: 0 0 10px; }
         .msg .time { font-size: 10px; opacity: 0.4; margin-top: 4px; }
 
-        .input-wrap { padding: 10px 14px 16px; flex-shrink: 0; }
-        .input-area { display: flex; align-items: center; gap: 8px; background: #f5f7fa; border-radius: 40px; border: 1px solid #eaeef2; padding: 8px 16px; min-height: 60px; transition: 0.2s; }
-        .input-area:focus-within { border-color: #dce1e8; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
-        .input-area textarea { flex: 1; border: none; background: transparent; padding: 10px 0; font-size: 17px; outline: none; color: #111; direction: rtl; resize: none; overflow: hidden; max-height: 80px; line-height: 1.5; }
+        .input-wrap { padding: 8px 14px 14px; flex-shrink: 0; }
+        .input-area { display: flex; align-items: center; gap: 8px; background: #f5f7fa; border-radius: 40px; border: 1px solid #eaeef2; padding: 5px 12px; min-height: 48px; }
+        .input-area textarea { flex: 1; border: none; background: transparent; padding: 8px 0; font-size: 16px; outline: none; color: #111; direction: rtl; resize: none; overflow: hidden; max-height: 80px; }
         .input-area textarea::placeholder { color: #9aabbc; }
+        .icon-btn { background: none; border: none; color: #6a7b8c; font-size: 18px; cursor: pointer; padding: 4px; border-radius: 50%; flex-shrink: 0; }
         
-        .icon-btn { background: none; border: none; color: #6a7b8c; font-size: 20px; cursor: pointer; padding: 5px; border-radius: 50%; flex-shrink: 0; transition: 0.2s; }
-        .icon-btn:hover { background: #e8ecf0; }
+        .mode-btn.small { background: #f0f2f5; padding: 5px 10px; font-size: 12px; border-radius: 20px; flex-shrink: 0; display: flex; align-items: center; gap: 3px; color: #5a6b7c; }
+        .mode-btn.small i { font-size: 12px; }
+        .mode-btn.small.active { background: #eef2f7; color: #1a2b3c; }
         
-        .mode-btn.small { background: #f0f2f5; padding: 8px 12px; font-size: 13px; border-radius: 20px; flex-shrink: 0; }
-        .mode-btn.small.active { background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); color: #1a2b3c; }
-        
-        .send-btn { background: #4a6a8a; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .send-btn { background: #4a6a8a; color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 14px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
         .send-btn:hover { background: #3a5a7a; }
         
         .typing-indicator { align-self: flex-start; background: transparent; padding: 12px 18px; font-size: 16px; color: #5a6b7c; }
@@ -215,11 +211,12 @@ HTML_TEMPLATE = r"""
         <div id="historyList" style="border-top: 1px solid #f0f2f5;"></div>
     </div>
 
-    <!-- منطقة الترحيب (حوت نبراس، أزرار بنفس ترتيب DeepSeek) -->
+    <!-- منطقة الترحيب (الحوت الصغير والأنيق) -->
     <div class="welcome-area" id="welcomeArea">
         <div class="brand-logo">🐋</div>
         <div class="mode-title">وضع سريع 🐋</div>
         <div class="mode-buttons">
+            <!-- الترتيب الصحيح: الرؤية (يمين)، خبير، سريع (يسار) -->
             <button class="mode-btn" onclick="setMode('vision')"><i class="fas fa-eye"></i> الرؤية</button>
             <button class="mode-btn" onclick="setMode('expert')"><i class="fas fa-gem"></i> خبير</button>
             <button class="mode-btn active" onclick="setMode('fast')"><i class="fas fa-bolt"></i> سريع</button>
@@ -228,16 +225,17 @@ HTML_TEMPLATE = r"""
 
     <div id="chat" style="display: none;"></div>
 
-    <!-- شريط الإدخال (مع أزرار بحث وتفكير) -->
+    <!-- شريط الإدخال (مصغر وأنيق) -->
     <div class="input-wrap">
         <div class="input-area">
-            <input type="file" id="fileInput" accept="image/*" style="display: none;" />
-            <button class="icon-btn" id="micBtn"><i class="fas fa-microphone"></i></button>
-            <button class="icon-btn" id="plusBtn"><i class="fas fa-plus"></i></button>
-            <textarea id="userInput" placeholder="رسالة أو اضغط للتحدث..." autofocus rows="1"></textarea>
-            <button class="mode-btn small" id="searchBtn"><i class="fas fa-globe"></i> بحث</button>
-            <button class="mode-btn small active" id="thinkBtn"><i class="fas fa-network-wired"></i> تفكير</button>
+            <!-- زر الإرسال في أقصى اليمين (كما في التصميم الأصلي لـ RTL) -->
             <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
+            <button class="mode-btn small active" id="thinkBtn"><i class="fas fa-network-wired"></i> تفكير</button>
+            <button class="mode-btn small" id="searchBtn"><i class="fas fa-globe"></i> بحث</button>
+            <textarea id="userInput" placeholder="رسالة أو اضغط للتحدث..." autofocus rows="1"></textarea>
+            <button class="icon-btn" id="plusBtn"><i class="fas fa-plus"></i></button>
+            <button class="icon-btn" id="micBtn"><i class="fas fa-microphone"></i></button>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;" />
         </div>
     </div>
 </div>
