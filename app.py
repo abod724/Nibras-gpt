@@ -174,23 +174,23 @@ HTML_TEMPLATE = r"""
             padding: 12px 18px; 
             border-radius: 20px; 
             font-size: 16px; 
-            font-weight: 800 !important; 
+            font-weight: 700 !important; 
             color: #000000 !important;  /* أسود صريح */
             line-height: 2; 
             word-wrap: break-word; 
             white-space: normal; 
         }
         .msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 {
-            font-weight: 800 !important;
+            font-weight: 700 !important;
             color: #000000 !important;
             margin: 0.5em 0 0.3em;
         }
         .msg strong, .msg b {
-            font-weight: 800 !important;
+            font-weight: 700 !important;
             color: #000000 !important;
         }
         .msg p, .msg div, .msg span, .msg .bot-content, .msg .typing-text {
-            font-weight: 800 !important;
+            font-weight: 700 !important;
             color: #000000 !important;
         }
         /* ===== نهاية التعديل ===== */
