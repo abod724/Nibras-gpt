@@ -168,7 +168,7 @@ HTML_TEMPLATE = r"""
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
         # ===== التعديل الوحيد: تغليظ الخط وجعله أسود غامق للمساعد والمستخدم =====
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 700; line-height: 2; word-wrap: break-word; white-space: normal; color: #000000; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 800; line-height: 2; word-wrap: break-word; white-space: normal; color: #000000; }
         
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
