@@ -145,9 +145,37 @@ HTML_TEMPLATE = r"""
     <!-- إضافة marked.js لتحويل الماركداون -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; }
-        body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; font-weight: 400; }
-        .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
+        /* ===== إعادة تعيين الهوامش والخطوط ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #ffffff;
+            height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
+            font-weight: 400;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 450px;
+            height: 100dvh;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
+        }
+
+        /* ===== باقي الأنماط كما هي (لم تتغير) ===== */
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; background: #ffffff; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
@@ -170,56 +198,57 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
 
-        /* ===== رسائل المحادثة: أسود غليظ (weight 800, color #000) ===== */
-        .msg { 
-            max-width: 80%; 
-            padding: 12px 18px; 
-            border-radius: 20px; 
-            font-size: 16px; 
-            font-weight: 800 !important; 
-            color: #000000 !important;
-            line-height: 2; 
-            word-wrap: break-word; 
-            white-space: normal; 
-        }
-        .msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 {
-            font-weight: 800 !important;
-            color: #000000 !important;
-            margin: 0.5em 0 0.3em;
-        }
-        .msg strong, .msg b {
-            font-weight: 800 !important;
-            color: #000000 !important;
-        }
-        .msg p, .msg div, .msg span, .msg .bot-content, .msg .typing-text {
-            font-weight: 800 !important;
-            color: #000000 !important;
+        /* ===== رسائل المحادثة: الخط والوزن واللون ===== */
+        .msg {
+            max-width: 80%;
+            padding: 12px 18px;
+            border-radius: 20px;
+            font-size: 16px;
+            line-height: 2;
+            word-wrap: break-word;
+            white-space: normal;
+            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
+            font-weight: 800;
+            color: #000000;
         }
 
-        /* ===== تنسيق عناصر الماركداون داخل فقاعة الرد ===== */
+        /* ===== تنسيق الماركداون داخل رسائل البوت ===== */
+        .msg.bot * {
+            font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif;
+            font-weight: 800;
+            color: #000000;
+        }
+
         .msg.bot p {
             margin-bottom: 8px;
         }
         .msg.bot ul, .msg.bot ol {
-            margin-right: 20px;
-            margin-bottom: 10px;
+            padding-right: 20px;
+            margin: 8px 0;
         }
-        .msg.bot strong {
-            font-weight: 800 !important;
-            color: #000000 !important;
+        .msg.bot li {
+            margin-bottom: 4px;
         }
         .msg.bot code {
-            background-color: #f4f4f4;
+            background-color: #f0f0f0;
             padding: 2px 6px;
             border-radius: 4px;
-            font-family: monospace;
+            font-family: monospace !important;
+            font-weight: 400 !important;
+            color: #222 !important;
         }
         .msg.bot pre {
-            background-color: #f4f4f4;
+            background-color: #f0f0f0;
             padding: 10px;
             border-radius: 6px;
             overflow-x: auto;
-            direction: ltr;
+            font-family: monospace !important;
+            font-weight: 400 !important;
+            color: #222 !important;
+        }
+        .msg.bot pre code {
+            background-color: transparent;
+            padding: 0;
         }
         .msg.bot blockquote {
             border-right: 4px solid #ccc;
@@ -227,8 +256,12 @@ HTML_TEMPLATE = r"""
             margin: 8px 0;
             color: #555;
         }
-        /* ===== نهاية تنسيق الماركداون ===== */
+        .msg.bot h1, .msg.bot h2, .msg.bot h3, .msg.bot h4, .msg.bot h5, .msg.bot h6 {
+            margin: 0.5em 0 0.3em;
+            font-weight: 800;
+        }
 
+        /* ===== بقية الأنماط (لم تتغير) ===== */
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
@@ -239,22 +272,21 @@ HTML_TEMPLATE = r"""
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
         @keyframes dotAnimation { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
-        
-        /* ===== رسالة الترحيب: خفيفة (weight 400) ===== */
+
         .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
         .welcome-overlay .welcome-box { background: #ffffff; padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; }
         .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; font-weight: 400 !important; }
         .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; font-weight: 400 !important; }
-        /* ===== نهاية تعديل الترحيب ===== */
-
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .welcome-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         @keyframes fadeOut { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(0.9); } }
+
         #imagePreviewContainer { display: none; padding: 6px 18px; align-items: center; gap: 10px; background: #f5f7fa; margin: 0 14px; border-radius: 20px 20px 0 0; border: 1px solid #dce1e8; border-bottom: none; flex-wrap: wrap; flex-shrink: 0; }
         #imagePreviewContainer img { max-height: 60px; border-radius: 8px; border: 1px solid #ddd; }
         #imagePreviewContainer .label { font-size: 13px; color: #5a6b7c; }
         #removeImageBtn { background: none; border: none; color: #c33; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: #fde8e8; }
+
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: #f5f7fa; border-radius: 40px; border: 1px solid #dce1e8; flex-shrink: 0; min-height: 60px; }
         .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 800; outline: none; color: #000000; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: #9aabbc; }
@@ -271,6 +303,7 @@ HTML_TEMPLATE = r"""
         .plus-options.show { display: flex; }
         .plus-options .option-btn { background: #f5f7fa; border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #1a2b3c; cursor: pointer; transition: 0.2s; }
         .plus-options .option-btn:hover { background: #e8ecf0; }
+
         @media (max-width: 420px) {
             .header { padding: 12px 14px; }
             .btn { font-size: 12px; padding: 5px 12px; }
@@ -482,10 +515,14 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل: استخدام marked.parse لتحويل الماركداون =====
+        // ===== دالة تحويل الماركداون باستخدام marked.parse =====
         function formatBotText(text) {
-            // استخدام marked.parse لتحويل النص إلى HTML
-            return marked.parse(text);
+            try {
+                return marked.parse(text);
+            } catch (e) {
+                console.warn('فشل تحويل الماركداون، نعرض النص العادي:', e);
+                return text;
+            }
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -544,7 +581,7 @@ HTML_TEMPLATE = r"""
 
                         setTimeout(typeChar, 20);
                     } else {
-                        // تحويل النص النهائي إلى HTML باستخدام marked
+                        // تحويل النص النهائي باستخدام marked.parse
                         typingSpan.innerHTML = formatBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
