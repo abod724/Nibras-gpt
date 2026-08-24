@@ -127,7 +127,7 @@ async def generate_speech(text, gender):
     return base64.b64encode(audio_data).decode('utf-8')
 
 # =====================================================================
-# الواجهة الجديدة المصغرة (حذف الحوت الكبير + حذف بحث/تفكير + تصغير الصور)
+# الواجهة الجديدة (إضافة قائمة رفع الملفات عند الضغط على +)
 # =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -149,7 +149,6 @@ HTML_TEMPLATE = r"""
         .menu-btn, .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; border-radius: 50%; }
         
         .welcome-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; }
-        /* تم إزالة .brand-logo هنا */
         .mode-title { font-size: 17px; font-weight: 700; color: #1a2b3c; display: flex; gap: 5px; align-items: center; }
         
         .mode-buttons { display: flex; gap: 5px; background: #f0f2f5; padding: 4px; border-radius: 30px; }
@@ -168,17 +167,24 @@ HTML_TEMPLATE = r"""
         .msg.bot p { margin: 0 0 10px; }
         .msg .time { font-size: 10px; opacity: 0.4; margin-top: 4px; }
 
-        /* ===== تصغير الصور المرفوعة حتى لا تملأ الواجهة ===== */
         .msg .image-upload { max-width: 100%; max-height: 150px; width: auto; height: auto; border-radius: 10px; margin: 4px 0; border: 1px solid #ddd; display: block; object-fit: contain; }
 
         .input-wrap { padding: 8px 14px 14px; flex-shrink: 0; }
         .input-area { display: flex; align-items: center; gap: 8px; background: #f5f7fa; border-radius: 40px; border: 1px solid #eaeef2; padding: 5px 12px; min-height: 48px; }
         .input-area textarea { flex: 1; border: none; background: transparent; padding: 8px 0; font-size: 16px; outline: none; color: #111; direction: rtl; resize: none; overflow: hidden; max-height: 80px; }
         .input-area textarea::placeholder { color: #9aabbc; }
-        .icon-btn { background: none; border: none; color: #6a7b8c; font-size: 18px; cursor: pointer; padding: 4px; border-radius: 50%; flex-shrink: 0; }
+        .icon-btn { background: none; border: none; color: #6a7b8c; font-size: 18px; cursor: pointer; padding: 4px; border-radius: 50%; flex-shrink: 0; transition: transform 0.2s; }
+        .icon-btn.rotated { transform: rotate(45deg); }
         
         .send-btn { background: #4a6a8a; color: white; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 14px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
         .send-btn:hover { background: #3a5a7a; }
+        
+        /* ===== إعدادات قائمة رفع الملفات (الكاميرا، الألبوم، الملفات) ===== */
+        .file-options { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; display: flex; justify-content: space-around; align-items: center; background: #ffffff; border-radius: 16px; margin-top: 10px; border: 1px solid #eaeef2; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+        .file-options.show { max-height: 100px; padding: 12px 10px; }
+        .option-btn { background: #f5f7fa; border: none; border-radius: 15px; width: 70px; height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-size: 12px; color: #1a2b3c; cursor: pointer; transition: 0.2s; }
+        .option-btn:hover { background: #e8ecf0; }
+        .option-btn i { font-size: 22px; color: #4a6a8a; }
         
         .typing-indicator { align-self: flex-start; background: transparent; padding: 12px 18px; font-size: 16px; color: #5a6b7c; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
@@ -210,7 +216,6 @@ HTML_TEMPLATE = r"""
         <div id="historyList" style="border-top: 1px solid #f0f2f5;"></div>
     </div>
 
-    <!-- منطقة الترحيب (بدون الحوت الكبير، الحوت الصغير بجانب النص فقط) -->
     <div class="welcome-area" id="welcomeArea">
         <div class="mode-title">وضع سريع 🐋</div>
         <div class="mode-buttons">
@@ -222,15 +227,24 @@ HTML_TEMPLATE = r"""
 
     <div id="chat" style="display: none;"></div>
 
-    <!-- شريط الإدخال (بدون أزرار بحث وتفكير) -->
     <div class="input-wrap">
         <div class="input-area">
             <button class="send-btn" id="sendBtn"><i class="fas fa-arrow-up"></i></button>
             <textarea id="userInput" placeholder="رسالة أو اضغط للتحدث..." autofocus rows="1"></textarea>
             <button class="icon-btn" id="plusBtn"><i class="fas fa-plus"></i></button>
             <button class="icon-btn" id="micBtn"><i class="fas fa-microphone"></i></button>
-            <input type="file" id="fileInput" accept="image/*" style="display: none;" />
         </div>
+
+        <!-- قائمة الكاميرا / الألبوم / الملفات -->
+        <div class="file-options" id="fileOptions">
+            <button class="option-btn" id="cameraBtn"><i class="fas fa-camera"></i> كاميرا</button>
+            <button class="option-btn" id="galleryBtn"><i class="fas fa-image"></i> الألبوم</button>
+            <button class="option-btn" id="filesBtn"><i class="fas fa-folder"></i> ملف</button>
+        </div>
+
+        <input type="file" id="fileInput" accept="image/*" style="display: none;" />
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" />
+        <input type="file" id="fileInputGeneric" style="display: none;" />
     </div>
 </div>
 
@@ -250,7 +264,16 @@ HTML_TEMPLATE = r"""
         const sendBtn = document.getElementById('sendBtn');
         const micBtn = document.getElementById('micBtn');
         const plusBtn = document.getElementById('plusBtn');
+        const fileOptions = document.getElementById('fileOptions');
+        
+        const cameraInput = document.getElementById('cameraInput');
         const fileInput = document.getElementById('fileInput');
+        const fileInputGeneric = document.getElementById('fileInputGeneric');
+        
+        const cameraBtn = document.getElementById('cameraBtn');
+        const galleryBtn = document.getElementById('galleryBtn');
+        const filesBtn = document.getElementById('filesBtn');
+        
         const menuToggle = document.getElementById('menuToggle');
         const dropdown = document.getElementById('dropdown');
         const muteBtn = document.getElementById('muteBtn');
@@ -285,6 +308,54 @@ HTML_TEMPLATE = r"""
 
         document.addEventListener('click', function(e) {
             if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show');
+            // إغلاق قائمة الملفات عند الضغط خارجها
+            if (!plusBtn.contains(e.target) && !fileOptions.contains(e.target)) {
+                fileOptions.classList.remove('show');
+                plusBtn.classList.remove('rotated');
+            }
+        });
+
+        // عند الضغط على + تفتح القائمة وتدور الأيقونة
+        plusBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            fileOptions.classList.toggle('show');
+            plusBtn.classList.toggle('rotated');
+        });
+
+        cameraBtn.addEventListener('click', function() { cameraInput.click(); fileOptions.classList.remove('show'); plusBtn.classList.remove('rotated'); });
+        galleryBtn.addEventListener('click', function() { fileInput.click(); fileOptions.classList.remove('show'); plusBtn.classList.remove('rotated'); });
+        filesBtn.addEventListener('click', function() { fileInputGeneric.click(); fileOptions.classList.remove('show'); plusBtn.classList.remove('rotated'); });
+
+        // التعامل مع الصور المرفوعة من الألبوم
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    pendingImageData = ev.target.result;
+                    addMessage('🖼️ صورة مرفقة', 'user', false, ev.target.result);
+                };
+                reader.readAsDataURL(this.files[0]); this.value = '';
+            }
+        });
+
+        // التعامل مع الصور الملتقطة بالكاميرا
+        cameraInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    pendingImageData = ev.target.result;
+                    addMessage('🖼️ صورة مرفقة', 'user', false, ev.target.result);
+                };
+                reader.readAsDataURL(this.files[0]); this.value = '';
+            }
+        });
+
+        // التعامل مع الملفات العامة
+        fileInputGeneric.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                addMessage('📎 ملف مرفق: ' + this.files[0].name, 'user');
+                this.value = '';
+            }
         });
 
         async function loadHistory() {
@@ -332,7 +403,6 @@ HTML_TEMPLATE = r"""
             const time = isSystem ? '' : ' <span class="time">' + new Date().toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'}) + '</span>';
             
             if (imageData) {
-                // الصورة الآن مصغرة بفضل CSS
                 el.innerHTML = '<img src="' + imageData + '" class="image-upload" /><span class="file-label">' + (text || 'صورة') + '</span>' + time;
                 chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight;
                 return el;
@@ -354,18 +424,6 @@ HTML_TEMPLATE = r"""
             chatBox.appendChild(typingDiv); chatBox.scrollTop = chatBox.scrollHeight;
             return typingDiv;
         }
-
-        plusBtn.addEventListener('click', function() { fileInput.click(); });
-        fileInput.addEventListener('change', function(e) {
-            if (this.files && this.files.length > 0) {
-                const reader = new FileReader();
-                reader.onload = function(ev) {
-                    pendingImageData = ev.target.result;
-                    addMessage('🖼️ صورة مرفقة', 'user', false, ev.target.result);
-                };
-                reader.readAsDataURL(this.files[0]); this.value = '';
-            }
-        });
 
         async function sendMessage() {
             if (isWaiting) return;
