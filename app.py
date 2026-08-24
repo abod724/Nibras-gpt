@@ -167,7 +167,6 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
-        
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 800; line-height: 2; word-wrap: break-word; white-space: normal; color: #000000; }
         
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
@@ -419,14 +418,14 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
+        // ===== دالة تحويل الماركداون (مترجم النصوص) =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            // تحويل العناوين
+            // تحويل العناوين الكبيرة والصغيرة
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
@@ -435,9 +434,8 @@ HTML_TEMPLATE = r"""
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // تحويل الأسطر الجديدة المفردة إلى مسافات لتكوين فقرة متصلة، مع ترك سطر فارغ بين الفقرات
+            // تحويل الأسطر الجديدة إلى فقرة متصلة
             var paragraphs = safe.split(/\n\s*\n/);
-            
             return paragraphs.map(function(paragraph) {
                 paragraph = paragraph.trim();
                 if (!paragraph) return '';
