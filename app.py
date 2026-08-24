@@ -142,6 +142,8 @@ HTML_TEMPLATE = r"""
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <!-- إضافة marked.js لتحويل الماركداون -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', 'Segoe UI', Arial, sans-serif; }
         body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; font-weight: 400; }
@@ -174,26 +176,58 @@ HTML_TEMPLATE = r"""
             padding: 12px 18px; 
             border-radius: 20px; 
             font-size: 16px; 
-            font-weight: 700 !important; 
-            color: #000000 !important;  /* أسود صريح */
+            font-weight: 800 !important; 
+            color: #000000 !important;
             line-height: 2; 
             word-wrap: break-word; 
             white-space: normal; 
         }
         .msg h1, .msg h2, .msg h3, .msg h4, .msg h5, .msg h6 {
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: #000000 !important;
             margin: 0.5em 0 0.3em;
         }
         .msg strong, .msg b {
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: #000000 !important;
         }
         .msg p, .msg div, .msg span, .msg .bot-content, .msg .typing-text {
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: #000000 !important;
         }
-        /* ===== نهاية التعديل ===== */
+
+        /* ===== تنسيق عناصر الماركداون داخل فقاعة الرد ===== */
+        .msg.bot p {
+            margin-bottom: 8px;
+        }
+        .msg.bot ul, .msg.bot ol {
+            margin-right: 20px;
+            margin-bottom: 10px;
+        }
+        .msg.bot strong {
+            font-weight: 800 !important;
+            color: #000000 !important;
+        }
+        .msg.bot code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .msg.bot pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            direction: ltr;
+        }
+        .msg.bot blockquote {
+            border-right: 4px solid #ccc;
+            padding-right: 12px;
+            margin: 8px 0;
+            color: #555;
+        }
+        /* ===== نهاية تنسيق الماركداون ===== */
 
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
@@ -448,27 +482,10 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
+        // ===== التعديل: استخدام marked.parse لتحويل الماركداون =====
         function formatBotText(text) {
-            var safe = text
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-
-            safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-            safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-            safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-            
-            safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-            var paragraphs = safe.split(/\n\s*\n/);
-            
-            return paragraphs.map(function(paragraph) {
-                paragraph = paragraph.trim();
-                if (!paragraph) return '';
-                paragraph = paragraph.replace(/\n/g, ' ');
-                return '<p>' + paragraph + '</p>';
-            }).join('');
+            // استخدام marked.parse لتحويل النص إلى HTML
+            return marked.parse(text);
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -527,6 +544,7 @@ HTML_TEMPLATE = r"""
 
                         setTimeout(typeChar, 20);
                     } else {
+                        // تحويل النص النهائي إلى HTML باستخدام marked
                         typingSpan.innerHTML = formatBotText(displayText);
                         chatBox.scrollTop = chatBox.scrollHeight;
                     }
