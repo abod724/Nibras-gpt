@@ -96,11 +96,13 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
-- اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
-- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
-- اترك **سطراً فارغاً** بين كل فقرة وأخرى.
-- استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
+**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها بدقة):**
+- اكتب ردك في **فقرة نصية واحدة متصلة** من اليمين لليسار (مثل المقالات والكتب).
+- **ممنوع** وضع كل جملة في سطر منفصل. اكتب الجمل متصلة بفواصل ونقاط.
+- **لا تستخدم `\n` داخل الفقرة.** استخدم النقاط `.` أو الفواصل `،` للفصل بين الجمل.
+- اترك **سطراً فارغاً واحداً** فقط للانتقال إلى فقرة جديدة (عند تغيير الموضوع).
+- استخدم `**الخط العريض**` لعناوين الفقرات الفرعية.
+- **ممنوع** كتابة النص بشكل عمودي (كل جملة في سطر) – هذا يعتبر خطأ.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -132,6 +134,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
+# ===== صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
 SHARED_PAGE_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -190,6 +193,8 @@ SHARED_PAGE_HTML = """
 </html>
 """
 
+# =====================================================================
+# ===== قالب الواجهة الرئيسية مع نافذة المشاركة الاجتماعية =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -270,7 +275,7 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #2d1b1b;
             --modal-bg: rgba(0,0,0,0.7);
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif; }
         body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; transition: background 0.3s ease; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; transition: background 0.3s ease; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; }
@@ -294,7 +299,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:hover { background: var(--bg-hover); }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; }
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 15px; font-weight: 400; line-height: 1.8; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
         .msg.user { align-self: flex-end; background: var(--bg-user-msg); border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: var(--bg-bot-msg); border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; color: var(--text-secondary); }
@@ -318,7 +323,7 @@ HTML_TEMPLATE = r"""
         #removeImageBtn { background: none; border: none; color: var(--danger-color); font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: var(--remove-btn-hover); }
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: var(--bg-input); border-radius: 40px; border: 1px solid var(--border-color); flex-shrink: 0; min-height: 60px; }
-        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: var(--text-primary); direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
+        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 15px; font-weight: 400; outline: none; color: var(--text-primary); direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: var(--placeholder-color); }
         .input-area .btn-icon { background: none; border: none; color: var(--icon-color); font-size: 20px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .input-area .btn-icon:hover { background: var(--bg-hover); }
@@ -423,6 +428,18 @@ HTML_TEMPLATE = r"""
         .share-modal .box .close-btn:hover { background: var(--border-color); }
         @media (max-width: 400px) {
             .share-modal .box .share-btn { font-size: 13px; padding: 8px 12px; }
+        }
+        /* ===== تنسيق الفقرات ===== */
+        .msg.bot .bot-content p {
+            direction: rtl;
+            text-align: right;
+            margin-bottom: 12px;
+            line-height: 1.8;
+            word-wrap: break-word;
+            white-space: normal;
+        }
+        .msg.bot .bot-content p:last-child {
+            margin-bottom: 0;
         }
     </style>
 </head>
@@ -699,25 +716,38 @@ HTML_TEMPLATE = r"""
             });
         }
 
+        // ===== دالة تنسيق النص المعدلة (لحل مشكلة الكتابة العمودية) =====
         function formatBotText(text) {
+            // إزالة فواصل الأسطر وتحويلها إلى مسافات
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, ' ')  // تحويل كل فواصل الأسطر إلى مسافة
+                .replace(/\s+/g, ' ') // دمج المسافات المتعددة في مسافة واحدة
+                .trim();
 
+            // تحويل العناوين
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+            
+            // تحويل الخط العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            var paragraphs = safe.split(/\n\s*\n/);
-            return paragraphs.map(function(paragraph) {
-                paragraph = paragraph.trim();
-                if (!paragraph) return '';
-                paragraph = paragraph.replace(/\n/g, ' ');
-                return '<p>' + paragraph + '</p>';
-            }).join('');
+            // تقسيم النص إلى فقرات بناءً على وجود نقطة متبوعة بمسافة أو سطرين فارغين
+            var paragraphs = safe.split(/\s*\.\s+/);
+            if (paragraphs.length > 1) {
+                return paragraphs.map(function(p) {
+                    p = p.trim();
+                    if (!p) return '';
+                    return '<p>' + p + '.</p>';
+                }).join('');
+            } else {
+                // إذا كان النص بدون نقاط، اعرضه كفقرة واحدة
+                return '<p>' + safe + '</p>';
+            }
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -1213,7 +1243,6 @@ def chat():
         data = request.get_json()
         user_message = data.get("message", "").strip()
         conv_id = data.get("conv_id", None)
-        # تم تجاهل history المرسل من المتصفح نهائياً
 
         if not user_message:
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
@@ -1224,7 +1253,6 @@ def chat():
 
         user_id = get_user_id()
 
-        # المصدر الوحيد للتاريخ هو قاعدة البيانات
         if conv_id:
             chat_history = load_conversation_by_id(user_id, conv_id)
             if chat_history is None:
@@ -1232,19 +1260,15 @@ def chat():
         else:
             chat_history = []
 
-        # نأخذ آخر 15 رسالة فقط للسياق (لمنع التكرار وللحفاظ على الأداء)
         chat_history = chat_history[-15:] if len(chat_history) > 15 else chat_history
 
-        # نضيف رسالة المستخدم الجديدة مؤقتاً للسياق
         temp_history = chat_history.copy()
         temp_history.append({"role": "user", "content": user_message})
 
-        # بناء الرسائل المرسلة للـ API
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for entry in temp_history:
             messages.append({"role": entry["role"], "content": entry["content"]})
 
-        # باقي الكود (الصور، البحث، إلخ)
         if is_admin:
             model = "gpt-4o"
             use_web_search = True
@@ -1264,7 +1288,6 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
-                # تحديث الذاكرة المؤقتة
                 if conv_id is None:
                     session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
                 else:
@@ -1339,7 +1362,6 @@ def chat():
             print(f"❌ خطأ: {e}")
             reply = "حدث خطأ في السيرفر، حاول مرة أخرى."
 
-        # تحديث الذاكرة المؤقتة والقاعدة
         if conv_id is None:
             session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
         else:
