@@ -1287,7 +1287,20 @@ def chat():
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
 
         session_memory[user_id].append({"role": "user", "content": user_message})
-        chat_history = session_memory[user_id][-10:]
+        
+        # ===== التعديل الرئيسي: استخدام الذاكرة الطويلة =====
+        # جلب المحادثة كاملة من قاعدة البيانات إذا كانت موجودة
+        if conv_id:
+            chat_history = load_conversation_by_id(user_id, conv_id)
+            if chat_history is None:
+                chat_history = []
+        else:
+            chat_history = session_memory.get(user_id, [])
+        
+        # إذا كانت المحادثة جديدة، استخدم الذاكرة المؤقتة التي تم حفظها
+        if not chat_history:
+            chat_history = session_memory.get(user_id, [])
+        # ===== نهاية التعديل =====
 
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for entry in chat_history:
