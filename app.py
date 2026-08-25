@@ -131,8 +131,7 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# =====================================================================
-# ===== NEW: صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
+# ===== صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
 SHARED_PAGE_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -190,9 +189,9 @@ SHARED_PAGE_HTML = """
 </body>
 </html>
 """
-# =====================================================================
 
 # =====================================================================
+# ===== قالب الواجهة الرئيسية مع نافذة المشاركة الاجتماعية =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -239,6 +238,7 @@ HTML_TEMPLATE = r"""
             --mic-active-bg: #fde8e8;
             --mic-active-color: #c33;
             --remove-btn-hover: #fde8e8;
+            --modal-bg: rgba(0,0,0,0.5);
         }
 
         /* ===== الثيم الداكن (يُفعّل عند إضافة class="dark-mode" على <html>) ===== */
@@ -273,6 +273,7 @@ HTML_TEMPLATE = r"""
             --mic-active-bg: #2d1b1b;
             --mic-active-color: #f85149;
             --remove-btn-hover: #2d1b1b;
+            --modal-bg: rgba(0,0,0,0.7);
         }
 
         /* ===== باقي الأنماط تستخدم المتغيرات ===== */
@@ -359,6 +360,79 @@ HTML_TEMPLATE = r"""
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border-color); background: transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: var(--bg-hover); }
         .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+
+        /* ===== NEW: نافذة المشاركة الاجتماعية ===== */
+        .share-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--modal-bg);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        .share-modal.show { display: flex; }
+        .share-modal .box {
+            background: var(--bg-app);
+            padding: 28px 24px;
+            border-radius: 24px;
+            max-width: 360px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 60px var(--shadow-color);
+        }
+        .share-modal .box h3 {
+            font-size: 22px;
+            color: var(--text-primary);
+            margin-bottom: 18px;
+        }
+        .share-modal .box .share-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+        .share-modal .box .share-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 14px;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.15s;
+            flex: 1 0 auto;
+            justify-content: center;
+            min-width: 70px;
+        }
+        .share-modal .box .share-btn:hover { transform: scale(1.03); }
+        .share-modal .box .share-btn.whatsapp { background: #25D366; color: white; }
+        .share-modal .box .share-btn.facebook { background: #1877F2; color: white; }
+        .share-modal .box .share-btn.twitter { background: #000000; color: white; }
+        .share-modal .box .share-btn.snapchat { background: #FFFC00; color: #000000; }
+        .share-modal .box .close-btn {
+            background: var(--bg-hover);
+            border: none;
+            padding: 10px 30px;
+            border-radius: 14px;
+            font-size: 16px;
+            color: var(--text-primary);
+            cursor: pointer;
+            margin-top: 4px;
+            width: 100%;
+            font-weight: 600;
+        }
+        .share-modal .box .close-btn:hover { background: var(--border-color); }
+        @media (max-width: 400px) {
+            .share-modal .box .share-btn { font-size: 13px; padding: 8px 12px; }
+        }
     </style>
 </head>
 <body>
@@ -383,7 +457,7 @@ HTML_TEMPLATE = r"""
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
         
-        <!-- ===== NEW: زر مشاركة المحادثة ===== -->
+        <!-- ===== NEW: زر مشاركة المحادثة (يظهر النافذة المنبثقة) ===== -->
         <button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button>
         
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
@@ -425,6 +499,21 @@ HTML_TEMPLATE = r"""
     <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" />
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
+
+<!-- ===== NEW: نافذة المشاركة الاجتماعية المنبثقة ===== -->
+<div class="share-modal" id="shareModal">
+    <div class="box">
+        <h3><i class="fas fa-share-alt" style="color:var(--primary-color);"></i> شارك المحادثة</h3>
+        <div class="share-grid">
+            <a href="#" id="shareWhatsapp" target="_blank" class="share-btn whatsapp"><i class="fab fa-whatsapp"></i> واتساب</a>
+            <a href="#" id="shareFacebook" target="_blank" class="share-btn facebook"><i class="fab fa-facebook"></i> فيسبوك</a>
+            <a href="#" id="shareTwitter" target="_blank" class="share-btn twitter"><i class="fab fa-x-twitter"></i> X</a>
+            <button id="shareSnapchat" class="share-btn snapchat"><i class="fab fa-snapchat"></i> سناب شات</button>
+        </div>
+        <button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إلغاء</button>
+    </div>
+</div>
+
 <script>
     (function() {
         let conversationHistory = [];
@@ -449,6 +538,7 @@ HTML_TEMPLATE = r"""
         const imagePreview = document.getElementById('imagePreview');
         const removeImageBtn = document.getElementById('removeImageBtn');
         const historyList = document.getElementById('historyList');
+        const shareModal = document.getElementById('shareModal');
 
         let isMuted = true;
         const muteBtn = document.getElementById('muteBtn');
@@ -556,7 +646,7 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== NEW: ميزة مشاركة المحادثة =====
+        // ===== NEW: ميزة مشاركة المحادثة (فتح النافذة المنبثقة) =====
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
             e.stopPropagation();
             if (!currentConvId) {
@@ -565,35 +655,39 @@ HTML_TEMPLATE = r"""
                 return;
             }
             const url = window.location.origin + '/share/' + currentConvId;
-            // نسخ الرابط
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url).then(() => {
-                    alert('✅ تم نسخ رابط المحادثة!');
-                }).catch(() => {
-                    fallbackCopy(url);
-                });
-            } else {
-                fallbackCopy(url);
-            }
+            const text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
+            
+            // تحديث روابط المشاركة
+            document.getElementById('shareWhatsapp').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
+            document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
+            document.getElementById('shareTwitter').href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
+            
+            // زر سناب شات ينسخ الرابط
+            const snapBtn = document.getElementById('shareSnapchat');
+            snapBtn.onclick = function(ev) {
+                ev.stopPropagation();
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(() => {
+                        alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.');
+                    }).catch(() => {
+                        alert('❌ فشل النسخ، الرابط هو: ' + url);
+                    });
+                } else {
+                    alert('❌ فشل النسخ، الرابط هو: ' + url);
+                }
+                shareModal.classList.remove('show');
+            };
+
+            shareModal.classList.add('show');
             dropdown.classList.remove('show');
         });
 
-        function fallbackCopy(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.left = '-9999px';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                alert('✅ تم نسخ رابط المحادثة!');
-            } catch (e) {
-                alert('❌ فشل النسخ، الرابط هو: ' + text);
+        // عند الضغط خارج النافذة تنغلق
+        shareModal.addEventListener('click', function(e) {
+            if (e.target === shareModal) {
+                shareModal.classList.remove('show');
             }
-            document.body.removeChild(textarea);
-        }
-        // ===== نهاية ميزة المشاركة =====
+        });
 
         // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
@@ -1052,8 +1146,6 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# =====================================================================
-# ===== NEW: مسار عرض المحادثة العامة للمشاركة (قراءة فقط) =====
 @app.route('/share/<conv_id>')
 def shared_conversation(conv_id):
     conn = sqlite3.connect(DB_FILE)
@@ -1066,7 +1158,6 @@ def shared_conversation(conv_id):
         title = row[1] or "محادثة نبراس"
         return render_template_string(SHARED_PAGE_HTML, messages=messages, title=title)
     return "⚠️ المحادثة غير موجودة أو تم حذفها.", 404
-# =====================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
 @limiter.limit("3 per minute")
