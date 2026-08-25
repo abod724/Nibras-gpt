@@ -15,11 +15,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 app = Flask(__name__, static_folder='static')
-
-# ✅ التعديل الأخير: قراءة المفتاح السري من متغيرات البيئة فقط (إلزامي مثل OPENAI_API_KEY)
-app.secret_key = os.environ.get("SECRET_KEY")
-if not app.secret_key:
-    raise Exception("SECRET_KEY غير موجود! يجب إضافته في متغيرات البيئة في رندير")
+# يستخدم المفتاح الموجود في ريندر تلقائياً (كما هو الآن)
+app.secret_key = os.environ.get("SECRET_KEY") 
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -137,7 +134,6 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ===== صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
 SHARED_PAGE_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -196,8 +192,6 @@ SHARED_PAGE_HTML = """
 </html>
 """
 
-# =====================================================================
-# ===== قالب الواجهة الرئيسية مع نافذة المشاركة الاجتماعية =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -279,9 +273,11 @@ HTML_TEMPLATE = r"""
             --modal-bg: rgba(0,0,0,0.7);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; overflow: hidden; transition: background 0.3s ease; }
-        .app { width: 100%; max-width: 450px; height: 100dvh; max-height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; }
+        /* تعديل CSS: تثبيت الارتفاع لمنع اختفاء الهيدر عند الضغط على أي زر */
+        body { background: var(--bg-body); height: 100vh; min-height: -webkit-fill-available; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; overflow: hidden; transition: background 0.3s ease; }
+        .app { width: 100%; max-width: 450px; height: 100vh; min-height: -webkit-fill-available; background: var(--bg-app); display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease; }
+        /* تعديل CSS: جعل الهيدر ثابتاً في الأعلى مهما حدث */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; position: sticky; top: 0; z-index: 1000; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
         .menu-btn { background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; }
@@ -304,7 +300,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid var(--border-color); cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: var(--text-primary); font-weight: 500; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: var(--bg-hover); }
         .dropdown .conv-item:last-child { border-bottom: none; }
-        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; }
+        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; min-height: 0; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
         .msg.user { align-self: flex-end; background: var(--bg-user-msg); border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: var(--bg-bot-msg); border-bottom-right-radius: 6px; }
@@ -441,9 +437,10 @@ HTML_TEMPLATE = r"""
 <div class="app">
     <div class="header">
         <div class="header-right">
-            <button class="mute-btn" id="muteBtn" title="كتم الصوت / تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
-            <button class="call-btn" id="realtimeCallBtn" title="اتصال صوتي مباشر"><i class="fas fa-phone"></i></button>
-            <button class="menu-btn" id="menuToggle" aria-label="القائمة"><i class="fas fa-ellipsis-v"></i></button>
+            <!-- تم إضافة type="button" لمنع أي سلوك خاطئ من المتصفح -->
+            <button type="button" class="mute-btn" id="muteBtn" title="كتم الصوت / تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
+            <button type="button" class="call-btn" id="realtimeCallBtn" title="اتصال صوتي مباشر"><i class="fas fa-phone"></i></button>
+            <button type="button" class="menu-btn" id="menuToggle" aria-label="القائمة"><i class="fas fa-ellipsis-v"></i></button>
         </div>
         <div class="header-left">
             <div class="btn-group">
@@ -1053,9 +1050,6 @@ HTML_TEMPLATE = r"""
             recognition.start();
         });
 
-        // ========================================================
-        // ===== ميزة الاتصال الصوتي المباشر عبر WebSocket (Realtime) =====
-        // ========================================================
         let realtimeSocket = null;
         let realtimeStream = null;
         let audioContext = null;
