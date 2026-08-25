@@ -174,7 +174,7 @@ HTML_TEMPLATE = r"""
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
         
         # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 800; line-height: 2; word-wrap: break-word; white-space: normal; color: #000000; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
         
         .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
@@ -855,7 +855,9 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
+# ===== التعديل المطلوب: إضافة حد تسجيل الدخول =====
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("3 per minute")   # <-- هذا هو السطر المضاف فقط
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
