@@ -108,6 +108,7 @@ SYSTEM_PROMPT = f"""
 - دائماً حافظ على لهجتك العامية البيضاء.
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
 - لا تكتب "لحظة" أو "انتظر"، فقط انتظر النتيجة ورد مباشرة.
+- **لا تكرر نفس الرد.** إذا سألك المستخدم سؤالاً جديداً، جاوب عليه مباشرة دون تكرار الترحيب أو أي جملة سابقة.
 """
 
 def remove_emoji(text):
@@ -131,7 +132,6 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# ===== صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
 SHARED_PAGE_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -190,8 +190,6 @@ SHARED_PAGE_HTML = """
 </html>
 """
 
-# =====================================================================
-# ===== قالب الواجهة الرئيسية مع نافذة المشاركة الاجتماعية =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -206,7 +204,6 @@ HTML_TEMPLATE = r"""
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
-        /* ===== تعريف المتغيرات - الثيم الفاتح هو الافتراضي ===== */
         :root {
             --bg-body: #f4f7fc;
             --bg-app: #ffffff;
@@ -240,8 +237,6 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #fde8e8;
             --modal-bg: rgba(0,0,0,0.5);
         }
-
-        /* ===== الثيم الداكن (يُفعّل عند إضافة class="dark-mode" على <html>) ===== */
         html.dark-mode {
             --bg-body: #0d1117;
             --bg-app: #161b22;
@@ -275,8 +270,6 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #2d1b1b;
             --modal-bg: rgba(0,0,0,0.7);
         }
-
-        /* ===== باقي الأنماط تستخدم المتغيرات ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
         body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; transition: background 0.3s ease; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; transition: background 0.3s ease; }
@@ -360,8 +353,6 @@ HTML_TEMPLATE = r"""
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border-color); background: transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: var(--bg-hover); }
         .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-
-        /* ===== NEW: نافذة المشاركة الاجتماعية ===== */
         .share-modal {
             display: none;
             position: fixed;
@@ -456,12 +447,8 @@ HTML_TEMPLATE = r"""
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
-        
-        <!-- ===== NEW: زر مشاركة المحادثة (يظهر النافذة المنبثقة) ===== -->
         <button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button>
-        
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
-        
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-primary);">
                 <i class="fas fa-microphone" style="font-size: 18px; color: var(--text-secondary);"></i>
@@ -500,7 +487,6 @@ HTML_TEMPLATE = r"""
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
 
-<!-- ===== NEW: نافذة المشاركة الاجتماعية المنبثقة ===== -->
 <div class="share-modal" id="shareModal">
     <div class="box">
         <h3><i class="fas fa-share-alt" style="color:var(--primary-color);"></i> شارك المحادثة</h3>
@@ -516,7 +502,6 @@ HTML_TEMPLATE = r"""
 
 <script>
     (function() {
-        let conversationHistory = [];
         let pendingImageData = null;
         let isWaiting = false;
         let currentConvId = null;
@@ -623,7 +608,6 @@ HTML_TEMPLATE = r"""
                 const data = await res.json();
                 if (data.messages) {
                     chatBox.innerHTML = '';
-                    conversationHistory = data.messages;
                     currentConvId = convId;
                     data.messages.forEach(function(msg) {
                         var sender = msg.role === 'user' ? 'user' : 'bot';
@@ -638,7 +622,6 @@ HTML_TEMPLATE = r"""
 
         document.querySelector('[data-action="new"]').addEventListener('click', function() {
             chatBox.innerHTML = '';
-            conversationHistory = [];
             currentConvId = null;
             dropdown.classList.remove('show');
             pendingImageData = null;
@@ -646,7 +629,6 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== NEW: ميزة مشاركة المحادثة (فتح النافذة المنبثقة) =====
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
             e.stopPropagation();
             if (!currentConvId) {
@@ -657,12 +639,10 @@ HTML_TEMPLATE = r"""
             const url = window.location.origin + '/share/' + currentConvId;
             const text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
             
-            // تحديث روابط المشاركة
             document.getElementById('shareWhatsapp').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
             document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
             document.getElementById('shareTwitter').href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
             
-            // زر سناب شات ينسخ الرابط
             const snapBtn = document.getElementById('shareSnapchat');
             snapBtn.onclick = function(ev) {
                 ev.stopPropagation();
@@ -682,14 +662,12 @@ HTML_TEMPLATE = r"""
             dropdown.classList.remove('show');
         });
 
-        // عند الضغط خارج النافذة تنغلق
         shareModal.addEventListener('click', function(e) {
             if (e.target === shareModal) {
                 shareModal.classList.remove('show');
             }
         });
 
-        // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
         
@@ -721,7 +699,6 @@ HTML_TEMPLATE = r"""
             });
         }
 
-        // ===== باقي دوال الدردشة كما هي =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -960,7 +937,6 @@ HTML_TEMPLATE = r"""
             var payload = {
                 message: text || "📎 مرفق",
                 image: imageToSend || null,
-                history: conversationHistory,
                 conv_id: currentConvId
             };
 
@@ -1236,8 +1212,8 @@ def chat():
     try:
         data = request.get_json()
         user_message = data.get("message", "").strip()
-        history = data.get("history", [])
         conv_id = data.get("conv_id", None)
+        # تم تجاهل history المرسل من المتصفح نهائياً
 
         if not user_message:
             return jsonify({"reply": "اكتب شيء أساعدك فيه"})
@@ -1248,25 +1224,39 @@ def chat():
 
         user_id = get_user_id()
 
-        if conv_id is None:
-            session_memory[user_id] = []
+        # المصدر الوحيد للتاريخ هو قاعدة البيانات
+        if conv_id:
+            chat_history = load_conversation_by_id(user_id, conv_id)
+            if chat_history is None:
+                chat_history = []
+        else:
+            chat_history = []
 
+        # نأخذ آخر 15 رسالة فقط للسياق (لمنع التكرار وللحفاظ على الأداء)
+        chat_history = chat_history[-15:] if len(chat_history) > 15 else chat_history
+
+        # نضيف رسالة المستخدم الجديدة مؤقتاً للسياق
+        temp_history = chat_history.copy()
+        temp_history.append({"role": "user", "content": user_message})
+
+        # بناء الرسائل المرسلة للـ API
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for entry in temp_history:
+            messages.append({"role": entry["role"], "content": entry["content"]})
+
+        # باقي الكود (الصور، البحث، إلخ)
         if is_admin:
             model = "gpt-4o"
             use_web_search = True
             allow_images = True
-            limit_msg = None
         elif is_trial_user and trial_remaining > 0 and not session.get('is_trial_expired'):
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
-            limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
         else:
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
-            if is_trial_user and trial_remaining == 0:
-                limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
         draw_keywords = ["ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", "رسم", "ارسمي", "صمم", "ولّد", "generate", "draw", "ارسم لي", "أنشئ لي", "انشئ لي", "انشى لي", "صوره لي"]
         if allow_images and any(keyword in user_message for keyword in draw_keywords):
@@ -1274,8 +1264,15 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
-                session_memory[user_id].append({"role": "user", "content": user_message})
-                session_memory[user_id].append({"role": "assistant", "content": reply})
+                # تحديث الذاكرة المؤقتة
+                if conv_id is None:
+                    session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
+                else:
+                    if user_id in session_memory:
+                        session_memory[user_id].append({"role": "user", "content": user_message})
+                        session_memory[user_id].append({"role": "assistant", "content": reply})
+                    else:
+                        session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
                 new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
                 if is_trial_user and trial_remaining > 0:
                     session['trial_remaining'] = trial_remaining - 1
@@ -1285,26 +1282,6 @@ def chat():
                 return jsonify({"reply": reply, "conv_id": new_conv_id})
             else:
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
-
-        session_memory[user_id].append({"role": "user", "content": user_message})
-        
-        # ===== التعديل الرئيسي: استخدام الذاكرة الطويلة =====
-        # جلب المحادثة كاملة من قاعدة البيانات إذا كانت موجودة
-        if conv_id:
-            chat_history = load_conversation_by_id(user_id, conv_id)
-            if chat_history is None:
-                chat_history = []
-        else:
-            chat_history = session_memory.get(user_id, [])
-        
-        # إذا كانت المحادثة جديدة، استخدم الذاكرة المؤقتة التي تم حفظها
-        if not chat_history:
-            chat_history = session_memory.get(user_id, [])
-        # ===== نهاية التعديل =====
-
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        for entry in chat_history:
-            messages.append({"role": entry["role"], "content": entry["content"]})
 
         image_data = data.get("image", None)
         if image_data and allow_images:
@@ -1362,7 +1339,16 @@ def chat():
             print(f"❌ خطأ: {e}")
             reply = "حدث خطأ في السيرفر، حاول مرة أخرى."
 
-        session_memory[user_id].append({"role": "assistant", "content": reply})
+        # تحديث الذاكرة المؤقتة والقاعدة
+        if conv_id is None:
+            session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
+        else:
+            if user_id in session_memory:
+                session_memory[user_id].append({"role": "user", "content": user_message})
+                session_memory[user_id].append({"role": "assistant", "content": reply})
+            else:
+                session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
+
         new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
 
         if is_trial_user and trial_remaining > 0:
