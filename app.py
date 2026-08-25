@@ -15,6 +15,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 app = Flask(__name__, static_folder='static')
+# نصيحة هامة: يفضل وضع مفتاح سري ثابت بدلاً من token_hex لكي لا تفقد الجلسات عند إعادة التشغيل
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -1277,19 +1278,26 @@ def index():
 
 @app.route('/api/realtime-token', methods=['GET'])
 def get_realtime_token():
-    # التحقق من صلاحية المستخدم
+    # التحقق من صلاحية المستخدم: (الأدمن مفتوح، والمميز فقط مسموح، والمسجل العادي ممنوع، والضيف ممنوع)
     if 'admin_email' in session:
-        # الأدمن مسموح له
+        # الأدمن مسموح له دائماً
         pass
     elif 'user_email' in session:
-        return jsonify({
-            "error": "premium_required",
-            "message": "🔒 المكالمة الصوتية المباشرة متاحة فقط في الخطة المدفوعة. رقِّ حسابك للاستمتاع بها."
-        }), 403
+        # المستخدم المسجل: يجب أن يكون "مشتركاً" (Premium)
+        # ✏️ ملاحظة: يجب عليك وضع session['is_premium'] = True عند تأكيد دفعه أو اشتراكه في صفحة الترقية
+        if session.get('is_premium'):
+            # مستخدم مميز (مشترك)
+            pass
+        else:
+            return jsonify({
+                "error": "premium_required",
+                "message": "🔒 المكالمة الصوتية المباشرة متاحة فقط للمشتركين المميزين. قم بالترقية لاستخدامها."
+            }), 403
     else:
+        # الضيوف (غير مسجلين)
         return jsonify({
             "error": "login_required",
-            "message": "🔐 يرجى تسجيل الدخول أولاً للاستفادة من المكالمة الصوتية المباشرة."
+            "message": "🔐 يرجى تسجيل الدخول أولاً، ثم الترقية للاستفادة من المكالمة الصوتية المباشرة."
         }), 403
 
     try:
@@ -1384,6 +1392,8 @@ def login():
             session['user_email'] = email
             session['trial_remaining'] = 5
             session['is_trial_expired'] = False
+            # ملاحظة: هنا يمكنك جعل بعض المستخدمين "مميزين" بناءً على بريدهم الإلكتروني في قاعدة البيانات
+            # مثال: session['is_premium'] = True إذا كان الإيميل مشتركاً
             return redirect(url_for('index'))
         else:
             return render_template_string(LOGIN_HTML, error="يرجى إدخال بريد إلكتروني صحيح.")
