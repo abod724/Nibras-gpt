@@ -10,7 +10,7 @@ import edge_tts
 import base64
 import re
 import sqlite3
-import requests  # <--- تمت الإضافة
+import requests
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -207,7 +207,6 @@ HTML_TEMPLATE = r"""
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
-        /* ===== تعريف المتغيرات - الثيم الفاتح هو الافتراضي ===== */
         :root {
             --bg-body: #f4f7fc;
             --bg-app: #ffffff;
@@ -241,8 +240,6 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #fde8e8;
             --modal-bg: rgba(0,0,0,0.5);
         }
-
-        /* ===== الثيم الداكن (يُفعّل عند إضافة class="dark-mode" على <html>) ===== */
         html.dark-mode {
             --bg-body: #0d1117;
             --bg-app: #161b22;
@@ -276,8 +273,6 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #2d1b1b;
             --modal-bg: rgba(0,0,0,0.7);
         }
-
-        /* ===== باقي الأنماط تستخدم المتغيرات ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
         body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; overflow: hidden; transition: background 0.3s ease; }
         .app { width: 100%; max-width: 450px; height: 100dvh; max-height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease; }
@@ -364,8 +359,6 @@ HTML_TEMPLATE = r"""
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border-color); background: transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: var(--bg-hover); }
         .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-
-        /* ===== NEW: نافذة المشاركة الاجتماعية ===== */
         .share-modal {
             display: none;
             position: fixed;
@@ -444,7 +437,6 @@ HTML_TEMPLATE = r"""
     <div class="header">
         <div class="header-right">
             <button class="mute-btn" id="muteBtn" title="كتم الصوت / تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
-            <!-- زر الاتصال الصوتي المباشر (Realtime) -->
             <button class="call-btn" id="realtimeCallBtn" title="اتصال صوتي مباشر"><i class="fas fa-phone"></i></button>
             <button class="menu-btn" id="menuToggle" aria-label="القائمة"><i class="fas fa-ellipsis-v"></i></button>
         </div>
@@ -462,12 +454,8 @@ HTML_TEMPLATE = r"""
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
-        
-        <!-- ===== NEW: زر مشاركة المحادثة (يظهر النافذة المنبثقة) ===== -->
         <button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button>
-        
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
-        
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-primary);">
                 <i class="fas fa-microphone" style="font-size: 18px; color: var(--text-secondary);"></i>
@@ -506,7 +494,7 @@ HTML_TEMPLATE = r"""
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
 
-<!-- ===== NEW: نافذة المشاركة الاجتماعية المنبثقة ===== -->
+<!-- نافذة المشاركة -->
 <div class="share-modal" id="shareModal">
     <div class="box">
         <h3><i class="fas fa-share-alt" style="color:var(--primary-color);"></i> شارك المحادثة</h3>
@@ -652,7 +640,6 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== NEW: ميزة مشاركة المحادثة (فتح النافذة المنبثقة) =====
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
             e.stopPropagation();
             if (!currentConvId) {
@@ -663,12 +650,10 @@ HTML_TEMPLATE = r"""
             const url = window.location.origin + '/share/' + currentConvId;
             const text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
             
-            // تحديث روابط المشاركة
             document.getElementById('shareWhatsapp').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
             document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
             document.getElementById('shareTwitter').href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
             
-            // زر سناب شات ينسخ الرابط
             const snapBtn = document.getElementById('shareSnapchat');
             snapBtn.onclick = function(ev) {
                 ev.stopPropagation();
@@ -688,14 +673,12 @@ HTML_TEMPLATE = r"""
             dropdown.classList.remove('show');
         });
 
-        // عند الضغط خارج النافذة تنغلق
         shareModal.addEventListener('click', function(e) {
             if (e.target === shareModal) {
                 shareModal.classList.remove('show');
             }
         });
 
-        // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
         
@@ -727,7 +710,6 @@ HTML_TEMPLATE = r"""
             });
         }
 
-        // ===== باقي دوال الدردشة كما هي =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -1067,10 +1049,11 @@ HTML_TEMPLATE = r"""
         });
 
         // ========================================================
-        // ===== ميزة الاتصال الصوتي المباشر عبر WebRTC (Realtime) =====
+        // ===== ميزة الاتصال الصوتي المباشر عبر WebSocket (Realtime) =====
         // ========================================================
-        let realtimeConnection = null;
-        let realtimePeerConnection = null;
+        let realtimeSocket = null;
+        let realtimeStream = null;
+        let audioContext = null;
         const callBtn = document.getElementById('realtimeCallBtn');
 
         async function startRealtimeCall() {
@@ -1081,78 +1064,87 @@ HTML_TEMPLATE = r"""
                 const tokenData = await tokenRes.json();
                 const ephemeralKey = tokenData.client_secret;
 
-                // 2. ننشئ اتصال WebRTC
-                const pc = new RTCPeerConnection();
-                realtimePeerConnection = pc;
+                // 2. نفتح WebSocket مع OpenAI
+                const ws = new WebSocket('wss://api.openai.com/v1/realtime');
+                realtimeSocket = ws;
 
-                // 3. نجيب المايك
+                // 3. نجهز المايك
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const audioTrack = stream.getAudioTracks()[0];
-                pc.addTrack(audioTrack, stream);
+                realtimeStream = stream;
 
-                // 4. نستقبل الصوت من OpenAI
-                const remoteAudio = new Audio();
-                remoteAudio.autoplay = true;
-                pc.ontrack = (event) => {
-                    if (event.track.kind === 'audio') {
-                        const remoteStream = new MediaStream();
-                        remoteStream.addTrack(event.track);
-                        remoteAudio.srcObject = remoteStream;
-                        remoteAudio.play();
-                    }
-                };
+                // 4. نجهز AudioContext لتشغيل الصوت القادم
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-                // 5. ننشئ قناة البيانات (Data Channel) عشان نرسل الأوامر
-                const dc = pc.createDataChannel('oai-events');
-                realtimeConnection = dc;
-
-                dc.onopen = () => {
-                    console.log('✅ Data Channel مفتوح');
+                ws.onopen = () => {
+                    console.log('✅ WebSocket مفتوح');
                     // نرسل أمر التحديث بالتعليمات
                     const config = {
                         type: 'session.update',
                         session: {
-                            instructions: "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً.",
+                            instructions: "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً.",
                             voice: "marin",
                             turn_detection: { type: "server_vad" },
                             input_audio_transcription: { model: "whisper-1" }
                         }
                     };
-                    dc.send(JSON.stringify(config));
+                    ws.send(JSON.stringify(config));
+
+                    // نبدأ إرسال الصوت من المايك
+                    const audioContext2 = new AudioContext();
+                    const source = audioContext2.createMediaStreamSource(stream);
+                    const processor = audioContext2.createScriptProcessor(4096, 1, 1);
+                    source.connect(processor);
+                    processor.connect(audioContext2.destination);
+
+                    processor.onaudioprocess = (event) => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            const inputData = event.inputBuffer.getChannelData(0);
+                            // تحويل Float32 إلى PCM 16-bit
+                            const pcmData = new Int16Array(inputData.length);
+                            for (let i = 0; i < inputData.length; i++) {
+                                pcmData[i] = Math.max(-32768, Math.min(32767, Math.round(inputData[i] * 32767)));
+                            }
+                            // إرسال الصوت كـ Base64
+                            const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
+                            ws.send(JSON.stringify({
+                                type: 'input_audio_buffer.append',
+                                audio: base64
+                            }));
+                        }
+                    };
                 };
 
-                dc.onmessage = (e) => {
+                ws.onmessage = (e) => {
                     const event = JSON.parse(e.data);
                     if (event.type === 'response.audio.delta') {
-                        // لو حبينا نضيف معالجة إضافية للصوت، لكن `ontrack` كافٍ.
-                    }
-                    if (event.type === 'response.text.delta') {
-                        // نص اختياري، نقدر نضيفه للشات لو حبينا.
-                        console.log('نص:', event.delta);
+                        // استقبال الصوت من المساعد
+                        const audioBase64 = event.delta;
+                        const binary = atob(audioBase64);
+                        const arrayBuffer = new ArrayBuffer(binary.length);
+                        const view = new Uint8Array(arrayBuffer);
+                        for (let i = 0; i < binary.length; i++) {
+                            view[i] = binary.charCodeAt(i);
+                        }
+                        // تشغيل الصوت عبر AudioContext
+                        audioContext.decodeAudioData(arrayBuffer, (buffer) => {
+                            const source = audioContext.createBufferSource();
+                            source.buffer = buffer;
+                            source.connect(audioContext.destination);
+                            source.start(0);
+                        });
                     }
                 };
 
-                // 6. ننشئ الـ Offer
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
+                ws.onerror = (err) => {
+                    console.error('❌ خطأ في WebSocket:', err);
+                    addMessage('❌ فشل الاتصال الصوتي: ' + err.message, 'error');
+                    stopRealtimeCall();
+                };
 
-                // 7. نرسل الـ Offer لـ OpenAI
-                const sdpResponse = await fetch('https://api.openai.com/v1/realtime/connect', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/sdp',
-                        'Authorization': `Bearer ${ephemeralKey}`
-                    },
-                    body: offer.sdp
-                });
-
-                if (!sdpResponse.ok) throw new Error('فشل الاتصال بـ OpenAI');
-
-                const answerSdp = await sdpResponse.text();
-                await pc.setRemoteDescription({
-                    type: 'answer',
-                    sdp: answerSdp
-                });
+                ws.onclose = () => {
+                    console.log('🔌 WebSocket مغلق');
+                    stopRealtimeCall();
+                };
 
                 // تغيير شكل الزر
                 callBtn.classList.add('active');
@@ -1162,23 +1154,22 @@ HTML_TEMPLATE = r"""
             } catch (err) {
                 console.error('❌ خطأ في المكالمة:', err);
                 addMessage('❌ فشل فتح الاتصال الصوتي: ' + err.message, 'error');
-                if (realtimePeerConnection) {
-                    realtimePeerConnection.close();
-                    realtimePeerConnection = null;
-                }
-                callBtn.classList.remove('active');
-                callBtn.innerHTML = '<i class="fas fa-phone"></i>';
+                stopRealtimeCall();
             }
         }
 
         function stopRealtimeCall() {
-            if (realtimeConnection) {
-                try { realtimeConnection.close(); } catch (e) {}
-                realtimeConnection = null;
+            if (realtimeSocket) {
+                try { realtimeSocket.close(); } catch (e) {}
+                realtimeSocket = null;
             }
-            if (realtimePeerConnection) {
-                try { realtimePeerConnection.close(); } catch (e) {}
-                realtimePeerConnection = null;
+            if (realtimeStream) {
+                realtimeStream.getTracks().forEach(track => track.stop());
+                realtimeStream = null;
+            }
+            if (audioContext) {
+                try { audioContext.close(); } catch (e) {}
+                audioContext = null;
             }
             // نوقف أي مسارات صوتية باقية
             const audioElements = document.querySelectorAll('audio');
@@ -1283,7 +1274,6 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# ===== نقطة النهاية الجديدة لتوليد رمز الـ WebRTC =====
 @app.route('/api/realtime-token', methods=['GET'])
 def get_realtime_token():
     try:
@@ -1295,7 +1285,6 @@ def get_realtime_token():
             "Authorization": f"Bearer {OPENAI_API_KEY}"
         }
         
-        # هنا تحط تعليمات نبراس بالضبط
         instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
         
         payload = {
@@ -1315,7 +1304,7 @@ def get_realtime_token():
                     },
                     "output": {
                         "format": {"type": "audio/pcm", "rate": 24000},
-                        "voice": "marin"  # جرب تغيره لـ ash أو sage أو ballad
+                        "voice": "marin"
                     }
                 },
                 "output_modalities": ["audio"],
