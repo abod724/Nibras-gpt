@@ -132,10 +132,66 @@ async def generate_speech(text, gender):
     return base64.b64encode(audio_data).decode('utf-8')
 
 # =====================================================================
-# HTML_TEMPLATE مع الثيم الفاتح رئيسي والداكن ثانوي
-# التعديلات في:
-# 1. CSS: :root للفاتح، .dark-mode للداكن
-# 2. JavaScript: التبديل يضيف/يزيل class="dark-mode"
+# ===== NEW: صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
+SHARED_PAGE_HTML = """
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📄 محادثة نبراس</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background: #f4f7fc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { max-width: 700px; width: 100%; background: white; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); padding: 30px 25px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eaeef2; padding-bottom: 15px; margin-bottom: 25px; }
+        .header h1 { font-size: 22px; color: #1a2b3c; }
+        .header a { color: #4a6a8a; text-decoration: none; font-size: 15px; }
+        .msg { display: flex; margin-bottom: 18px; gap: 10px; }
+        .msg .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; font-size: 14px; }
+        .msg.user .avatar { background: #eaeef2; color: #1a2b3c; }
+        .msg.bot .avatar { background: #4a6a8a; color: white; }
+        .msg .content { background: #f5f7fa; padding: 12px 18px; border-radius: 16px; border-top-right-radius: 4px; max-width: 85%; line-height: 1.8; color: #111; }
+        .msg.user .content { background: #eaeef2; }
+        .msg.bot .content { background: #f5f7fa; }
+        .msg .content p { margin-bottom: 8px; }
+        .msg .content p:last-child { margin-bottom: 0; }
+        .msg .time { font-size: 11px; color: #8b949e; margin-top: 4px; display: block; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eaeef2; color: #8b949e; font-size: 14px; }
+        .footer a { color: #4a6a8a; text-decoration: none; font-weight: bold; }
+        @media (max-width: 500px) {
+            .container { padding: 15px; }
+            .msg .content { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 {{ title or 'محادثة نبراس' }}</h1>
+            <a href="/">⬅ الرئيسية</a>
+        </div>
+        <div>
+            {% for msg in messages %}
+                <div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}">
+                    <div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div>
+                    <div class="content">
+                        {{ msg.content | replace('\n', '<br>') | safe }}
+                        <span class="time">{{ loop.index }}. {{ 'مستخدم' if msg.role == 'user' else 'نبراس' }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="footer">
+            تمت المشاركة من <a href="/">نبراس</a> - مساعد ذكي
+        </div>
+    </div>
+</body>
+</html>
+"""
+# =====================================================================
+
 # =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -327,7 +383,9 @@ HTML_TEMPLATE = r"""
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
         
-        <!-- ===== زر تبديل الثيم ===== -->
+        <!-- ===== NEW: زر مشاركة المحادثة ===== -->
+        <button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button>
+        
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
         
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
@@ -498,6 +556,45 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
+        // ===== NEW: ميزة مشاركة المحادثة =====
+        document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!currentConvId) {
+                alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');
+                dropdown.classList.remove('show');
+                return;
+            }
+            const url = window.location.origin + '/share/' + currentConvId;
+            // نسخ الرابط
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    alert('✅ تم نسخ رابط المحادثة!');
+                }).catch(() => {
+                    fallbackCopy(url);
+                });
+            } else {
+                fallbackCopy(url);
+            }
+            dropdown.classList.remove('show');
+        });
+
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                alert('✅ تم نسخ رابط المحادثة!');
+            } catch (e) {
+                alert('❌ فشل النسخ، الرابط هو: ' + text);
+            }
+            document.body.removeChild(textarea);
+        }
+        // ===== نهاية ميزة المشاركة =====
+
         // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
@@ -517,11 +614,9 @@ HTML_TEMPLATE = r"""
             }
         }
 
-        // استعادة الثيم المحفوظ (افتراضي فاتح)
         const savedTheme = localStorage.getItem('nibras-theme') || 'light';
         setTheme(savedTheme);
 
-        // عند الضغط على زر التبديل
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -956,6 +1051,22 @@ PLANS_HTML = """
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
+
+# =====================================================================
+# ===== NEW: مسار عرض المحادثة العامة للمشاركة (قراءة فقط) =====
+@app.route('/share/<conv_id>')
+def shared_conversation(conv_id):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT messages, title FROM conversations WHERE conv_id=?", (conv_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        messages = json.loads(row[0])
+        title = row[1] or "محادثة نبراس"
+        return render_template_string(SHARED_PAGE_HTML, messages=messages, title=title)
+    return "⚠️ المحادثة غير موجودة أو تم حذفها.", 404
+# =====================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
 @limiter.limit("3 per minute")
