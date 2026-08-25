@@ -1058,26 +1058,34 @@ HTML_TEMPLATE = r"""
 
         async function startRealtimeCall() {
             try {
-                // 1. نطلب رمز الجلسة من السيرفر
                 const tokenRes = await fetch('/api/realtime-token');
-                if (!tokenRes.ok) throw new Error('فشل في جلب رمز الجلسة');
+                
+                if (!tokenRes.ok) {
+                    const errorData = await tokenRes.json();
+                    if (errorData.error === 'premium_required') {
+                        alert('🔒 ' + errorData.message + '\n\nسيتم توجيهك لصفحة الترقية.');
+                        window.location.href = '/plans';
+                    } else if (errorData.error === 'login_required') {
+                        alert('🔐 ' + errorData.message + '\n\nسيتم توجيهك لصفحة تسجيل الدخول.');
+                        window.location.href = '/login';
+                    } else {
+                        alert('⚠️ ' + (errorData.message || 'حدث خطأ غير معروف.'));
+                    }
+                    return;
+                }
+
                 const tokenData = await tokenRes.json();
                 const ephemeralKey = tokenData.client_secret;
 
-                // 2. نفتح WebSocket مع OpenAI
                 const ws = new WebSocket('wss://api.openai.com/v1/realtime');
                 realtimeSocket = ws;
 
-                // 3. نجهز المايك
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 realtimeStream = stream;
-
-                // 4. نجهز AudioContext لتشغيل الصوت القادم
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
                 ws.onopen = () => {
                     console.log('✅ WebSocket مفتوح');
-                    // نرسل أمر التحديث بالتعليمات
                     const config = {
                         type: 'session.update',
                         session: {
@@ -1089,7 +1097,6 @@ HTML_TEMPLATE = r"""
                     };
                     ws.send(JSON.stringify(config));
 
-                    // نبدأ إرسال الصوت من المايك
                     const audioContext2 = new AudioContext();
                     const source = audioContext2.createMediaStreamSource(stream);
                     const processor = audioContext2.createScriptProcessor(4096, 1, 1);
@@ -1099,12 +1106,10 @@ HTML_TEMPLATE = r"""
                     processor.onaudioprocess = (event) => {
                         if (ws.readyState === WebSocket.OPEN) {
                             const inputData = event.inputBuffer.getChannelData(0);
-                            // تحويل Float32 إلى PCM 16-bit
                             const pcmData = new Int16Array(inputData.length);
                             for (let i = 0; i < inputData.length; i++) {
                                 pcmData[i] = Math.max(-32768, Math.min(32767, Math.round(inputData[i] * 32767)));
                             }
-                            // إرسال الصوت كـ Base64
                             const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
                             ws.send(JSON.stringify({
                                 type: 'input_audio_buffer.append',
@@ -1117,7 +1122,6 @@ HTML_TEMPLATE = r"""
                 ws.onmessage = (e) => {
                     const event = JSON.parse(e.data);
                     if (event.type === 'response.audio.delta') {
-                        // استقبال الصوت من المساعد
                         const audioBase64 = event.delta;
                         const binary = atob(audioBase64);
                         const arrayBuffer = new ArrayBuffer(binary.length);
@@ -1125,7 +1129,6 @@ HTML_TEMPLATE = r"""
                         for (let i = 0; i < binary.length; i++) {
                             view[i] = binary.charCodeAt(i);
                         }
-                        // تشغيل الصوت عبر AudioContext
                         audioContext.decodeAudioData(arrayBuffer, (buffer) => {
                             const source = audioContext.createBufferSource();
                             source.buffer = buffer;
@@ -1137,7 +1140,7 @@ HTML_TEMPLATE = r"""
 
                 ws.onerror = (err) => {
                     console.error('❌ خطأ في WebSocket:', err);
-                    addMessage('❌ فشل الاتصال الصوتي: ' + err.message, 'error');
+                    alert('❌ فشل الاتصال الصوتي: ' + err.message);
                     stopRealtimeCall();
                 };
 
@@ -1146,14 +1149,13 @@ HTML_TEMPLATE = r"""
                     stopRealtimeCall();
                 };
 
-                // تغيير شكل الزر
                 callBtn.classList.add('active');
                 callBtn.innerHTML = '<i class="fas fa-phone-slash"></i>';
                 addMessage('📞 تم فتح الاتصال الصوتي المباشر. تكلم بحرية.', 'bot', true);
 
             } catch (err) {
                 console.error('❌ خطأ في المكالمة:', err);
-                addMessage('❌ فشل فتح الاتصال الصوتي: ' + err.message, 'error');
+                alert('❌ فشل فتح الاتصال الصوتي: ' + err.message);
                 stopRealtimeCall();
             }
         }
@@ -1171,7 +1173,6 @@ HTML_TEMPLATE = r"""
                 try { audioContext.close(); } catch (e) {}
                 audioContext = null;
             }
-            // نوقف أي مسارات صوتية باقية
             const audioElements = document.querySelectorAll('audio');
             audioElements.forEach(a => { a.pause(); a.srcObject = null; });
             
@@ -1276,6 +1277,21 @@ def index():
 
 @app.route('/api/realtime-token', methods=['GET'])
 def get_realtime_token():
+    # التحقق من صلاحية المستخدم
+    if 'admin_email' in session:
+        # الأدمن مسموح له
+        pass
+    elif 'user_email' in session:
+        return jsonify({
+            "error": "premium_required",
+            "message": "🔒 المكالمة الصوتية المباشرة متاحة فقط في الخطة المدفوعة. رقِّ حسابك للاستمتاع بها."
+        }), 403
+    else:
+        return jsonify({
+            "error": "login_required",
+            "message": "🔐 يرجى تسجيل الدخول أولاً للاستفادة من المكالمة الصوتية المباشرة."
+        }), 403
+
     try:
         if not OPENAI_API_KEY:
             return jsonify({"error": "مفتاح API مفقود"}), 500
