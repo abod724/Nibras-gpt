@@ -135,59 +135,43 @@ async def generate_speech(text, gender):
 SHARED_PAGE_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📄 محادثة نبراس</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background: #f4f7fc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-        .container { max-width: 700px; width: 100%; background: white; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); padding: 30px 25px; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eaeef2; padding-bottom: 15px; margin-bottom: 25px; }
-        .header h1 { font-size: 22px; color: #1a2b3c; }
-        .header a { color: #4a6a8a; text-decoration: none; font-size: 15px; }
-        .msg { display: flex; margin-bottom: 18px; gap: 10px; }
-        .msg .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; font-size: 14px; }
-        .msg.user .avatar { background: #eaeef2; color: #1a2b3c; }
-        .msg.bot .avatar { background: #4a6a8a; color: white; }
-        .msg .content { background: #f5f7fa; padding: 12px 18px; border-radius: 16px; border-top-right-radius: 4px; max-width: 85%; line-height: 1.8; color: #111; }
-        .msg.user .content { background: #eaeef2; }
-        .msg.bot .content { background: #f5f7fa; }
-        .msg .content p { margin-bottom: 8px; }
-        .msg .content p:last-child { margin-bottom: 0; }
-        .msg .time { font-size: 11px; color: #8b949e; margin-top: 4px; display: block; }
-        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eaeef2; color: #8b949e; font-size: 14px; }
-        .footer a { color: #4a6a8a; text-decoration: none; font-weight: bold; }
-    </style>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>📄 محادثة نبراس</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+    body { background: #f4f7fc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+    .container { max-width: 700px; width: 100%; background: white; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); padding: 30px 25px; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eaeef2; padding-bottom: 15px; margin-bottom: 25px; }
+    .header h1 { font-size: 22px; color: #1a2b3c; }
+    .header a { color: #4a6a8a; text-decoration: none; font-size: 15px; }
+    .msg { display: flex; margin-bottom: 18px; gap: 10px; }
+    .msg .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; font-size: 14px; }
+    .msg.user .avatar { background: #eaeef2; color: #1a2b3c; }
+    .msg.bot .avatar { background: #4a6a8a; color: white; }
+    .msg .content { background: #f5f7fa; padding: 12px 18px; border-radius: 16px; border-top-right-radius: 4px; max-width: 85%; line-height: 1.8; color: #111; }
+    .msg.user .content { background: #eaeef2; }
+    .msg.bot .content { background: #f5f7fa; }
+    .msg .content p { margin-bottom: 8px; }
+    .msg .content p:last-child { margin-bottom: 0; }
+    .msg .time { font-size: 11px; color: #8b949e; margin-top: 4px; display: block; }
+    .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eaeef2; color: #8b949e; font-size: 14px; }
+    .footer a { color: #4a6a8a; text-decoration: none; font-weight: bold; }
+</style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>💬 {{ title or 'محادثة نبراس' }}</h1>
-            <a href="/">⬅ الرئيسية</a>
-        </div>
-        <div>
-            {% for msg in messages %}
-                <div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}">
-                    <div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div>
-                    <div class="content">
-                        {{ msg.content | replace('\n', '<br>') | safe }}
-                        <span class="time">{{ loop.index }}. {{ 'مستخدم' if msg.role == 'user' else 'نبراس' }}</span>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-        <div class="footer">
-            تمت المشاركة من <a href="/">نبراس</a> - مساعد ذكي
-        </div>
+<body><div class="container">
+    <div class="header"><h1>💬 {{ title or 'محادثة نبراس' }}</h1><a href="/">⬅ الرئيسية</a></div>
+    <div>
+        {% for msg in messages %}
+            <div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}">
+                <div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div>
+                <div class="content">{{ msg.content | replace('\n', '<br>') | safe }}<span class="time">{{ loop.index }}. {{ 'مستخدم' if msg.role == 'user' else 'نبراس' }}</span></div>
+            </div>
+        {% endfor %}
     </div>
-</body>
-</html>
+    <div class="footer">تمت المشاركة من <a href="/">نبراس</a> - مساعد ذكي</div>
+</div></body></html>
 """
 
-# =====================================================================
-# ===== قالب الواجهة الرئيسية مع التعديل الجذري على CSS =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -203,116 +187,40 @@ HTML_TEMPLATE = r"""
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
         :root {
-            --bg-body: #f4f7fc;
-            --bg-app: #ffffff;
-            --bg-header: #ffffff;
-            --border-color: #eaeef2;
-            --text-primary: #111111;
-            --text-secondary: #5a6b7c;
-            --bg-input: #f5f7fa;
-            --bg-bot-msg: #ffffff;
-            --bg-user-msg: transparent;
-            --bg-dropdown: #ffffff;
-            --bg-hover: #f5f7fa;
-            --shadow-color: rgba(0,0,0,0.08);
-            --primary-color: #4a6a8a;
-            --primary-hover: #3a5a7a;
-            --send-shadow: rgba(74,106,138,0.2);
-            --danger-bg: #fde8e8;
-            --danger-color: #a33;
-            --placeholder-color: #9aabbc;
-            --icon-color: #6a7b8c;
-            --welcome-bg: #ffffff;
-            --border-input: #dce1e8;
-            --btn-gold-bg: #f1c40f;
-            --btn-gold-text: #1a2b3c;
-            --mute-muted: #444444;
-            --mute-hover: #1a2b3c;
-            --send-bg: #4a6a8a;
-            --send-hover: #3a5a7a;
-            --mic-active-bg: #fde8e8;
-            --mic-active-color: #c33;
-            --remove-btn-hover: #fde8e8;
-            --modal-bg: rgba(0,0,0,0.5);
+            --bg-body: #f4f7fc; --bg-app: #ffffff; --bg-header: #ffffff; --border-color: #eaeef2;
+            --text-primary: #111111; --text-secondary: #5a6b7c; --bg-input: #f5f7fa; --bg-bot-msg: #ffffff;
+            --bg-user-msg: transparent; --bg-dropdown: #ffffff; --bg-hover: #f5f7fa; --shadow-color: rgba(0,0,0,0.08);
+            --primary-color: #4a6a8a; --primary-hover: #3a5a7a; --send-shadow: rgba(74,106,138,0.2);
+            --danger-bg: #fde8e8; --danger-color: #a33; --placeholder-color: #9aabbc; --icon-color: #6a7b8c;
+            --welcome-bg: #ffffff; --border-input: #dce1e8; --btn-gold-bg: #f1c40f; --btn-gold-text: #1a2b3c;
+            --mute-muted: #444444; --mute-hover: #1a2b3c; --send-bg: #4a6a8a; --send-hover: #3a5a7a;
+            --mic-active-bg: #fde8e8; --mic-active-color: #c33; --remove-btn-hover: #fde8e8; --modal-bg: rgba(0,0,0,0.5);
         }
         html.dark-mode {
-            --bg-body: #0d1117;
-            --bg-app: #161b22;
-            --bg-header: #161b22;
-            --border-color: #30363d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --bg-input: #21262d;
-            --bg-bot-msg: #21262d;
-            --bg-user-msg: transparent;
-            --bg-dropdown: #161b22;
-            --bg-hover: #21262d;
-            --shadow-color: rgba(0,0,0,0.5);
-            --primary-color: #58a6ff;
-            --primary-hover: #79c0ff;
-            --send-shadow: rgba(88,166,255,0.2);
-            --danger-bg: #2d1b1b;
-            --danger-color: #f85149;
-            --placeholder-color: #484f58;
-            --icon-color: #8b949e;
-            --welcome-bg: #161b22;
-            --border-input: #30363d;
-            --btn-gold-bg: #d29922;
-            --btn-gold-text: #0d1117;
-            --mute-muted: #484f58;
-            --mute-hover: #c9d1d9;
-            --send-bg: #238636;
-            --send-hover: #2ea043;
-            --mic-active-bg: #2d1b1b;
-            --mic-active-color: #f85149;
-            --remove-btn-hover: #2d1b1b;
-            --modal-bg: rgba(0,0,0,0.7);
+            --bg-body: #0d1117; --bg-app: #161b22; --bg-header: #161b22; --border-color: #30363d;
+            --text-primary: #c9d1d9; --text-secondary: #8b949e; --bg-input: #21262d; --bg-bot-msg: #21262d;
+            --bg-user-msg: transparent; --bg-dropdown: #161b22; --bg-hover: #21262d; --shadow-color: rgba(0,0,0,0.5);
+            --primary-color: #58a6ff; --primary-hover: #79c0ff; --send-shadow: rgba(88,166,255,0.2);
+            --danger-bg: #2d1b1b; --danger-color: #f85149; --placeholder-color: #484f58; --icon-color: #8b949e;
+            --welcome-bg: #161b22; --border-input: #30363d; --btn-gold-bg: #d29922; --btn-gold-text: #0d1117;
+            --mute-muted: #484f58; --mute-hover: #c9d1d9; --send-bg: #238636; --send-hover: #2ea043;
+            --mic-active-bg: #2d1b1b; --mic-active-color: #f85149; --remove-btn-hover: #2d1b1b; --modal-bg: rgba(0,0,0,0.7);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
         
-        /* ✅ التعديل الجذري: منع التوسيط وملء الشاشة بالكامل */
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-            background: var(--bg-body);
-        }
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg-body); }
         body { transition: background 0.3s ease; }
-        
-        /* ✅ التطبيق يملأ 100% من الشاشة على الجوال، ويتوسط تلقائياً على الشاشات الكبيرة */
         .app {
-            width: 100%;
-            height: 100%;
-            max-width: 100%;
-            background: var(--bg-app);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            overflow: hidden;
-            transition: background 0.3s ease;
+            width: 100%; height: 100%; max-width: 100%; background: var(--bg-app);
+            display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease;
         }
-        
-        /* ✅ تنسيق شاشات الكمبيوتر أو عند التدوير الأفقي (لن تختفي الواجهة) */
         @media (min-width: 600px) {
-            .app {
-                max-width: 450px;
-                margin: 0 auto;
-                height: 100vh;
-                border-radius: 20px;
-                box-shadow: 0 0 20px var(--shadow-color);
-            }
+            .app { max-width: 450px; margin: 0 auto; height: 100vh; border-radius: 20px; box-shadow: 0 0 20px var(--shadow-color); }
         }
         @media (orientation: landscape) {
-            .app {
-                max-width: 100%;
-                height: 100%;
-                border-radius: 0;
-                box-shadow: none;
-            }
+            .app { max-width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
         }
 
-        /* ✅ الهيدر ثابت في الأعلى */
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; position: relative; z-index: 100; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
@@ -397,77 +305,20 @@ HTML_TEMPLATE = r"""
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border-color); background: transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: var(--bg-hover); }
         .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-        .share-modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--modal-bg);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            backdrop-filter: blur(4px);
-        }
+        .share-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--modal-bg); z-index: 9999; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(4px); }
         .share-modal.show { display: flex; }
-        .share-modal .box {
-            background: var(--bg-app);
-            padding: 28px 24px;
-            border-radius: 24px;
-            max-width: 360px;
-            width: 100%;
-            text-align: center;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 20px 60px var(--shadow-color);
-        }
-        .share-modal .box h3 {
-            font-size: 22px;
-            color: var(--text-primary);
-            margin-bottom: 18px;
-        }
-        .share-modal .box .share-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-            margin-bottom: 18px;
-        }
-        .share-modal .box .share-btn {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 16px;
-            border-radius: 14px;
-            text-decoration: none;
-            font-size: 15px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: transform 0.15s;
-            flex: 1 0 auto;
-            justify-content: center;
-            min-width: 70px;
-        }
+        .share-modal .box { background: var(--bg-app); padding: 28px 24px; border-radius: 24px; max-width: 360px; width: 100%; text-align: center; border: 1px solid var(--border-color); box-shadow: 0 20px 60px var(--shadow-color); }
+        .share-modal .box h3 { font-size: 22px; color: var(--text-primary); margin-bottom: 18px; }
+        .share-modal .box .share-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 18px; }
+        .share-modal .box .share-btn { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 14px; text-decoration: none; font-size: 15px; font-weight: 600; border: none; cursor: pointer; transition: transform 0.15s; flex: 1 0 auto; justify-content: center; min-width: 70px; }
         .share-modal .box .share-btn:hover { transform: scale(1.03); }
         .share-modal .box .share-btn.whatsapp { background: #25D366; color: white; }
         .share-modal .box .share-btn.facebook { background: #1877F2; color: white; }
         .share-modal .box .share-btn.twitter { background: #000000; color: white; }
         .share-modal .box .share-btn.snapchat { background: #FFFC00; color: #000000; }
-        .share-modal .box .close-btn {
-            background: var(--bg-hover);
-            border: none;
-            padding: 10px 30px;
-            border-radius: 14px;
-            font-size: 16px;
-            color: var(--text-primary);
-            cursor: pointer;
-            margin-top: 4px;
-            width: 100%;
-            font-weight: 600;
-        }
+        .share-modal .box .close-btn { background: var(--bg-hover); border: none; padding: 10px 30px; border-radius: 14px; font-size: 16px; color: var(--text-primary); cursor: pointer; margin-top: 4px; width: 100%; font-weight: 600; }
         .share-modal .box .close-btn:hover { background: var(--border-color); }
-        @media (max-width: 400px) {
-            .share-modal .box .share-btn { font-size: 13px; padding: 8px 12px; }
-        }
+        @media (max-width: 400px) { .share-modal .box .share-btn { font-size: 13px; padding: 8px 12px; } }
     </style>
 </head>
 <body>
@@ -532,7 +383,6 @@ HTML_TEMPLATE = r"""
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
 
-<!-- نافذة المشاركة -->
 <div class="share-modal" id="shareModal">
     <div class="box">
         <h3><i class="fas fa-share-alt" style="color:var(--primary-color);"></i> شارك المحادثة</h3>
@@ -584,10 +434,7 @@ HTML_TEMPLATE = r"""
             if (isMuted) {
                 icon.className = 'fas fa-volume-mute';
                 muteBtn.classList.add('muted');
-                if (currentAudio) { 
-                    currentAudio.pause(); 
-                    currentAudio.currentTime = 0; 
-                }
+                if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
             } else {
                 icon.className = 'fas fa-volume-up';
                 muteBtn.classList.remove('muted');
@@ -597,33 +444,24 @@ HTML_TEMPLATE = r"""
         let isMale = true;
         const genderOptions = document.querySelectorAll('.gender-option');
         menuToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             dropdown.classList.toggle('show');
             if (dropdown.classList.contains('show')) {
                 loadHistory();
                 genderOptions.forEach(btn => btn.classList.remove('active'));
-                if (isMale) {
-                    document.querySelector('.gender-option[data-gender="male"]').classList.add('active');
-                } else {
-                    document.querySelector('.gender-option[data-gender="female"]').classList.add('active');
-                }
+                if (isMale) { document.querySelector('.gender-option[data-gender="male"]').classList.add('active'); }
+                else { document.querySelector('.gender-option[data-gender="female"]').classList.add('active'); }
             }
         });
 
         genderOptions.forEach(btn => {
             btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 const gender = this.dataset.gender;
                 isMale = gender === 'male';
                 genderOptions.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-                fetch('/set_gender', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ gender: gender })
-                });
+                fetch('/set_gender', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gender: gender }) });
                 dropdown.classList.remove('show');
             });
         });
@@ -647,9 +485,7 @@ HTML_TEMPLATE = r"""
                     empty.textContent = '📭 لا توجد محادثات سابقة';
                     historyList.appendChild(empty);
                 }
-            } catch (e) {
-                console.error('خطأ في تحميل المحادثات:', e);
-            }
+            } catch (e) { console.error('خطأ في تحميل المحادثات:', e); }
         }
 
         async function loadConversation(convId) {
@@ -666,9 +502,7 @@ HTML_TEMPLATE = r"""
                     });
                     dropdown.classList.remove('show');
                 }
-            } catch (e) {
-                console.error('خطأ في تحميل المحادثة:', e);
-            }
+            } catch (e) { console.error('خطأ في تحميل المحادثة:', e); }
         }
 
         document.querySelector('[data-action="new"]').addEventListener('click', function(e) {
@@ -683,8 +517,7 @@ HTML_TEMPLATE = r"""
         });
 
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
             if (!currentConvId) {
                 addMessage('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.', 'bot', true);
                 dropdown.classList.remove('show');
@@ -692,418 +525,163 @@ HTML_TEMPLATE = r"""
             }
             const url = window.location.origin + '/share/' + currentConvId;
             const text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
-            
             document.getElementById('shareWhatsapp').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
             document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
             document.getElementById('shareTwitter').href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
-            
             const snapBtn = document.getElementById('shareSnapchat');
             snapBtn.onclick = function(ev) {
                 ev.stopPropagation();
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(url).then(() => {
-                        addMessage('✅ تم نسخ الرابط! افتح سناب شات والصقه.', 'bot', true);
-                    }).catch(() => {
-                        addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true);
-                    });
-                } else {
-                    addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true);
-                }
+                    navigator.clipboard.writeText(url).then(() => { addMessage('✅ تم نسخ الرابط! افتح سناب شات والصقه.', 'bot', true); })
+                    .catch(() => { addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true); });
+                } else { addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true); }
                 shareModal.classList.remove('show');
             };
-
             shareModal.classList.add('show');
             dropdown.classList.remove('show');
         });
 
-        shareModal.addEventListener('click', function(e) {
-            if (e.target === shareModal) {
-                shareModal.classList.remove('show');
-            }
-        });
+        shareModal.addEventListener('click', function(e) { if (e.target === shareModal) shareModal.classList.remove('show'); });
 
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
-        
         function setTheme(theme) {
             const html = document.documentElement;
-            if (theme === 'dark') {
-                html.classList.add('dark-mode');
-                themeLabel.textContent = 'الوضع الليلي';
-                themeToggleBtn.querySelector('i').className = 'fas fa-moon';
-                localStorage.setItem('nibras-theme', 'dark');
-            } else {
-                html.classList.remove('dark-mode');
-                themeLabel.textContent = 'الوضع النهاري';
-                themeToggleBtn.querySelector('i').className = 'fas fa-sun';
-                localStorage.setItem('nibras-theme', 'light');
-            }
+            if (theme === 'dark') { html.classList.add('dark-mode'); themeLabel.textContent = 'الوضع الليلي'; themeToggleBtn.querySelector('i').className = 'fas fa-moon'; localStorage.setItem('nibras-theme', 'dark'); }
+            else { html.classList.remove('dark-mode'); themeLabel.textContent = 'الوضع النهاري'; themeToggleBtn.querySelector('i').className = 'fas fa-sun'; localStorage.setItem('nibras-theme', 'light'); }
         }
-
         const savedTheme = localStorage.getItem('nibras-theme') || 'light';
         setTheme(savedTheme);
-
-        if (themeToggleBtn) {
-            themeToggleBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const current = document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light';
-                const newTheme = current === 'dark' ? 'light' : 'dark';
-                setTheme(newTheme);
-                dropdown.classList.remove('show');
-            });
-        }
+        if (themeToggleBtn) { themeToggleBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); const current = document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light'; const newTheme = current === 'dark' ? 'light' : 'dark'; setTheme(newTheme); dropdown.classList.remove('show'); }); }
 
         function formatBotText(text) {
-            var safe = text
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-
+            var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
-
             var paragraphs = safe.split(/\n\s*\n/);
             return paragraphs.map(function(paragraph) {
-                paragraph = paragraph.trim();
-                if (!paragraph) return '';
+                paragraph = paragraph.trim(); if (!paragraph) return '';
                 paragraph = paragraph.replace(/\n/g, ' ');
                 return '<p>' + paragraph + '</p>';
             }).join('');
         }
 
         function addMessage(text, sender, isSystem, imageData) {
-            sender = sender || 'bot';
-            isSystem = isSystem || false;
+            sender = sender || 'bot'; isSystem = isSystem || false;
             var el = document.createElement('div');
             el.className = 'msg ' + sender;
             if (sender === 'error') el.classList.add('error');
-
             var now = new Date();
             var time = isSystem ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-            
             if (imageData) {
                 el.innerHTML = '<img src="' + imageData + '" class="image-upload" /><span class="file-label">' + (text || 'صورة') + '</span>' + (time ? ' <span class="time">'+time+'</span>' : '');
-                chatBox.appendChild(el);
-                chatBox.scrollTop = chatBox.scrollHeight;
-                return el;
+                chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight; return el;
             }
-
             var imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
-            var displayText = text;
-            var generatedImageUrl = null;
-
-            if (imageUrlMatch) {
-                generatedImageUrl = imageUrlMatch[0];
-                displayText = text.replace(imageUrlMatch[0], '').trim();
-                if (!displayText) displayText = '🖼️ الصورة المولدة';
-            }
-
+            var displayText = text; var generatedImageUrl = null;
+            if (imageUrlMatch) { generatedImageUrl = imageUrlMatch[0]; displayText = text.replace(imageUrlMatch[0], '').trim(); if (!displayText) displayText = '🖼️ الصورة المولدة'; }
             if (sender === 'bot' && !isSystem && !generatedImageUrl) {
                 el.innerHTML = '<div class="bot-content"><span class="typing-text"></span></div>' + (time ? ' <span class="time">'+time+'</span>' : '');
-                chatBox.appendChild(el);
-                chatBox.scrollTop = chatBox.scrollHeight;
-
-                var typingSpan = el.querySelector('.typing-text');
-                var index = 0;
-                var userInteracted = false;
-
-                var onUserInteract = function() {
-                    userInteracted = true;
-                    chatBox.removeEventListener('touchstart', onUserInteract);
-                    chatBox.removeEventListener('scroll', onUserInteract);
-                };
-
-                chatBox.addEventListener('touchstart', onUserInteract);
-                chatBox.addEventListener('scroll', onUserInteract);
-
+                chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight;
+                var typingSpan = el.querySelector('.typing-text'); var index = 0; var userInteracted = false;
+                var onUserInteract = function() { userInteracted = true; chatBox.removeEventListener('touchstart', onUserInteract); chatBox.removeEventListener('scroll', onUserInteract); };
+                chatBox.addEventListener('touchstart', onUserInteract); chatBox.addEventListener('scroll', onUserInteract);
                 function typeChar() {
-                    if (index < displayText.length) {
-                        typingSpan.textContent += displayText.charAt(index);
-                        index++;
-
-                        if (!userInteracted) {
-                            chatBox.scrollTop = chatBox.scrollHeight;
-                        }
-
-                        setTimeout(typeChar, 20);
-                    } else {
-                        typingSpan.innerHTML = formatBotText(displayText);
-                        chatBox.scrollTop = chatBox.scrollHeight;
-                    }
+                    if (index < displayText.length) { typingSpan.textContent += displayText.charAt(index); index++; if (!userInteracted) chatBox.scrollTop = chatBox.scrollHeight; setTimeout(typeChar, 20); }
+                    else { typingSpan.innerHTML = formatBotText(displayText); chatBox.scrollTop = chatBox.scrollHeight; }
                 }
-
-                typeChar();
-                return el;
+                typeChar(); return el;
             }
-
             var content = displayText;
-
-            if (sender === 'bot') {
-                content = '<div class="bot-content">' + formatBotText(displayText) + '</div>';
-            }
-
-            if (generatedImageUrl) {
-                content += '<br/><img src="' + generatedImageUrl + '" class="generated-image" />';
-            }
-
+            if (sender === 'bot') content = '<div class="bot-content">' + formatBotText(displayText) + '</div>';
+            if (generatedImageUrl) content += '<br/><img src="' + generatedImageUrl + '" class="generated-image" />';
             el.innerHTML = content + (time ? ' <span class="time">'+time+'</span>' : '');
-            chatBox.appendChild(el);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            return el;
+            chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight; return el;
         }
 
         function showWelcome() {
             if (!sessionStorage.getItem('welcomeShown')) {
                 var overlay = document.createElement('div');
                 overlay.className = 'welcome-overlay';
-
                 overlay.innerHTML = '<div class="welcome-box"><h2>👋 أهلاً بك في نبراس</h2><p>نورتنا! كيف نقدر نساعدك اليوم؟</p></div>';
-
                 document.body.appendChild(overlay);
                 sessionStorage.setItem('welcomeShown', 'true');
-
-                setTimeout(function() {
-                    if (document.body.contains(overlay)) {
-                        overlay.classList.add('fade-out');
-                        setTimeout(function() {
-                            if (document.body.contains(overlay)) overlay.remove();
-                        }, 500);
-                    }
-                }, 5000);
-
-                var removeWelcome = function() {
-                    if (document.body.contains(overlay)) {
-                        overlay.classList.add('fade-out');
-                        setTimeout(function() {
-                            if (document.body.contains(overlay)) overlay.remove();
-                        }, 500);
-                    }
-
-                    document.removeEventListener('click', removeWelcome);
-                    userInput.removeEventListener('keydown', removeWelcome);
-                };
-
-                document.addEventListener('click', removeWelcome);
-                userInput.addEventListener('keydown', removeWelcome);
+                setTimeout(function() { if (document.body.contains(overlay)) { overlay.classList.add('fade-out'); setTimeout(function() { if (document.body.contains(overlay)) overlay.remove(); }, 500); } }, 5000);
+                var removeWelcome = function() { if (document.body.contains(overlay)) { overlay.classList.add('fade-out'); setTimeout(function() { if (document.body.contains(overlay)) overlay.remove(); }, 500); } document.removeEventListener('click', removeWelcome); userInput.removeEventListener('keydown', removeWelcome); };
+                document.addEventListener('click', removeWelcome); userInput.addEventListener('keydown', removeWelcome);
             }
         }
 
-        function showImagePreview(dataUrl) {
-            imagePreview.src = dataUrl;
-            imagePreviewContainer.style.display = 'flex';
-        }
+        function showImagePreview(dataUrl) { imagePreview.src = dataUrl; imagePreviewContainer.style.display = 'flex'; }
+        function clearPendingImage() { pendingImageData = null; imagePreviewContainer.style.display = 'none'; imagePreview.src = ''; }
+        removeImageBtn.addEventListener('click', function(e) { e.preventDefault(); clearPendingImage(); });
 
-        function clearPendingImage() {
-            pendingImageData = null;
-            imagePreviewContainer.style.display = 'none';
-            imagePreview.src = '';
-        }
-
-        removeImageBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            clearPendingImage();
-        });
-
-        userInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 80) + 'px';
-        });
+        userInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 80) + 'px'; });
 
         var plusOpen = false;
+        plusBtn.addEventListener('click', function(e) { e.preventDefault(); plusOpen = !plusOpen; plusOptions.classList.toggle('show', plusOpen); this.classList.toggle('rotate', plusOpen); });
+        document.addEventListener('click', function(e) { if (!plusBtn.contains(e.target) && !plusOptions.contains(e.target)) { plusOptions.classList.remove('show'); plusOpen = false; plusBtn.classList.remove('rotate'); } });
 
-        plusBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            plusOpen = !plusOpen;
-            plusOptions.classList.toggle('show', plusOpen);
-            this.classList.toggle('rotate', plusOpen);
-        });
-
-        document.addEventListener('click', function(e) {
-            if (!plusBtn.contains(e.target) && !plusOptions.contains(e.target)) {
-                plusOptions.classList.remove('show');
-                plusOpen = false;
-                plusBtn.classList.remove('rotate');
-            }
-        });
-
-        galleryBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            fileInput.click();
-            plusOptions.classList.remove('show');
-        });
-
-        fileInput.addEventListener('change', function(e) {
-            if (this.files && this.files.length > 0) {
-                var reader = new FileReader();
-
-                reader.onload = function(ev) {
-                    pendingImageData = ev.target.result;
-                    showImagePreview(pendingImageData);
-                    fileInput.value = '';
-                };
-
-                reader.readAsDataURL(this.files[0]);
-            }
-        });
-
-        cameraBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            cameraInput.click();
-            plusOptions.classList.remove('show');
-        });
-
-        cameraInput.addEventListener('change', function(e) {
-            if (this.files && this.files.length > 0) {
-                var reader = new FileReader();
-
-                reader.onload = function(ev) {
-                    pendingImageData = ev.target.result;
-                    showImagePreview(pendingImageData);
-                    cameraInput.value = '';
-                };
-
-                reader.readAsDataURL(this.files[0]);
-            }
-        });
+        galleryBtn.addEventListener('click', function(e) { e.preventDefault(); fileInput.click(); plusOptions.classList.remove('show'); });
+        fileInput.addEventListener('change', function(e) { if (this.files && this.files.length > 0) { var reader = new FileReader(); reader.onload = function(ev) { pendingImageData = ev.target.result; showImagePreview(pendingImageData); fileInput.value = ''; }; reader.readAsDataURL(this.files[0]); } });
+        cameraBtn.addEventListener('click', function(e) { e.preventDefault(); cameraInput.click(); plusOptions.classList.remove('show'); });
+        cameraInput.addEventListener('change', function(e) { if (this.files && this.files.length > 0) { var reader = new FileReader(); reader.onload = function(ev) { pendingImageData = ev.target.result; showImagePreview(pendingImageData); cameraInput.value = ''; }; reader.readAsDataURL(this.files[0]); } });
 
         async function sendMessage() {
             if (isWaiting) return;
-
-            var text = userInput.value.trim();
-            var imageToSend = pendingImageData;
-
+            var text = userInput.value.trim(); var imageToSend = pendingImageData;
             if (!text && !imageToSend) return;
-
             if (text) addMessage(text, 'user');
-
-            if (imageToSend) {
-                addMessage('🖼️ صورة مرفقة', 'user', false, imageToSend);
-                clearPendingImage();
-            }
-
-            userInput.value = '';
-            userInput.style.height = 'auto';
-            isWaiting = true;
-
+            if (imageToSend) { addMessage('🖼️ صورة مرفقة', 'user', false, imageToSend); clearPendingImage(); }
+            userInput.value = ''; userInput.style.height = 'auto'; isWaiting = true;
             var typingDiv = document.createElement('div');
             typingDiv.className = 'msg bot typing-indicator';
             typingDiv.innerHTML = '<span class="typing-dots">جاري التفكير</span>';
-            chatBox.appendChild(typingDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-
-            var payload = {
-                message: text || "📎 مرفق",
-                image: imageToSend || null,
-                history: conversationHistory,
-                conv_id: currentConvId
-            };
-
+            chatBox.appendChild(typingDiv); chatBox.scrollTop = chatBox.scrollHeight;
+            var payload = { message: text || "📎 مرفق", image: imageToSend || null, history: conversationHistory, conv_id: currentConvId };
             try {
-                var res = await fetch('/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
+                var res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 var data = await res.json();
-                
-                if (typingDiv && typingDiv.parentNode) {
-                    typingDiv.remove();
-                }
-
+                if (typingDiv && typingDiv.parentNode) typingDiv.remove();
                 if (res.ok) {
                     addMessage(data.reply, 'bot');
-
                     if (!isMuted && data.audio) {
-                        if (currentAudio) { 
-                            currentAudio.pause(); 
-                            currentAudio.currentTime = 0; 
-                        }
-
+                        if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
                         var audioSrc = 'data:audio/mp3;base64,' + data.audio;
-                        currentAudio = new Audio(audioSrc);
-                        currentAudio.play();
+                        currentAudio = new Audio(audioSrc); currentAudio.play();
                     }
-
-                    if (data.conv_id) {
-                        currentConvId = data.conv_id;
-                    }
-                } else {
-                    addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
-                }
-
+                    if (data.conv_id) currentConvId = data.conv_id;
+                } else { addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error'); }
             } catch (e) {
-                if (typingDiv && typingDiv.parentNode) {
-                    typingDiv.remove();
-                }
-
+                if (typingDiv && typingDiv.parentNode) typingDiv.remove();
                 addMessage('تعذر الاتصال بالسيرفر، حاول مرة أخرى.', 'error');
-
-            } finally {
-                isWaiting = false;
-            }
+            } finally { isWaiting = false; }
         }
 
-        sendBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            sendMessage();
-        });
-
-        userInput.addEventListener('keypress', function(e) { 
-            if (e.key === 'Enter') { 
-                e.preventDefault(); 
-                sendMessage(); 
-            } 
-        });
-
-        document.addEventListener('click', function(e) {
-            if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) {
-                dropdown.classList.remove('show');
-            }
-        });
+        sendBtn.addEventListener('click', function(e) { e.preventDefault(); sendMessage(); });
+        userInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
+        document.addEventListener('click', function(e) { if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show'); });
 
         var recognition = null;
-
         micBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            if (!('webkitSpeechRecognition' in window)) {
-                addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true);
-                return;
-            }
-
-            if (this.classList.contains('listening')) {
-                this.classList.remove('listening');
-                if (recognition) recognition.stop();
-                return;
-            }
-
+            if (!('webkitSpeechRecognition' in window)) { addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true); return; }
+            if (this.classList.contains('listening')) { this.classList.remove('listening'); if (recognition) recognition.stop(); return; }
             var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SR();
             recognition.lang = 'ar-SA';
-
             this.classList.add('listening');
             addMessage('جاري الاستماع...', 'bot', true);
-
-            recognition.onresult = function(event) {
-                var transcript = event.results[0][0].transcript;
-                userInput.value = transcript;
-                micBtn.classList.remove('listening');
-                setTimeout(function() { sendMessage(); }, 300);
-            };
-
-            recognition.onerror = function() {
-                micBtn.classList.remove('listening');
-            };
-
+            recognition.onresult = function(event) { var transcript = event.results[0][0].transcript; userInput.value = transcript; micBtn.classList.remove('listening'); setTimeout(function() { sendMessage(); }, 300); };
+            recognition.onerror = function() { micBtn.classList.remove('listening'); };
             recognition.start();
         });
 
         // ========================================================
-        // ===== ميزة الاتصال الصوتي المباشر =====
+        // ===== ميزة الاتصال الصوتي المباشر (المصححة) =====
         // ========================================================
         let realtimeSocket = null;
         let realtimeStream = null;
@@ -1113,11 +691,10 @@ HTML_TEMPLATE = r"""
         async function startRealtimeCall() {
             try {
                 const tokenRes = await fetch('/api/realtime-token');
-                
                 if (!tokenRes.ok) {
                     const errorData = await tokenRes.json();
                     if (errorData.error === 'premium_required') {
-                        addMessage('🔒 ' + errorData.message + '\n' + 'سيتم توجيهك لصفحة الترقية.', 'bot', true);
+                        addMessage('🔒 ' + errorData.message + '\nسيتم توجيهك لصفحة الترقية.', 'bot', true);
                         setTimeout(() => { window.location.href = '/plans'; }, 1500);
                     } else {
                         addMessage('⚠️ ' + (errorData.message || 'حدث خطأ غير معروف.'), 'bot', true);
@@ -1126,7 +703,13 @@ HTML_TEMPLATE = r"""
                 }
 
                 const tokenData = await tokenRes.json();
-                const ws = new WebSocket('wss://api.openai.com/v1/realtime');
+                const ephemeralKey = tokenData.client_secret;
+
+                // ✅ الإصلاح الجوهري: استخدام المفتاح المؤقت في الاتصال واسم الموديل الصحيح
+                const ws = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', [
+                    'realtime',
+                    `openai-insecure-api-key.${ephemeralKey}`
+                ]);
                 realtimeSocket = ws;
 
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1135,16 +718,19 @@ HTML_TEMPLATE = r"""
 
                 ws.onopen = () => {
                     console.log('✅ WebSocket مفتوح');
-                    const config = {
+                    // ✅ إرسال الإعدادات بالشكل الصحيح
+                    ws.send(JSON.stringify({
                         type: 'session.update',
                         session: {
+                            modalities: ["audio", "text"],
                             instructions: "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً.",
                             voice: "marin",
-                            turn_detection: { type: "server_vad" },
-                            input_audio_transcription: { model: "whisper-1" }
+                            input_audio_format: "pcm16",
+                            output_audio_format: "pcm16",
+                            input_audio_transcription: { model: "whisper-1" },
+                            turn_detection: { type: "server_vad", threshold: 0.5, silence_duration_ms: 500 }
                         }
-                    };
-                    ws.send(JSON.stringify(config));
+                    }));
 
                     const audioContext2 = new AudioContext();
                     const source = audioContext2.createMediaStreamSource(stream);
@@ -1160,10 +746,7 @@ HTML_TEMPLATE = r"""
                                 pcmData[i] = Math.max(-32768, Math.min(32767, Math.round(inputData[i] * 32767)));
                             }
                             const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
-                            ws.send(JSON.stringify({
-                                type: 'input_audio_buffer.append',
-                                audio: base64
-                            }));
+                            ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: base64 }));
                         }
                     };
                 };
@@ -1175,9 +758,7 @@ HTML_TEMPLATE = r"""
                         const binary = atob(audioBase64);
                         const arrayBuffer = new ArrayBuffer(binary.length);
                         const view = new Uint8Array(arrayBuffer);
-                        for (let i = 0; i < binary.length; i++) {
-                            view[i] = binary.charCodeAt(i);
-                        }
+                        for (let i = 0; i < binary.length; i++) { view[i] = binary.charCodeAt(i); }
                         audioContext.decodeAudioData(arrayBuffer, (buffer) => {
                             const source = audioContext.createBufferSource();
                             source.buffer = buffer;
@@ -1209,21 +790,11 @@ HTML_TEMPLATE = r"""
         }
 
         function stopRealtimeCall() {
-            if (realtimeSocket) {
-                try { realtimeSocket.close(); } catch (e) {}
-                realtimeSocket = null;
-            }
-            if (realtimeStream) {
-                realtimeStream.getTracks().forEach(track => track.stop());
-                realtimeStream = null;
-            }
-            if (audioContext) {
-                try { audioContext.close(); } catch (e) {}
-                audioContext = null;
-            }
+            if (realtimeSocket) { try { realtimeSocket.close(); } catch (e) {} realtimeSocket = null; }
+            if (realtimeStream) { realtimeStream.getTracks().forEach(track => track.stop()); realtimeStream = null; }
+            if (audioContext) { try { audioContext.close(); } catch (e) {} audioContext = null; }
             const audioElements = document.querySelectorAll('audio');
             audioElements.forEach(a => { a.pause(); a.srcObject = null; });
-            
             callBtn.classList.remove('active');
             callBtn.innerHTML = '<i class="fas fa-phone"></i>';
             addMessage('📞 تم إغلاق الاتصال الصوتي.', 'bot', true);
@@ -1231,15 +802,11 @@ HTML_TEMPLATE = r"""
 
         callBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            if (this.classList.contains('active')) {
-                stopRealtimeCall();
-            } else {
-                startRealtimeCall();
-            }
+            if (this.classList.contains('active')) { stopRealtimeCall(); }
+            else { startRealtimeCall(); }
         });
 
         showWelcome();
-
     })();
 </script>
 </body>
