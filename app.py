@@ -15,16 +15,14 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 app = Flask(__name__, static_folder='static')
-# يقرأ المفتاح من ريندر (موجود مسبقاً)
 app.secret_key = os.environ.get("SECRET_KEY")
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise Exception("OPENAI_API_KEY غير موجود! يجب إضافته في متغيرات البيئة")
+    raise Exception("OPENAI_API_KEY غير موجود!")
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
-
 limiter = Limiter(key_func=get_remote_address, default_limits=["500 per day", "20 per hour"])
 limiter.init_app(app)
 
@@ -161,10 +159,6 @@ SHARED_PAGE_HTML = """
         .msg .time { font-size: 11px; color: #8b949e; margin-top: 4px; display: block; }
         .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eaeef2; color: #8b949e; font-size: 14px; }
         .footer a { color: #4a6a8a; text-decoration: none; font-weight: bold; }
-        @media (max-width: 500px) {
-            .container { padding: 15px; }
-            .msg .content { max-width: 100%; }
-        }
     </style>
 </head>
 <body>
@@ -193,8 +187,7 @@ SHARED_PAGE_HTML = """
 """
 
 # =====================================================================
-# ===== قالب الواجهة الرئيسية =====
-# ✅ تم إصلاح التثبيت هنا! استخدام 100vh مع properties لضمان بقاء الهيدر.
+# ===== قالب الواجهة الرئيسية مع التعديل الجذري على CSS =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -277,11 +270,49 @@ HTML_TEMPLATE = r"""
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
         
-        /* ✅ تثبيت أبعاد الشاشة بدلاً من dvh (حل مشكلة الاختفاء) */
-        body { background: var(--bg-body); height: 100vh; min-height: -webkit-fill-available; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; overflow: hidden; transition: background 0.3s ease; }
-        .app { width: 100%; max-width: 450px; height: 100vh; min-height: -webkit-fill-available; background: var(--bg-app); display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease; }
+        /* ✅ التعديل الجذري: منع التوسيط وملء الشاشة بالكامل */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg-body);
+        }
+        body { transition: background 0.3s ease; }
         
-        /* ✅ تثبيت الهيدر فوق الشاشة بشكل دائم (لن يختفي أو يتراجع) */
+        /* ✅ التطبيق يملأ 100% من الشاشة على الجوال، ويتوسط تلقائياً على الشاشات الكبيرة */
+        .app {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            background: var(--bg-app);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+        
+        /* ✅ تنسيق شاشات الكمبيوتر أو عند التدوير الأفقي (لن تختفي الواجهة) */
+        @media (min-width: 600px) {
+            .app {
+                max-width: 450px;
+                margin: 0 auto;
+                height: 100vh;
+                border-radius: 20px;
+                box-shadow: 0 0 20px var(--shadow-color);
+            }
+        }
+        @media (orientation: landscape) {
+            .app {
+                max-width: 100%;
+                height: 100%;
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
+
+        /* ✅ الهيدر ثابت في الأعلى */
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; position: relative; z-index: 100; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
@@ -305,8 +336,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid var(--border-color); cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: var(--text-primary); font-weight: 500; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: var(--bg-hover); }
         .dropdown .conv-item:last-child { border-bottom: none; }
-        
-        /* ✅ منطقة الشات تتمدد وتملأ الفراغ فقط، ولا تدفع الهيدر للأعلى */
+
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; min-height: 0; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
         .msg.user { align-self: flex-end; background: var(--bg-user-msg); border-bottom-left-radius: 6px; }
@@ -547,7 +577,8 @@ HTML_TEMPLATE = r"""
         muteBtn.querySelector('i').className = 'fas fa-volume-mute';
         muteBtn.classList.add('muted');
 
-        muteBtn.addEventListener('click', function() {
+        muteBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             isMuted = !isMuted;
             const icon = muteBtn.querySelector('i');
             if (isMuted) {
@@ -566,6 +597,7 @@ HTML_TEMPLATE = r"""
         let isMale = true;
         const genderOptions = document.querySelectorAll('.gender-option');
         menuToggle.addEventListener('click', function(e) {
+            e.preventDefault();
             e.stopPropagation();
             dropdown.classList.toggle('show');
             if (dropdown.classList.contains('show')) {
@@ -581,6 +613,7 @@ HTML_TEMPLATE = r"""
 
         genderOptions.forEach(btn => {
             btn.addEventListener('click', function(e) {
+                e.preventDefault();
                 e.stopPropagation();
                 const gender = this.dataset.gender;
                 isMale = gender === 'male';
@@ -638,7 +671,8 @@ HTML_TEMPLATE = r"""
             }
         }
 
-        document.querySelector('[data-action="new"]').addEventListener('click', function() {
+        document.querySelector('[data-action="new"]').addEventListener('click', function(e) {
+            e.preventDefault();
             chatBox.innerHTML = '';
             conversationHistory = [];
             currentConvId = null;
@@ -649,9 +683,10 @@ HTML_TEMPLATE = r"""
         });
 
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
+            e.preventDefault();
             e.stopPropagation();
             if (!currentConvId) {
-                alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');
+                addMessage('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.', 'bot', true);
                 dropdown.classList.remove('show');
                 return;
             }
@@ -667,12 +702,12 @@ HTML_TEMPLATE = r"""
                 ev.stopPropagation();
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(url).then(() => {
-                        alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.');
+                        addMessage('✅ تم نسخ الرابط! افتح سناب شات والصقه.', 'bot', true);
                     }).catch(() => {
-                        alert('❌ فشل النسخ، الرابط هو: ' + url);
+                        addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true);
                     });
                 } else {
-                    alert('❌ فشل النسخ، الرابط هو: ' + url);
+                    addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true);
                 }
                 shareModal.classList.remove('show');
             };
@@ -710,6 +745,7 @@ HTML_TEMPLATE = r"""
 
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
                 e.stopPropagation();
                 const current = document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light';
                 const newTheme = current === 'dark' ? 'light' : 'dark';
@@ -867,7 +903,10 @@ HTML_TEMPLATE = r"""
             imagePreview.src = '';
         }
 
-        removeImageBtn.addEventListener('click', clearPendingImage);
+        removeImageBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            clearPendingImage();
+        });
 
         userInput.addEventListener('input', function() {
             this.style.height = 'auto';
@@ -876,7 +915,8 @@ HTML_TEMPLATE = r"""
 
         var plusOpen = false;
 
-        plusBtn.addEventListener('click', function() {
+        plusBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             plusOpen = !plusOpen;
             plusOptions.classList.toggle('show', plusOpen);
             this.classList.toggle('rotate', plusOpen);
@@ -890,7 +930,8 @@ HTML_TEMPLATE = r"""
             }
         });
 
-        galleryBtn.addEventListener('click', function() {
+        galleryBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             fileInput.click();
             plusOptions.classList.remove('show');
         });
@@ -909,7 +950,8 @@ HTML_TEMPLATE = r"""
             }
         });
 
-        cameraBtn.addEventListener('click', function() {
+        cameraBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             cameraInput.click();
             plusOptions.classList.remove('show');
         });
@@ -1006,7 +1048,10 @@ HTML_TEMPLATE = r"""
             }
         }
 
-        sendBtn.addEventListener('click', sendMessage);
+        sendBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            sendMessage();
+        });
 
         userInput.addEventListener('keypress', function(e) { 
             if (e.key === 'Enter') { 
@@ -1023,7 +1068,8 @@ HTML_TEMPLATE = r"""
 
         var recognition = null;
 
-        micBtn.addEventListener('click', function() {
+        micBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             if (!('webkitSpeechRecognition' in window)) {
                 addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true);
                 return;
@@ -1071,17 +1117,15 @@ HTML_TEMPLATE = r"""
                 if (!tokenRes.ok) {
                     const errorData = await tokenRes.json();
                     if (errorData.error === 'premium_required') {
-                        alert('🔒 ' + errorData.message + '\n\nسيتم توجيهك لصفحة الترقية.');
-                        window.location.href = '/plans';
+                        addMessage('🔒 ' + errorData.message + '\n' + 'سيتم توجيهك لصفحة الترقية.', 'bot', true);
+                        setTimeout(() => { window.location.href = '/plans'; }, 1500);
                     } else {
-                        alert('⚠️ ' + (errorData.message || 'حدث خطأ غير معروف.'));
+                        addMessage('⚠️ ' + (errorData.message || 'حدث خطأ غير معروف.'), 'bot', true);
                     }
                     return;
                 }
 
                 const tokenData = await tokenRes.json();
-                const ephemeralKey = tokenData.client_secret;
-
                 const ws = new WebSocket('wss://api.openai.com/v1/realtime');
                 realtimeSocket = ws;
 
@@ -1145,7 +1189,6 @@ HTML_TEMPLATE = r"""
 
                 ws.onerror = (err) => {
                     console.error('❌ خطأ في WebSocket:', err);
-                    alert('❌ فشل الاتصال الصوتي: ' + err.message);
                     stopRealtimeCall();
                 };
 
@@ -1160,7 +1203,7 @@ HTML_TEMPLATE = r"""
 
             } catch (err) {
                 console.error('❌ خطأ في المكالمة:', err);
-                alert('❌ فشل فتح الاتصال الصوتي: ' + err.message);
+                addMessage('❌ فشل فتح الاتصال الصوتي: ' + err.message, 'bot', true);
                 stopRealtimeCall();
             }
         }
@@ -1186,7 +1229,8 @@ HTML_TEMPLATE = r"""
             addMessage('📞 تم إغلاق الاتصال الصوتي.', 'bot', true);
         }
 
-        callBtn.addEventListener('click', function() {
+        callBtn.addEventListener('click', function(e) {
+            e.preventDefault();
             if (this.classList.contains('active')) {
                 stopRealtimeCall();
             } else {
