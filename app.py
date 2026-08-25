@@ -10,6 +10,7 @@ import edge_tts
 import base64
 import re
 import sqlite3
+import requests  # <--- تمت الإضافة
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -287,6 +288,9 @@ HTML_TEMPLATE = r"""
         .mute-btn { background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
         .mute-btn:hover { color: var(--mute-hover); }
         .mute-btn.muted { color: var(--mute-muted); opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; }
+        .call-btn { background: none; border: none; font-size: 20px; color: var(--primary-color); cursor: pointer; padding: 4px 8px; transition: 0.2s; }
+        .call-btn.active { color: #d32f2f; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); }
@@ -440,6 +444,8 @@ HTML_TEMPLATE = r"""
     <div class="header">
         <div class="header-right">
             <button class="mute-btn" id="muteBtn" title="كتم الصوت / تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
+            <!-- زر الاتصال الصوتي المباشر (Realtime) -->
+            <button class="call-btn" id="realtimeCallBtn" title="اتصال صوتي مباشر"><i class="fas fa-phone"></i></button>
             <button class="menu-btn" id="menuToggle" aria-label="القائمة"><i class="fas fa-ellipsis-v"></i></button>
         </div>
         <div class="header-left">
@@ -1060,6 +1066,137 @@ HTML_TEMPLATE = r"""
             recognition.start();
         });
 
+        // ========================================================
+        // ===== ميزة الاتصال الصوتي المباشر عبر WebRTC (Realtime) =====
+        // ========================================================
+        let realtimeConnection = null;
+        let realtimePeerConnection = null;
+        const callBtn = document.getElementById('realtimeCallBtn');
+
+        async function startRealtimeCall() {
+            try {
+                // 1. نطلب رمز الجلسة من السيرفر
+                const tokenRes = await fetch('/api/realtime-token');
+                if (!tokenRes.ok) throw new Error('فشل في جلب رمز الجلسة');
+                const tokenData = await tokenRes.json();
+                const ephemeralKey = tokenData.client_secret;
+
+                // 2. ننشئ اتصال WebRTC
+                const pc = new RTCPeerConnection();
+                realtimePeerConnection = pc;
+
+                // 3. نجيب المايك
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const audioTrack = stream.getAudioTracks()[0];
+                pc.addTrack(audioTrack, stream);
+
+                // 4. نستقبل الصوت من OpenAI
+                const remoteAudio = new Audio();
+                remoteAudio.autoplay = true;
+                pc.ontrack = (event) => {
+                    if (event.track.kind === 'audio') {
+                        const remoteStream = new MediaStream();
+                        remoteStream.addTrack(event.track);
+                        remoteAudio.srcObject = remoteStream;
+                        remoteAudio.play();
+                    }
+                };
+
+                // 5. ننشئ قناة البيانات (Data Channel) عشان نرسل الأوامر
+                const dc = pc.createDataChannel('oai-events');
+                realtimeConnection = dc;
+
+                dc.onopen = () => {
+                    console.log('✅ Data Channel مفتوح');
+                    // نرسل أمر التحديث بالتعليمات
+                    const config = {
+                        type: 'session.update',
+                        session: {
+                            instructions: "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً.",
+                            voice: "marin",
+                            turn_detection: { type: "server_vad" },
+                            input_audio_transcription: { model: "whisper-1" }
+                        }
+                    };
+                    dc.send(JSON.stringify(config));
+                };
+
+                dc.onmessage = (e) => {
+                    const event = JSON.parse(e.data);
+                    if (event.type === 'response.audio.delta') {
+                        // لو حبينا نضيف معالجة إضافية للصوت، لكن `ontrack` كافٍ.
+                    }
+                    if (event.type === 'response.text.delta') {
+                        // نص اختياري، نقدر نضيفه للشات لو حبينا.
+                        console.log('نص:', event.delta);
+                    }
+                };
+
+                // 6. ننشئ الـ Offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                // 7. نرسل الـ Offer لـ OpenAI
+                const sdpResponse = await fetch('https://api.openai.com/v1/realtime/connect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/sdp',
+                        'Authorization': `Bearer ${ephemeralKey}`
+                    },
+                    body: offer.sdp
+                });
+
+                if (!sdpResponse.ok) throw new Error('فشل الاتصال بـ OpenAI');
+
+                const answerSdp = await sdpResponse.text();
+                await pc.setRemoteDescription({
+                    type: 'answer',
+                    sdp: answerSdp
+                });
+
+                // تغيير شكل الزر
+                callBtn.classList.add('active');
+                callBtn.innerHTML = '<i class="fas fa-phone-slash"></i>';
+                addMessage('📞 تم فتح الاتصال الصوتي المباشر. تكلم بحرية.', 'bot', true);
+
+            } catch (err) {
+                console.error('❌ خطأ في المكالمة:', err);
+                addMessage('❌ فشل فتح الاتصال الصوتي: ' + err.message, 'error');
+                if (realtimePeerConnection) {
+                    realtimePeerConnection.close();
+                    realtimePeerConnection = null;
+                }
+                callBtn.classList.remove('active');
+                callBtn.innerHTML = '<i class="fas fa-phone"></i>';
+            }
+        }
+
+        function stopRealtimeCall() {
+            if (realtimeConnection) {
+                try { realtimeConnection.close(); } catch (e) {}
+                realtimeConnection = null;
+            }
+            if (realtimePeerConnection) {
+                try { realtimePeerConnection.close(); } catch (e) {}
+                realtimePeerConnection = null;
+            }
+            // نوقف أي مسارات صوتية باقية
+            const audioElements = document.querySelectorAll('audio');
+            audioElements.forEach(a => { a.pause(); a.srcObject = null; });
+            
+            callBtn.classList.remove('active');
+            callBtn.innerHTML = '<i class="fas fa-phone"></i>';
+            addMessage('📞 تم إغلاق الاتصال الصوتي.', 'bot', true);
+        }
+
+        callBtn.addEventListener('click', function() {
+            if (this.classList.contains('active')) {
+                stopRealtimeCall();
+            } else {
+                startRealtimeCall();
+            }
+        });
+
         showWelcome();
 
     })();
@@ -1145,6 +1282,67 @@ PLANS_HTML = """
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
+
+# ===== نقطة النهاية الجديدة لتوليد رمز الـ WebRTC =====
+@app.route('/api/realtime-token', methods=['GET'])
+def get_realtime_token():
+    try:
+        if not OPENAI_API_KEY:
+            return jsonify({"error": "مفتاح API مفقود"}), 500
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {OPENAI_API_KEY}"
+        }
+        
+        # هنا تحط تعليمات نبراس بالضبط
+        instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
+        
+        payload = {
+            "session": {
+                "type": "realtime",
+                "instructions": instructions,
+                "audio": {
+                    "input": {
+                        "format": {"type": "audio/pcm", "rate": 24000},
+                        "transcription": {"model": "gpt-realtime-whisper"},
+                        "noise_reduction": {"type": "far_field"},
+                        "turn_detection": {
+                            "type": "server_vad",
+                            "threshold": 0.5,
+                            "silence_duration_ms": 500
+                        }
+                    },
+                    "output": {
+                        "format": {"type": "audio/pcm", "rate": 24000},
+                        "voice": "marin"  # جرب تغيره لـ ash أو sage أو ballad
+                    }
+                },
+                "output_modalities": ["audio"],
+                "tools": [],
+                "max_output_tokens": "inf"
+            }
+        }
+
+        response = requests.post(
+            "https://api.openai.com/v1/realtime/client_secrets",
+            headers=headers,
+            json=payload,
+            timeout=10
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        return jsonify({"client_secret": data.get("client_secret")})
+        
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "انتهى الوقت في الاتصال بـ OpenAI"}), 504
+    except requests.exceptions.RequestException as e:
+        print(f"❌ خطأ في الطلب: {e}")
+        return jsonify({"error": f"فشل الاتصال بـ OpenAI: {str(e)}"}), 500
+    except Exception as e:
+        print(f"❌ خطأ غير متوقع: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/share/<conv_id>')
 def shared_conversation(conv_id):
