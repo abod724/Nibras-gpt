@@ -132,11 +132,10 @@ async def generate_speech(text, gender):
     return base64.b64encode(audio_data).decode('utf-8')
 
 # =====================================================================
-# HTML_TEMPLATE مع إضافة زر تبديل الثيم داخل القائمة المنسدلة
-# التعديلات فقط في: 
-# 1. CSS (تم تحويلها لمتغيرات)
-# 2. إضافة زر في القائمة (data-action="theme-toggle")
-# 3. كود JavaScript صغير (في نهاية الـ script)
+# HTML_TEMPLATE مع الثيم الفاتح رئيسي والداكن ثانوي
+# التعديلات في:
+# 1. CSS: :root للفاتح، .dark-mode للداكن
+# 2. JavaScript: التبديل يضيف/يزيل class="dark-mode"
 # =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
@@ -152,42 +151,8 @@ HTML_TEMPLATE = r"""
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
-        /* ===== تعريف متغيرات الثيم (الداكن هو الافتراضي) ===== */
+        /* ===== تعريف المتغيرات - الثيم الفاتح هو الافتراضي ===== */
         :root {
-            --bg-body: #0d1117;
-            --bg-app: #161b22;
-            --bg-header: #161b22;
-            --border-color: #30363d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --bg-input: #21262d;
-            --bg-bot-msg: #21262d;
-            --bg-user-msg: transparent;
-            --bg-dropdown: #161b22;
-            --bg-hover: #21262d;
-            --shadow-color: rgba(0,0,0,0.5);
-            --primary-color: #58a6ff;
-            --primary-hover: #79c0ff;
-            --send-shadow: rgba(88,166,255,0.2);
-            --danger-bg: #2d1b1b;
-            --danger-color: #f85149;
-            --placeholder-color: #484f58;
-            --icon-color: #8b949e;
-            --welcome-bg: #161b22;
-            --border-input: #30363d;
-            --btn-gold-bg: #d29922;
-            --btn-gold-text: #0d1117;
-            --mute-muted: #484f58;
-            --mute-hover: #c9d1d9;
-            --send-bg: #238636;
-            --send-hover: #2ea043;
-            --mic-active-bg: #2d1b1b;
-            --mic-active-color: #f85149;
-            --remove-btn-hover: #2d1b1b;
-        }
-
-        /* ===== الثيم الفاتح (يُفعّل عند إضافة class="light-mode" على <html>) ===== */
-        html.light-mode {
             --bg-body: #f4f7fc;
             --bg-app: #ffffff;
             --bg-header: #ffffff;
@@ -218,6 +183,40 @@ HTML_TEMPLATE = r"""
             --mic-active-bg: #fde8e8;
             --mic-active-color: #c33;
             --remove-btn-hover: #fde8e8;
+        }
+
+        /* ===== الثيم الداكن (يُفعّل عند إضافة class="dark-mode" على <html>) ===== */
+        html.dark-mode {
+            --bg-body: #0d1117;
+            --bg-app: #161b22;
+            --bg-header: #161b22;
+            --border-color: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --bg-input: #21262d;
+            --bg-bot-msg: #21262d;
+            --bg-user-msg: transparent;
+            --bg-dropdown: #161b22;
+            --bg-hover: #21262d;
+            --shadow-color: rgba(0,0,0,0.5);
+            --primary-color: #58a6ff;
+            --primary-hover: #79c0ff;
+            --send-shadow: rgba(88,166,255,0.2);
+            --danger-bg: #2d1b1b;
+            --danger-color: #f85149;
+            --placeholder-color: #484f58;
+            --icon-color: #8b949e;
+            --welcome-bg: #161b22;
+            --border-input: #30363d;
+            --btn-gold-bg: #d29922;
+            --btn-gold-text: #0d1117;
+            --mute-muted: #484f58;
+            --mute-hover: #c9d1d9;
+            --send-bg: #238636;
+            --send-hover: #2ea043;
+            --mic-active-bg: #2d1b1b;
+            --mic-active-color: #f85149;
+            --remove-btn-hover: #2d1b1b;
         }
 
         /* ===== باقي الأنماط تستخدم المتغيرات ===== */
@@ -328,7 +327,7 @@ HTML_TEMPLATE = r"""
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
         
-        <!-- ===== الزر الجديد لتبديل الثيم ===== -->
+        <!-- ===== زر تبديل الثيم ===== -->
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
         
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
@@ -499,37 +498,35 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== وظيفة تبديل الثيم =====
+        // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
         
         function setTheme(theme) {
             const html = document.documentElement;
-            if (theme === 'light') {
-                html.classList.add('light-mode');
-                html.classList.remove('dark-mode');
-                themeLabel.textContent = 'الوضع النهاري';
-                themeToggleBtn.querySelector('i').className = 'fas fa-sun';
-                localStorage.setItem('nibras-theme', 'light');
-            } else {
-                html.classList.remove('light-mode');
+            if (theme === 'dark') {
                 html.classList.add('dark-mode');
                 themeLabel.textContent = 'الوضع الليلي';
                 themeToggleBtn.querySelector('i').className = 'fas fa-moon';
                 localStorage.setItem('nibras-theme', 'dark');
+            } else {
+                html.classList.remove('dark-mode');
+                themeLabel.textContent = 'الوضع النهاري';
+                themeToggleBtn.querySelector('i').className = 'fas fa-sun';
+                localStorage.setItem('nibras-theme', 'light');
             }
         }
 
-        // استعادة الثيم المحفوظ
-        const savedTheme = localStorage.getItem('nibras-theme') || 'dark';
+        // استعادة الثيم المحفوظ (افتراضي فاتح)
+        const savedTheme = localStorage.getItem('nibras-theme') || 'light';
         setTheme(savedTheme);
 
         // عند الضغط على زر التبديل
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
-                const current = document.documentElement.classList.contains('light-mode') ? 'light' : 'dark';
-                const newTheme = current === 'light' ? 'dark' : 'light';
+                const current = document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light';
+                const newTheme = current === 'dark' ? 'light' : 'dark';
                 setTheme(newTheme);
                 dropdown.classList.remove('show');
             });
