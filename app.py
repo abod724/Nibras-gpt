@@ -22,7 +22,6 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
 
-# ===== إعداد الحماية الخلفية (Flask-Limiter) - الطريقة الصحيحة للإصدارات الجديدة =====
 limiter = Limiter(key_func=get_remote_address, default_limits=["100 per day", "20 per hour"])
 limiter.init_app(app)
 
@@ -86,7 +85,6 @@ for filename in possible_names:
         except: pass
 if not knowledge_content: knowledge_content = "أنت نبراس، مساعد ذكي."
 
-# ===== التعديل 1: تعليمات الكتابة (يطلب فقرات متصلة) =====
 SYSTEM_PROMPT = f"""
 أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
@@ -133,7 +131,13 @@ async def generate_speech(text, gender):
         if chunk["type"] == "audio": audio_data += chunk["data"]
     return base64.b64encode(audio_data).decode('utf-8')
 
-# إضافة r لإسكات تحذير بايثون (لا يغير الواجهة)
+# =====================================================================
+# HTML_TEMPLATE مع إضافة زر تبديل الثيم داخل القائمة المنسدلة
+# التعديلات فقط في: 
+# 1. CSS (تم تحويلها لمتغيرات)
+# 2. إضافة زر في القائمة (data-action="theme-toggle")
+# 3. كود JavaScript صغير (في نهاية الـ script)
+# =====================================================================
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -148,72 +152,138 @@ HTML_TEMPLATE = r"""
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
+        /* ===== تعريف متغيرات الثيم (الداكن هو الافتراضي) ===== */
+        :root {
+            --bg-body: #0d1117;
+            --bg-app: #161b22;
+            --bg-header: #161b22;
+            --border-color: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --bg-input: #21262d;
+            --bg-bot-msg: #21262d;
+            --bg-user-msg: transparent;
+            --bg-dropdown: #161b22;
+            --bg-hover: #21262d;
+            --shadow-color: rgba(0,0,0,0.5);
+            --primary-color: #58a6ff;
+            --primary-hover: #79c0ff;
+            --send-shadow: rgba(88,166,255,0.2);
+            --danger-bg: #2d1b1b;
+            --danger-color: #f85149;
+            --placeholder-color: #484f58;
+            --icon-color: #8b949e;
+            --welcome-bg: #161b22;
+            --border-input: #30363d;
+            --btn-gold-bg: #d29922;
+            --btn-gold-text: #0d1117;
+            --mute-muted: #484f58;
+            --mute-hover: #c9d1d9;
+            --send-bg: #238636;
+            --send-hover: #2ea043;
+            --mic-active-bg: #2d1b1b;
+            --mic-active-color: #f85149;
+            --remove-btn-hover: #2d1b1b;
+        }
+
+        /* ===== الثيم الفاتح (يُفعّل عند إضافة class="light-mode" على <html>) ===== */
+        html.light-mode {
+            --bg-body: #f4f7fc;
+            --bg-app: #ffffff;
+            --bg-header: #ffffff;
+            --border-color: #eaeef2;
+            --text-primary: #111111;
+            --text-secondary: #5a6b7c;
+            --bg-input: #f5f7fa;
+            --bg-bot-msg: #ffffff;
+            --bg-user-msg: transparent;
+            --bg-dropdown: #ffffff;
+            --bg-hover: #f5f7fa;
+            --shadow-color: rgba(0,0,0,0.08);
+            --primary-color: #4a6a8a;
+            --primary-hover: #3a5a7a;
+            --send-shadow: rgba(74,106,138,0.2);
+            --danger-bg: #fde8e8;
+            --danger-color: #a33;
+            --placeholder-color: #9aabbc;
+            --icon-color: #6a7b8c;
+            --welcome-bg: #ffffff;
+            --border-input: #dce1e8;
+            --btn-gold-bg: #f1c40f;
+            --btn-gold-text: #1a2b3c;
+            --mute-muted: #444444;
+            --mute-hover: #1a2b3c;
+            --send-bg: #4a6a8a;
+            --send-hover: #3a5a7a;
+            --mic-active-bg: #fde8e8;
+            --mic-active-color: #c33;
+            --remove-btn-hover: #fde8e8;
+        }
+
+        /* ===== باقي الأنماط تستخدم المتغيرات ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background: #ffffff; height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; }
-        .app { width: 100%; max-width: 450px; height: 100dvh; background: #ffffff; display: flex; flex-direction: column; position: relative; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eaeef2; flex-shrink: 0; background: #ffffff; }
+        body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; transition: background 0.3s ease; }
+        .app { width: 100%; max-width: 450px; height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; transition: background 0.3s ease; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
-        .menu-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; }
-        .mute-btn { background: none; border: none; font-size: 20px; color: #5a6b7c; cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
-        .mute-btn:hover { color: #1a2b3c; }
-        .mute-btn.muted { color: #444444; opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; }
+        .menu-btn { background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; }
+        .mute-btn { background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
+        .mute-btn:hover { color: var(--mute-hover); }
+        .mute-btn.muted { color: var(--mute-muted); opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
-        .btn-outline { background: transparent; border: 1px solid #4a6a8a; color: #4a6a8a; }
-        .btn-gold { background: #f1c40f; color: #1a2b3c; font-weight: bold; }
-        .dropdown { position: absolute; top: 64px; left: 14px; right: 14px; background: white; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); display: none; flex-direction: column; z-index: 100; border: 1px solid #eaedf2; max-height: 60vh; overflow-y: auto; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); }
+        .btn-gold { background: var(--btn-gold-bg); color: var(--btn-gold-text); font-weight: bold; }
+        .dropdown { position: absolute; top: 64px; left: 14px; right: 14px; background: var(--bg-dropdown); border-radius: 16px; box-shadow: 0 8px 30px var(--shadow-color); display: none; flex-direction: column; z-index: 100; border: 1px solid var(--border-color); max-height: 60vh; overflow-y: auto; }
         .dropdown.show { display: flex; }
-        .dropdown .item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; font-size: 15px; color: #1a2b3c; background: none; border: none; width: 100%; text-align: right; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
+        .dropdown .item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; font-size: 15px; color: var(--text-primary); background: none; border: none; width: 100%; text-align: right; cursor: pointer; border-bottom: 1px solid var(--border-color); }
         .dropdown .item:last-child { border-bottom: none; }
-        .dropdown .item i { width: 22px; font-size: 18px; color: #5a6b7c; }
-        .dropdown .item:hover { background: #f5f7fa; }
-        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid #f0f2f5; cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: #1a2b3c; font-weight: 500; transition: background 0.2s; }
-        .dropdown .conv-item:hover { background: #f5f7fa; }
+        .dropdown .item i { width: 22px; font-size: 18px; color: var(--text-secondary); }
+        .dropdown .item:hover { background: var(--bg-hover); }
+        .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid var(--border-color); cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: var(--text-primary); font-weight: 500; transition: background 0.2s; }
+        .dropdown .conv-item:hover { background: var(--bg-hover); }
         .dropdown .conv-item:last-child { border-bottom: none; }
-        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; font-size: 16px; }
-        
-        # ===== التعديل 2: تغيير pre-wrap إلى normal ليمتد النص كفقرات =====
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: #111111; }
-        
-        .msg.user { align-self: flex-end; background: transparent; border-bottom-left-radius: 6px; }
-        .msg.bot { align-self: flex-start; background: #ffffff; border-bottom-right-radius: 6px; }
-        .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; }
-        .msg.error { background: #fde8e8; color: #a33; align-self: center; max-width: 90%; }
-        .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid #ddd; display: block; }
-        .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid #e0e0e0; display: block; }
-        .typing-indicator { align-self: flex-start; background: #ffffff; padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 600; color: #5a6b7c; }
+        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
+        .msg.user { align-self: flex-end; background: var(--bg-user-msg); border-bottom-left-radius: 6px; }
+        .msg.bot { align-self: flex-start; background: var(--bg-bot-msg); border-bottom-right-radius: 6px; }
+        .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; color: var(--text-secondary); }
+        .msg.error { background: var(--danger-bg); color: var(--danger-color); align-self: center; max-width: 90%; }
+        .msg .image-upload { max-width: 100%; max-height: 200px; border-radius: 12px; margin: 4px 0; border: 1px solid var(--border-color); display: block; }
+        .msg .generated-image { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border-color); display: block; }
+        .typing-indicator { align-self: flex-start; background: var(--bg-bot-msg); padding: 12px 18px; border-radius: 20px; border-bottom-right-radius: 6px; font-size: 16px; font-weight: 600; color: var(--text-secondary); }
         .typing-dots { display: inline-block; }
         .typing-dots::after { content: '...'; animation: dotAnimation 1.2s steps(4, end) infinite; }
         @keyframes dotAnimation { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
-        .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.25); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
-        .welcome-overlay .welcome-box { background: #ffffff; padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; }
-        .welcome-overlay .welcome-box h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 8px; }
-        .welcome-overlay .welcome-box p { font-size: 18px; color: #5a6b7c; margin: 0; }
+        .welcome-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.7); z-index: 9999; animation: fadeIn 0.5s ease; pointer-events: none; }
+        .welcome-overlay .welcome-box { background: var(--welcome-bg); padding: 30px 40px; border-radius: 20px; box-shadow: 0 10px 40px var(--shadow-color); text-align: center; max-width: 90%; pointer-events: auto; direction: rtl; border: 1px solid var(--border-color); }
+        .welcome-overlay .welcome-box h2 { font-size: 28px; color: var(--text-primary); margin-bottom: 8px; }
+        .welcome-overlay .welcome-box p { font-size: 18px; color: var(--text-secondary); margin: 0; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
         .welcome-overlay.fade-out { animation: fadeOut 0.5s ease forwards; }
         @keyframes fadeOut { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(0.9); } }
-        #imagePreviewContainer { display: none; padding: 6px 18px; align-items: center; gap: 10px; background: #f5f7fa; margin: 0 14px; border-radius: 20px 20px 0 0; border: 1px solid #dce1e8; border-bottom: none; flex-wrap: wrap; flex-shrink: 0; }
-        #imagePreviewContainer img { max-height: 60px; border-radius: 8px; border: 1px solid #ddd; }
-        #imagePreviewContainer .label { font-size: 13px; color: #5a6b7c; }
-        #removeImageBtn { background: none; border: none; color: #c33; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
-        #removeImageBtn:hover { background: #fde8e8; }
-        .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: #f5f7fa; border-radius: 40px; border: 1px solid #dce1e8; flex-shrink: 0; min-height: 60px; }
-        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: #111111; direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
-        .input-area textarea::placeholder { color: #9aabbc; }
-        .input-area .btn-icon { background: none; border: none; color: #6a7b8c; font-size: 20px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .input-area .btn-icon:hover { background: #e8ecf0; }
-        .input-area .mic-btn { color: #4a6a8a; }
-        .input-area .mic-btn.listening { color: #c33; background: #fde8e8; }
-        .input-area .send { background: #4a6a8a; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(74,106,138,0.2); }
-        .input-area .send:hover { background: #3a5a7a; }
-        .plus-btn { background: none; border: none; color: #4a6a8a; font-size: 24px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.3s; }
-        .plus-btn:hover { background: #e8ecf0; }
+        #imagePreviewContainer { display: none; padding: 6px 18px; align-items: center; gap: 10px; background: var(--bg-input); margin: 0 14px; border-radius: 20px 20px 0 0; border: 1px solid var(--border-color); border-bottom: none; flex-wrap: wrap; flex-shrink: 0; }
+        #imagePreviewContainer img { max-height: 60px; border-radius: 8px; border: 1px solid var(--border-color); }
+        #imagePreviewContainer .label { font-size: 13px; color: var(--text-secondary); }
+        #removeImageBtn { background: none; border: none; color: var(--danger-color); font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
+        #removeImageBtn:hover { background: var(--remove-btn-hover); }
+        .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: var(--bg-input); border-radius: 40px; border: 1px solid var(--border-color); flex-shrink: 0; min-height: 60px; }
+        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: var(--text-primary); direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
+        .input-area textarea::placeholder { color: var(--placeholder-color); }
+        .input-area .btn-icon { background: none; border: none; color: var(--icon-color); font-size: 20px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .input-area .btn-icon:hover { background: var(--bg-hover); }
+        .input-area .mic-btn { color: var(--primary-color); }
+        .input-area .mic-btn.listening { color: var(--mic-active-color); background: var(--mic-active-bg); }
+        .input-area .send { background: var(--send-bg); color: white; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px var(--send-shadow); }
+        .input-area .send:hover { background: var(--send-hover); }
+        .plus-btn { background: none; border: none; color: var(--primary-color); font-size: 24px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: 0.3s; }
+        .plus-btn:hover { background: var(--bg-hover); }
         .plus-btn.rotate { transform: rotate(45deg); }
-        .plus-options { display: none; position: absolute; bottom: 70px; right: 0; background: #ffffff; border-radius: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 8px; gap: 6px; flex-direction: row; border: 1px solid #eaeef2; z-index: 50; }
+        .plus-options { display: none; position: absolute; bottom: 70px; right: 0; background: var(--bg-dropdown); border-radius: 20px; box-shadow: 0 8px 30px var(--shadow-color); padding: 8px; gap: 6px; flex-direction: row; border: 1px solid var(--border-color); z-index: 50; }
         .plus-options.show { display: flex; }
-        .plus-options .option-btn { background: #f5f7fa; border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #1a2b3c; cursor: pointer; transition: 0.2s; }
-        .plus-options .option-btn:hover { background: #e8ecf0; }
+        .plus-options .option-btn { background: var(--bg-hover); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--text-primary); cursor: pointer; transition: 0.2s; }
+        .plus-options .option-btn:hover { background: var(--border-color); }
         @media (max-width: 420px) {
             .header { padding: 12px 14px; }
             .btn { font-size: 12px; padding: 5px 12px; }
@@ -231,9 +301,9 @@ HTML_TEMPLATE = r"""
             .welcome-overlay .welcome-box h2 { font-size: 22px; }
             .welcome-overlay .welcome-box p { font-size: 16px; }
         }
-        .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #dce1e8; background: transparent; font-size: 14px; font-weight: 600; color: #5a6b7c; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
-        .gender-option:hover { background: #f5f7fa; }
-        .gender-option.active { background: #4a6a8a; color: white; border-color: #4a6a8a; }
+        .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border-color); background: transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .gender-option:hover { background: var(--bg-hover); }
+        .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
     </style>
 </head>
 <body>
@@ -257,9 +327,13 @@ HTML_TEMPLATE = r"""
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
-        <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid #f0f2f5;">
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1a2b3c;">
-                <i class="fas fa-microphone" style="font-size: 18px; color: #5a6b7c;"></i>
+        
+        <!-- ===== الزر الجديد لتبديل الثيم ===== -->
+        <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
+        
+        <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-primary);">
+                <i class="fas fa-microphone" style="font-size: 18px; color: var(--text-secondary);"></i>
                 <span>صوت المساعد</span>
             </div>
             <div style="display: flex; gap: 8px;">
@@ -425,25 +499,56 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== التعديل 3: إضافة دالة تحويل الماركداون (شكل ChatGPT) =====
+        // ===== وظيفة تبديل الثيم =====
+        const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
+        const themeLabel = document.getElementById('themeLabel');
+        
+        function setTheme(theme) {
+            const html = document.documentElement;
+            if (theme === 'light') {
+                html.classList.add('light-mode');
+                html.classList.remove('dark-mode');
+                themeLabel.textContent = 'الوضع النهاري';
+                themeToggleBtn.querySelector('i').className = 'fas fa-sun';
+                localStorage.setItem('nibras-theme', 'light');
+            } else {
+                html.classList.remove('light-mode');
+                html.classList.add('dark-mode');
+                themeLabel.textContent = 'الوضع الليلي';
+                themeToggleBtn.querySelector('i').className = 'fas fa-moon';
+                localStorage.setItem('nibras-theme', 'dark');
+            }
+        }
+
+        // استعادة الثيم المحفوظ
+        const savedTheme = localStorage.getItem('nibras-theme') || 'dark';
+        setTheme(savedTheme);
+
+        // عند الضغط على زر التبديل
+        if (themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const current = document.documentElement.classList.contains('light-mode') ? 'light' : 'dark';
+                const newTheme = current === 'light' ? 'dark' : 'light';
+                setTheme(newTheme);
+                dropdown.classList.remove('show');
+            });
+        }
+
+        // ===== باقي دوال الدردشة كما هي =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            // تحويل العناوين
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-            
-            // تحويل الخط العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // تحويل الأسطر الجديدة المفردة إلى مسافات لتكوين فقرة متصلة، مع ترك سطر فارغ بين الفقرات
             var paragraphs = safe.split(/\n\s*\n/);
-            
             return paragraphs.map(function(paragraph) {
                 paragraph = paragraph.trim();
                 if (!paragraph) return '';
@@ -855,9 +960,8 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# ===== التعديل المطلوب: إضافة حد تسجيل الدخول =====
 @app.route('/login', methods=['GET', 'POST'])
-@limiter.limit("3 per minute")   # <-- هذا هو السطر المضاف فقط
+@limiter.limit("3 per minute")
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
@@ -928,7 +1032,7 @@ def set_gender():
     return jsonify({"status": "ok"})
 
 @app.route('/chat', methods=['POST'])
-@limiter.limit("5 per minute")  # <--- الحماية الخلفية: يسمح بـ 5 رسائل فقط لكل IP في الدقيقة
+@limiter.limit("5 per minute")
 def chat():
     try:
         data = request.get_json()
@@ -1068,10 +1172,6 @@ def chat():
         print(f"❌ خطأ عام في /chat: {e}")
         return jsonify({"error": str(e)}), 500
 
-# =====================================================================
-# (الإضافة الوحيدة): مسار لقراءة أي ملف من مجلد static (مثل robots.txt, sitemap.xml, manifest.json, أي صورة أو ملف)
-# يجب وضع هذا المسار في النهاية حتى لا يعترض المسارات الخاصة بالدردشة
-# =====================================================================
 @app.route('/<path:filename>')
 def serve_static_files(filename):
     return send_from_directory(app.static_folder, filename)
