@@ -96,13 +96,11 @@ SYSTEM_PROMPT = f"""
 **ملف المعرفة الخاص بك:**
 {knowledge_content}
 
-**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها بدقة):**
-- اكتب ردك في **فقرة نصية واحدة متصلة** من اليمين لليسار (مثل المقالات والكتب).
-- **ممنوع** وضع كل جملة في سطر منفصل. اكتب الجمل متصلة بفواصل ونقاط.
-- **لا تستخدم `\n` داخل الفقرة.** استخدم النقاط `.` أو الفواصل `،` للفصل بين الجمل.
-- اترك **سطراً فارغاً واحداً** فقط للانتقال إلى فقرة جديدة (عند تغيير الموضوع).
-- استخدم `**الخط العريض**` لعناوين الفقرات الفرعية.
-- **ممنوع** كتابة النص بشكل عمودي (كل جملة في سطر) – هذا يعتبر خطأ.
+**⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
+- اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
+- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
+- اترك **سطراً فارغاً** بين كل فقرة وأخرى.
+- استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
 
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
@@ -110,7 +108,6 @@ SYSTEM_PROMPT = f"""
 - دائماً حافظ على لهجتك العامية البيضاء.
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
 - لا تكتب "لحظة" أو "انتظر"، فقط انتظر النتيجة ورد مباشرة.
-- **لا تكرر نفس الرد.** إذا سألك المستخدم سؤالاً جديداً، جاوب عليه مباشرة دون تكرار الترحيب أو أي جملة سابقة.
 """
 
 def remove_emoji(text):
@@ -209,6 +206,7 @@ HTML_TEMPLATE = r"""
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
+        /* ===== تعريف المتغيرات - الثيم الفاتح هو الافتراضي ===== */
         :root {
             --bg-body: #f4f7fc;
             --bg-app: #ffffff;
@@ -242,6 +240,8 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #fde8e8;
             --modal-bg: rgba(0,0,0,0.5);
         }
+
+        /* ===== الثيم الداكن (يُفعّل عند إضافة class="dark-mode" على <html>) ===== */
         html.dark-mode {
             --bg-body: #0d1117;
             --bg-app: #161b22;
@@ -275,7 +275,9 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #2d1b1b;
             --modal-bg: rgba(0,0,0,0.7);
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif; }
+
+        /* ===== باقي الأنماط تستخدم المتغيرات ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
         body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; transition: background 0.3s ease; }
         .app { width: 100%; max-width: 450px; height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; transition: background 0.3s ease; }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; }
@@ -299,7 +301,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item:hover { background: var(--bg-hover); }
         .dropdown .conv-item:last-child { border-bottom: none; }
         #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; }
-        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 15px; font-weight: 400; line-height: 1.8; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
+        .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
         .msg.user { align-self: flex-end; background: var(--bg-user-msg); border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: var(--bg-bot-msg); border-bottom-right-radius: 6px; }
         .msg .time { font-size: 10px; opacity: 0.35; display: block; margin-top: 4px; color: var(--text-secondary); }
@@ -323,7 +325,7 @@ HTML_TEMPLATE = r"""
         #removeImageBtn { background: none; border: none; color: var(--danger-color); font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 12px; }
         #removeImageBtn:hover { background: var(--remove-btn-hover); }
         .input-area { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 8px 14px; margin: 8px 14px 16px 14px; background: var(--bg-input); border-radius: 40px; border: 1px solid var(--border-color); flex-shrink: 0; min-height: 60px; }
-        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 15px; font-weight: 400; outline: none; color: var(--text-primary); direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
+        .input-area textarea { flex: 1; border: none; background: transparent; padding: 12px 0; font-size: 18px; font-weight: 600; outline: none; color: var(--text-primary); direction: rtl; resize: none; overflow: hidden; min-height: 20px; max-height: 80px; font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.4; }
         .input-area textarea::placeholder { color: var(--placeholder-color); }
         .input-area .btn-icon { background: none; border: none; color: var(--icon-color); font-size: 20px; cursor: pointer; padding: 4px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .input-area .btn-icon:hover { background: var(--bg-hover); }
@@ -358,6 +360,8 @@ HTML_TEMPLATE = r"""
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border-color); background: transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: var(--bg-hover); }
         .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+
+        /* ===== NEW: نافذة المشاركة الاجتماعية ===== */
         .share-modal {
             display: none;
             position: fixed;
@@ -429,18 +433,6 @@ HTML_TEMPLATE = r"""
         @media (max-width: 400px) {
             .share-modal .box .share-btn { font-size: 13px; padding: 8px 12px; }
         }
-        /* ===== تنسيق الفقرات ===== */
-        .msg.bot .bot-content p {
-            direction: rtl;
-            text-align: right;
-            margin-bottom: 12px;
-            line-height: 1.8;
-            word-wrap: break-word;
-            white-space: normal;
-        }
-        .msg.bot .bot-content p:last-child {
-            margin-bottom: 0;
-        }
     </style>
 </head>
 <body>
@@ -464,8 +456,12 @@ HTML_TEMPLATE = r"""
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
+        
+        <!-- ===== NEW: زر مشاركة المحادثة (يظهر النافذة المنبثقة) ===== -->
         <button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button>
+        
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
+        
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-primary);">
                 <i class="fas fa-microphone" style="font-size: 18px; color: var(--text-secondary);"></i>
@@ -504,6 +500,7 @@ HTML_TEMPLATE = r"""
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
 
+<!-- ===== NEW: نافذة المشاركة الاجتماعية المنبثقة ===== -->
 <div class="share-modal" id="shareModal">
     <div class="box">
         <h3><i class="fas fa-share-alt" style="color:var(--primary-color);"></i> شارك المحادثة</h3>
@@ -519,6 +516,7 @@ HTML_TEMPLATE = r"""
 
 <script>
     (function() {
+        let conversationHistory = [];
         let pendingImageData = null;
         let isWaiting = false;
         let currentConvId = null;
@@ -625,6 +623,7 @@ HTML_TEMPLATE = r"""
                 const data = await res.json();
                 if (data.messages) {
                     chatBox.innerHTML = '';
+                    conversationHistory = data.messages;
                     currentConvId = convId;
                     data.messages.forEach(function(msg) {
                         var sender = msg.role === 'user' ? 'user' : 'bot';
@@ -639,6 +638,7 @@ HTML_TEMPLATE = r"""
 
         document.querySelector('[data-action="new"]').addEventListener('click', function() {
             chatBox.innerHTML = '';
+            conversationHistory = [];
             currentConvId = null;
             dropdown.classList.remove('show');
             pendingImageData = null;
@@ -646,6 +646,7 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
+        // ===== NEW: ميزة مشاركة المحادثة (فتح النافذة المنبثقة) =====
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
             e.stopPropagation();
             if (!currentConvId) {
@@ -656,10 +657,12 @@ HTML_TEMPLATE = r"""
             const url = window.location.origin + '/share/' + currentConvId;
             const text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
             
+            // تحديث روابط المشاركة
             document.getElementById('shareWhatsapp').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
             document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
             document.getElementById('shareTwitter').href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
             
+            // زر سناب شات ينسخ الرابط
             const snapBtn = document.getElementById('shareSnapchat');
             snapBtn.onclick = function(ev) {
                 ev.stopPropagation();
@@ -679,12 +682,14 @@ HTML_TEMPLATE = r"""
             dropdown.classList.remove('show');
         });
 
+        // عند الضغط خارج النافذة تنغلق
         shareModal.addEventListener('click', function(e) {
             if (e.target === shareModal) {
                 shareModal.classList.remove('show');
             }
         });
 
+        // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
         
@@ -716,38 +721,26 @@ HTML_TEMPLATE = r"""
             });
         }
 
-        // ===== دالة تنسيق النص المعدلة (لحل مشكلة الكتابة العمودية) =====
+        // ===== باقي دوال الدردشة كما هي =====
         function formatBotText(text) {
-            // إزالة فواصل الأسطر وتحويلها إلى مسافات
             var safe = text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/\n/g, ' ')  // تحويل كل فواصل الأسطر إلى مسافة
-                .replace(/\s+/g, ' ') // دمج المسافات المتعددة في مسافة واحدة
-                .trim();
+                .replace(/>/g, '&gt;');
 
-            // تحويل العناوين
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-            
-            // تحويل الخط العريض
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            // تقسيم النص إلى فقرات بناءً على وجود نقطة متبوعة بمسافة أو سطرين فارغين
-            var paragraphs = safe.split(/\s*\.\s+/);
-            if (paragraphs.length > 1) {
-                return paragraphs.map(function(p) {
-                    p = p.trim();
-                    if (!p) return '';
-                    return '<p>' + p + '.</p>';
-                }).join('');
-            } else {
-                // إذا كان النص بدون نقاط، اعرضه كفقرة واحدة
-                return '<p>' + safe + '</p>';
-            }
+            var paragraphs = safe.split(/\n\s*\n/);
+            return paragraphs.map(function(paragraph) {
+                paragraph = paragraph.trim();
+                if (!paragraph) return '';
+                paragraph = paragraph.replace(/\n/g, ' ');
+                return '<p>' + paragraph + '</p>';
+            }).join('');
         }
 
         function addMessage(text, sender, isSystem, imageData) {
@@ -967,6 +960,7 @@ HTML_TEMPLATE = r"""
             var payload = {
                 message: text || "📎 مرفق",
                 image: imageToSend || null,
+                history: conversationHistory,
                 conv_id: currentConvId
             };
 
@@ -1242,6 +1236,7 @@ def chat():
     try:
         data = request.get_json()
         user_message = data.get("message", "").strip()
+        history = data.get("history", [])
         conv_id = data.get("conv_id", None)
 
         if not user_message:
@@ -1253,34 +1248,25 @@ def chat():
 
         user_id = get_user_id()
 
-        if conv_id:
-            chat_history = load_conversation_by_id(user_id, conv_id)
-            if chat_history is None:
-                chat_history = []
-        else:
-            chat_history = []
-
-        chat_history = chat_history[-15:] if len(chat_history) > 15 else chat_history
-
-        temp_history = chat_history.copy()
-        temp_history.append({"role": "user", "content": user_message})
-
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        for entry in temp_history:
-            messages.append({"role": entry["role"], "content": entry["content"]})
+        if conv_id is None:
+            session_memory[user_id] = []
 
         if is_admin:
             model = "gpt-4o"
             use_web_search = True
             allow_images = True
+            limit_msg = None
         elif is_trial_user and trial_remaining > 0 and not session.get('is_trial_expired'):
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
+            limit_msg = f"💎 تبقى لك {trial_remaining} محادثة تجريبية مميزة!"
         else:
             model = "gpt-4o"
             use_web_search = False
             allow_images = False
+            if is_trial_user and trial_remaining == 0:
+                limit_msg = "⚠️ انتهت المحادثات التجريبية. الترقية للاستمرار."
 
         draw_keywords = ["ارسم", "أنشئ", "انشئ", "انشى", "صوره", "صورة", "صور", "رسم", "ارسمي", "صمم", "ولّد", "generate", "draw", "ارسم لي", "أنشئ لي", "انشئ لي", "انشى لي", "صوره لي"]
         if allow_images and any(keyword in user_message for keyword in draw_keywords):
@@ -1288,14 +1274,8 @@ def chat():
             image_url = generate_image(user_message)
             if image_url:
                 reply = f"🖼️ إليك الصورة التي طلبتها:\n{image_url}"
-                if conv_id is None:
-                    session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
-                else:
-                    if user_id in session_memory:
-                        session_memory[user_id].append({"role": "user", "content": user_message})
-                        session_memory[user_id].append({"role": "assistant", "content": reply})
-                    else:
-                        session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
+                session_memory[user_id].append({"role": "user", "content": user_message})
+                session_memory[user_id].append({"role": "assistant", "content": reply})
                 new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
                 if is_trial_user and trial_remaining > 0:
                     session['trial_remaining'] = trial_remaining - 1
@@ -1305,6 +1285,13 @@ def chat():
                 return jsonify({"reply": reply, "conv_id": new_conv_id})
             else:
                 print("⚠️ فشل توليد الصورة، نكمل للرد النصي.")
+
+        session_memory[user_id].append({"role": "user", "content": user_message})
+        chat_history = session_memory[user_id][-10:]
+
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for entry in chat_history:
+            messages.append({"role": entry["role"], "content": entry["content"]})
 
         image_data = data.get("image", None)
         if image_data and allow_images:
@@ -1362,15 +1349,7 @@ def chat():
             print(f"❌ خطأ: {e}")
             reply = "حدث خطأ في السيرفر، حاول مرة أخرى."
 
-        if conv_id is None:
-            session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
-        else:
-            if user_id in session_memory:
-                session_memory[user_id].append({"role": "user", "content": user_message})
-                session_memory[user_id].append({"role": "assistant", "content": reply})
-            else:
-                session_memory[user_id] = temp_history + [{"role": "assistant", "content": reply}]
-
+        session_memory[user_id].append({"role": "assistant", "content": reply})
         new_conv_id = save_user_conversation(user_id, session_memory[user_id], conv_id)
 
         if is_trial_user and trial_remaining > 0:
