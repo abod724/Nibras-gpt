@@ -771,6 +771,7 @@ HTML_TEMPLATE = r"""
 
                 ws.onopen = () => {
                     console.log('✅ WebSocket مفتوح');
+                    // ✅ هنا نقوم بإرسال modalities في session.update
                     ws.send(JSON.stringify({
                         type: 'session.update',
                         session: {
@@ -941,7 +942,7 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# ✅ هذا هو التعديل الرئيسي الجديد وفق هيكل GA
+# ✅ التعديل الصحيح: إزالة modalities و output_modalities من الطلب (لأنها تُرسل في WebSocket)
 @app.route('/api/realtime-token', methods=['GET'])
 def get_realtime_token():
     if 'admin_email' in session:
@@ -960,20 +961,19 @@ def get_realtime_token():
 
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {OPENAI_API_KEY}"}
         
-        # ✅ تم وضع model و type وكل الإعدادات داخل session
+        instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
+        
+        # ✅ تم إزالة "modalities" و "output_modalities" لأنها تُرسل داخل WebSocket وليس في طلب التوكن
         payload = {
             "session": {
                 "type": "realtime",
                 "model": "gpt-4o-realtime-preview",
-                "instructions": "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً.",
-                "modalities": ["audio", "text"],
-                "output_modalities": ["audio"],
-                "turn_detection": {"type": "server_vad", "threshold": 0.5, "silence_duration_ms": 500},
-                "input_audio_transcription": {"model": "whisper-1"},
+                "instructions": instructions,
                 "audio": {
-                    "input": {"format": "pcm16"},
-                    "output": {"format": "pcm16", "voice": "marin"}
-                }
+                    "input": {"format": {"type": "audio/pcm", "rate": 24000}},
+                    "output": {"format": {"type": "audio/pcm", "rate": 24000}, "voice": "marin"}
+                },
+                "turn_detection": {"type": "server_vad", "threshold": 0.5, "silence_duration_ms": 500}
             }
         }
 
@@ -989,7 +989,6 @@ def get_realtime_token():
             return jsonify({"error": "api_error", "message": f"فشل الخادم: {error_body}"}), response.status_code
 
         data = response.json()
-        # ✅ قراءة التوكن من القيمة الصحيحة (value أو client_secret)
         return jsonify({"client_secret": data.get("value") or data.get("client_secret")})
         
     except requests.exceptions.Timeout:
