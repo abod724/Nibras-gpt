@@ -941,6 +941,7 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
+# ✅ هنا التعديل! تم حذف "expires_in" من الطلب!
 @app.route('/api/realtime-token', methods=['GET'])
 def get_realtime_token():
     if 'admin_email' in session:
@@ -961,9 +962,8 @@ def get_realtime_token():
         
         instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
         
-        # ✅ تم حذف "model" من هنا (الإصلاح الوحيد)
+        # ✅ لا يوجد "expires_in" هنا!
         payload = {
-            "expires_in": 600,
             "session": {
                 "instructions": instructions,
                 "modalities": ["audio", "text"],
