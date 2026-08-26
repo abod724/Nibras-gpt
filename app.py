@@ -123,13 +123,8 @@ def generate_image(prompt):
     except Exception as e:
         print(f"❌ فشل توليد الصورة: {e}"); return None
 
-# ============================================================
-# ✅ التعديل الجديد: استخدام OpenAI TTS بدلاً من Edge TTS
-# الصوت أصبح واضحاً وجميلاً باستخدام أصوات onyx/nova
-# ============================================================
 def generate_speech(text, gender):
     try:
-        # اختيار الصوت: Onyx (ذكر) أو Nova (أنثى)
         voice = "onyx" if gender == "male" else "nova"
         response = client.audio.speech.create(
             model="tts-1",
@@ -142,7 +137,6 @@ def generate_speech(text, gender):
     except Exception as e:
         print(f"❌ فشل توليد الصوت عبر OpenAI: {e}")
         return None
-# ============================================================
 
 # ===== صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
 SHARED_PAGE_HTML = """
@@ -155,7 +149,7 @@ SHARED_PAGE_HTML = """
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background: #f4f7fc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        body { background: #f4f7fc; display: flex; justify-content: center; align-items: center; min-height: 100dvh; padding: 20px; }
         .container { max-width: 700px; width: 100%; background: white; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); padding: 30px 25px; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eaeef2; padding-bottom: 15px; margin-bottom: 25px; }
         .header h1 { font-size: 22px; color: #1a2b3c; }
@@ -204,7 +198,7 @@ SHARED_PAGE_HTML = """
 """
 
 # =====================================================================
-# ===== قالب الواجهة الرئيسية مع نافذة المشاركة الاجتماعية =====
+# ===== قالب الواجهة الرئيسية (تم تعديل الـ CSS لاستخدام dvh) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -254,7 +248,7 @@ HTML_TEMPLATE = r"""
             --modal-bg: rgba(0,0,0,0.5);
         }
 
-        /* ===== الثيم الداكن (يُفعّل عند إضافة class="dark-mode" على <html>) ===== */
+        /* ===== الثيم الداكن ===== */
         html.dark-mode {
             --bg-body: #0d1117;
             --bg-app: #161b22;
@@ -289,10 +283,50 @@ HTML_TEMPLATE = r"""
             --modal-bg: rgba(0,0,0,0.7);
         }
 
-        /* ===== باقي الأنماط تستخدم المتغيرات ===== */
+        /* ===== الأنماط العامة (تم التعديل هنا) ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; overflow: hidden; transition: background 0.3s ease; }
-        .app { width: 100%; max-width: 450px; height: 100dvh; max-height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100dvh;
+            overflow: hidden;
+            background: var(--bg-body);
+            transition: background 0.3s ease;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .app {
+            width: 100%;
+            max-width: 450px;
+            height: 100dvh;
+            max-height: 100dvh;
+            background: var(--bg-app);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+        @media (min-width: 600px) {
+            .app {
+                height: 100dvh;
+                max-height: 100dvh;
+                border-radius: 20px;
+                box-shadow: 0 0 20px var(--shadow-color);
+            }
+        }
+        @media (orientation: landscape) {
+            .app {
+                max-width: 100%;
+                height: 100dvh;
+                max-height: 100dvh;
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
@@ -374,7 +408,7 @@ HTML_TEMPLATE = r"""
         .gender-option:hover { background: var(--bg-hover); }
         .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
 
-        /* ===== NEW: نافذة المشاركة الاجتماعية ===== */
+        /* ===== نافذة المشاركة الاجتماعية ===== */
         .share-modal {
             display: none;
             position: fixed;
@@ -469,12 +503,8 @@ HTML_TEMPLATE = r"""
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
-        
-        <!-- ===== NEW: زر مشاركة المحادثة (يظهر النافذة المنبثقة) ===== -->
         <button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button>
-        
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
-        
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-primary);">
                 <i class="fas fa-microphone" style="font-size: 18px; color: var(--text-secondary);"></i>
@@ -513,7 +543,7 @@ HTML_TEMPLATE = r"""
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
 
-<!-- ===== NEW: نافذة المشاركة الاجتماعية المنبثقة ===== -->
+<!-- نافذة المشاركة الاجتماعية -->
 <div class="share-modal" id="shareModal">
     <div class="box">
         <h3><i class="fas fa-share-alt" style="color:var(--primary-color);"></i> شارك المحادثة</h3>
@@ -659,7 +689,6 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
-        // ===== NEW: ميزة مشاركة المحادثة (فتح النافذة المنبثقة) =====
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
             e.stopPropagation();
             if (!currentConvId) {
@@ -670,12 +699,10 @@ HTML_TEMPLATE = r"""
             const url = window.location.origin + '/share/' + currentConvId;
             const text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
             
-            // تحديث روابط المشاركة
             document.getElementById('shareWhatsapp').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
             document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
             document.getElementById('shareTwitter').href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
             
-            // زر سناب شات ينسخ الرابط
             const snapBtn = document.getElementById('shareSnapchat');
             snapBtn.onclick = function(ev) {
                 ev.stopPropagation();
@@ -695,14 +722,12 @@ HTML_TEMPLATE = r"""
             dropdown.classList.remove('show');
         });
 
-        // عند الضغط خارج النافذة تنغلق
         shareModal.addEventListener('click', function(e) {
             if (e.target === shareModal) {
                 shareModal.classList.remove('show');
             }
         });
 
-        // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
         
@@ -734,7 +759,6 @@ HTML_TEMPLATE = r"""
             });
         }
 
-        // ===== باقي دوال الدردشة كما هي =====
         function formatBotText(text) {
             var safe = text
                 .replace(/&/g, '&amp;')
@@ -1087,7 +1111,7 @@ LOGIN_HTML = """
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>دخول - نبراس</title>
 <style>
     * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; padding: 15px; }
+    body { background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100dvh; margin: 0; padding: 15px; }
     .box { background: white; padding: 40px 30px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; }
     h2 { font-size: 28px; color: #1a2b3c; margin-bottom: 25px; }
     input { width: 100%; padding: 14px 16px; margin: 12px 0; border: 1px solid #dce1e8; border-radius: 12px; font-size: 18px; background: #fafbfc; box-sizing: border-box; }
@@ -1117,8 +1141,8 @@ PLANS_HTML = """
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>خطط نبراس</title>
 <style>
     * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background: #f0f2f5; padding: 20px; margin: 0; }
-    .container { max-width: 500px; margin: 0 auto; }
+    body { background: #f0f2f5; padding: 20px; margin: 0; min-height: 100dvh; display: flex; justify-content: center; align-items: center; }
+    .container { max-width: 500px; width: 100%; }
     .back { display: inline-block; margin-bottom: 25px; padding: 12px 24px; background: #4a6a8a; color: white; text-decoration: none; border-radius: 12px; font-size: 16px; }
     h1 { font-size: 32px; color: #1a2b3c; text-align: center; margin-bottom: 30px; }
     .plan { background: white; border-radius: 16px; padding: 30px 25px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-right: 6px solid #4a6a8a; }
@@ -1373,9 +1397,6 @@ def chat():
 
         try:
             user_gender = session.get('voice_gender', 'male')
-            # ============================================================
-            # ✅ استدعاء الدالة الجديدة (متزامنة) بدلاً من asyncio.run
-            # ============================================================
             audio_base64 = generate_speech(reply, user_gender)
         except Exception as e:
             print(f"⚠️ فشل توليد الصوت: {e}")
