@@ -822,7 +822,6 @@ HTML_TEMPLATE = r"""
 
                 ws.onerror = (err) => { console.error('❌ خطأ في WebSocket:', err); stopRealtimeCall(); };
 
-                // ✅ التعديل الجديد: عرض سبب الإغلاق الحقيقي في الشات
                 ws.onclose = (event) => {
                     console.log('🔌 WebSocket مغلق', event.code, event.reason);
                     addMessage('⚠️ سبب الإغلاق هو: كود ' + event.code + ' - ' + (event.reason || 'الخادم رفض الطلب'), 'bot', true);
@@ -962,8 +961,8 @@ def get_realtime_token():
         
         instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
         
+        # ✅ تم حذف "model" من هنا (الإصلاح الوحيد)
         payload = {
-            "model": "gpt-4o-realtime-preview",
             "expires_in": 600,
             "session": {
                 "instructions": instructions,
