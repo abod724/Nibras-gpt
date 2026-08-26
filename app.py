@@ -941,7 +941,7 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# ✅ هنا التعديل! تم حذف "expires_in" من الطلب!
+# ✅ هذا هو التعديل الرئيسي الجديد وفق هيكل GA
 @app.route('/api/realtime-token', methods=['GET'])
 def get_realtime_token():
     if 'admin_email' in session:
@@ -960,20 +960,20 @@ def get_realtime_token():
 
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {OPENAI_API_KEY}"}
         
-        instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
-        
-        # ✅ لا يوجد "expires_in" هنا!
+        # ✅ تم وضع model و type وكل الإعدادات داخل session
         payload = {
             "session": {
-                "instructions": instructions,
+                "type": "realtime",
+                "model": "gpt-4o-realtime-preview",
+                "instructions": "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً.",
                 "modalities": ["audio", "text"],
-                "audio": {
-                    "input": {"format": {"type": "audio/pcm", "rate": 24000}},
-                    "output": {"format": {"type": "audio/pcm", "rate": 24000}, "voice": "marin"}
-                },
                 "output_modalities": ["audio"],
                 "turn_detection": {"type": "server_vad", "threshold": 0.5, "silence_duration_ms": 500},
-                "input_audio_transcription": {"model": "whisper-1"}
+                "input_audio_transcription": {"model": "whisper-1"},
+                "audio": {
+                    "input": {"format": "pcm16"},
+                    "output": {"format": "pcm16", "voice": "marin"}
+                }
             }
         }
 
@@ -989,7 +989,8 @@ def get_realtime_token():
             return jsonify({"error": "api_error", "message": f"فشل الخادم: {error_body}"}), response.status_code
 
         data = response.json()
-        return jsonify({"client_secret": data.get("client_secret")})
+        # ✅ قراءة التوكن من القيمة الصحيحة (value أو client_secret)
+        return jsonify({"client_secret": data.get("value") or data.get("client_secret")})
         
     except requests.exceptions.Timeout:
         return jsonify({"error": "انتهى الوقت في الاتصال بـ OpenAI"}), 504
