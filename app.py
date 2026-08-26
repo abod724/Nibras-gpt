@@ -72,7 +72,7 @@ def generate_image(p):
  except Exception as e:print(f"❌ فشل توليد الصورة: {e}");return None
 
 # ============================================================
-# ✅ دالة الصوت مع زيادة السرعة (speed=1.2)
+# ✅ دالة الصوت مع زيادة السرعة (speed=1.1)
 # ============================================================
 def generate_speech(text, gender):
     try:
@@ -82,7 +82,7 @@ def generate_speech(text, gender):
             voice=voice,
             input=remove_emoji(text),
             response_format="mp3",
-            speed=1.2  # 🔥 زيادة السرعة لتناسب اللهجة العامية
+            speed=1.1  # 🔥 زيادة السرعة بنسبة 10% (أسرع من الطبيعي بقليل)
         )
         audio_data = response.content
         return base64.b64encode(audio_data).decode('utf-8')
