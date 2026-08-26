@@ -152,7 +152,8 @@ def chat():
   if img_data and allow_img:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
   if use_web:
    try:
-    fc="";for m in msgs:
+    fc=""
+    for m in msgs:
      if m["role"]=="user":fc+=m["content"]+"\n"
      elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
     sr=client.responses.create(model="gpt-4o",instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",tools=[{"type":"web_search"}])
