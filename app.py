@@ -10,19 +10,18 @@ import edge_tts
 import base64
 import re
 import sqlite3
-import requests
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 app = Flask(__name__, static_folder='static')
-app.secret_key = os.environ.get("SECRET_KEY")
-
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(16))
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise Exception("OPENAI_API_KEY غير موجود!")
+    raise Exception("OPENAI_API_KEY غير موجود! يجب إضافته في متغيرات البيئة")
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SYSTEM_ENABLED = True
+
 limiter = Limiter(key_func=get_remote_address, default_limits=["500 per day", "20 per hour"])
 limiter.init_app(app)
 
@@ -124,27 +123,28 @@ def generate_image(prompt):
     except Exception as e:
         print(f"❌ فشل توليد الصورة: {e}"); return None
 
-# ====================================================
+# ============================================================
 # ✅ التعديل الجديد: استخدام OpenAI TTS بدلاً من Edge TTS
-# ====================================================
+# الصوت أصبح واضحاً وجميلاً باستخدام أصوات onyx/nova
+# ============================================================
 def generate_speech(text, gender):
     try:
-        # اختيار الصوت: Onyx للذكر، Nova للأنثى (أفضل تطابق للهجة العربية)
+        # اختيار الصوت: Onyx (ذكر) أو Nova (أنثى)
         voice = "onyx" if gender == "male" else "nova"
-        
         response = client.audio.speech.create(
-            model="tts-1",          # نموذج خفيف وسريع
+            model="tts-1",
             voice=voice,
             input=remove_emoji(text),
-            response_format="mp3"   # تنسيق الصوت
+            response_format="mp3"
         )
-        audio_data = response.content  # استخراج البيانات الثنائية
+        audio_data = response.content
         return base64.b64encode(audio_data).decode('utf-8')
     except Exception as e:
         print(f"❌ فشل توليد الصوت عبر OpenAI: {e}")
         return None
-# ====================================================
+# ============================================================
 
+# ===== صفحة عرض المحادثة العامة للمشاركة (قراءة فقط) =====
 SHARED_PAGE_HTML = """
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -172,6 +172,10 @@ SHARED_PAGE_HTML = """
         .msg .time { font-size: 11px; color: #8b949e; margin-top: 4px; display: block; }
         .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eaeef2; color: #8b949e; font-size: 14px; }
         .footer a { color: #4a6a8a; text-decoration: none; font-weight: bold; }
+        @media (max-width: 500px) {
+            .container { padding: 15px; }
+            .msg .content { max-width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -199,6 +203,8 @@ SHARED_PAGE_HTML = """
 </html>
 """
 
+# =====================================================================
+# ===== قالب الواجهة الرئيسية مع نافذة المشاركة الاجتماعية =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -213,6 +219,7 @@ HTML_TEMPLATE = r"""
     <link rel="icon" type="image/jpeg" href="/static/icon-512.jpeg" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <style>
+        /* ===== تعريف المتغيرات - الثيم الفاتح هو الافتراضي ===== */
         :root {
             --bg-body: #f4f7fc;
             --bg-app: #ffffff;
@@ -246,6 +253,8 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #fde8e8;
             --modal-bg: rgba(0,0,0,0.5);
         }
+
+        /* ===== الثيم الداكن (يُفعّل عند إضافة class="dark-mode" على <html>) ===== */
         html.dark-mode {
             --bg-body: #0d1117;
             --bg-app: #161b22;
@@ -279,29 +288,18 @@ HTML_TEMPLATE = r"""
             --remove-btn-hover: #2d1b1b;
             --modal-bg: rgba(0,0,0,0.7);
         }
+
+        /* ===== باقي الأنماط تستخدم المتغيرات ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
-        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg-body); }
-        body { transition: background 0.3s ease; }
-        .app {
-            width: 100%; height: 100%; max-width: 100%; background: var(--bg-app);
-            display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease;
-        }
-        @media (min-width: 600px) {
-            .app { max-width: 450px; margin: 0 auto; height: 100vh; border-radius: 20px; box-shadow: 0 0 20px var(--shadow-color); }
-        }
-        @media (orientation: landscape) {
-            .app { max-width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
-        }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; position: relative; z-index: 100; }
+        body { background: var(--bg-body); height: 100dvh; display: flex; justify-content: center; align-items: center; margin: 0; padding: 0; overflow: hidden; transition: background 0.3s ease; }
+        .app { width: 100%; max-width: 450px; height: 100dvh; max-height: 100dvh; background: var(--bg-app); display: flex; flex-direction: column; position: relative; overflow: hidden; transition: background 0.3s ease; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; }
         .header-right { display: flex; align-items: center; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 6px; }
         .menu-btn { background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; }
         .mute-btn { background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer; padding: 4px 8px; transition: color 0.2s; }
         .mute-btn:hover { color: var(--mute-hover); }
         .mute-btn.muted { color: var(--mute-muted); opacity: 0.4; transform: scale(0.9); transition: all 0.2s ease; }
-        .call-btn { background: none; border: none; font-size: 20px; color: var(--primary-color); cursor: pointer; padding: 4px 8px; transition: 0.2s; }
-        .call-btn.active { color: #d32f2f; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
         .btn-group { display: flex; gap: 8px; }
         .btn { padding: 6px 16px; border-radius: 20px; font-size: 14px; border: none; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
         .btn-outline { background: transparent; border: 1px solid var(--primary-color); color: var(--primary-color); }
@@ -315,7 +313,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid var(--border-color); cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: var(--text-primary); font-weight: 500; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: var(--bg-hover); }
         .dropdown .conv-item:last-child { border-bottom: none; }
-        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; min-height: 0; }
+        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
         .msg.user { align-self: flex-end; background: var(--bg-user-msg); border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: var(--bg-bot-msg); border-bottom-right-radius: 6px; }
@@ -375,29 +373,87 @@ HTML_TEMPLATE = r"""
         .gender-option { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--border-color); background: transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .gender-option:hover { background: var(--bg-hover); }
         .gender-option.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-        .share-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--modal-bg); z-index: 9999; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(4px); }
+
+        /* ===== NEW: نافذة المشاركة الاجتماعية ===== */
+        .share-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--modal-bg);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
         .share-modal.show { display: flex; }
-        .share-modal .box { background: var(--bg-app); padding: 28px 24px; border-radius: 24px; max-width: 360px; width: 100%; text-align: center; border: 1px solid var(--border-color); box-shadow: 0 20px 60px var(--shadow-color); }
-        .share-modal .box h3 { font-size: 22px; color: var(--text-primary); margin-bottom: 18px; }
-        .share-modal .box .share-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 18px; }
-        .share-modal .box .share-btn { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 14px; text-decoration: none; font-size: 15px; font-weight: 600; border: none; cursor: pointer; transition: transform 0.15s; flex: 1 0 auto; justify-content: center; min-width: 70px; }
+        .share-modal .box {
+            background: var(--bg-app);
+            padding: 28px 24px;
+            border-radius: 24px;
+            max-width: 360px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 60px var(--shadow-color);
+        }
+        .share-modal .box h3 {
+            font-size: 22px;
+            color: var(--text-primary);
+            margin-bottom: 18px;
+        }
+        .share-modal .box .share-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+        .share-modal .box .share-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 14px;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.15s;
+            flex: 1 0 auto;
+            justify-content: center;
+            min-width: 70px;
+        }
         .share-modal .box .share-btn:hover { transform: scale(1.03); }
         .share-modal .box .share-btn.whatsapp { background: #25D366; color: white; }
         .share-modal .box .share-btn.facebook { background: #1877F2; color: white; }
         .share-modal .box .share-btn.twitter { background: #000000; color: white; }
         .share-modal .box .share-btn.snapchat { background: #FFFC00; color: #000000; }
-        .share-modal .box .close-btn { background: var(--bg-hover); border: none; padding: 10px 30px; border-radius: 14px; font-size: 16px; color: var(--text-primary); cursor: pointer; margin-top: 4px; width: 100%; font-weight: 600; }
+        .share-modal .box .close-btn {
+            background: var(--bg-hover);
+            border: none;
+            padding: 10px 30px;
+            border-radius: 14px;
+            font-size: 16px;
+            color: var(--text-primary);
+            cursor: pointer;
+            margin-top: 4px;
+            width: 100%;
+            font-weight: 600;
+        }
         .share-modal .box .close-btn:hover { background: var(--border-color); }
-        @media (max-width: 400px) { .share-modal .box .share-btn { font-size: 13px; padding: 8px 12px; } }
+        @media (max-width: 400px) {
+            .share-modal .box .share-btn { font-size: 13px; padding: 8px 12px; }
+        }
     </style>
 </head>
 <body>
 <div class="app">
     <div class="header">
         <div class="header-right">
-            <button type="button" class="mute-btn" id="muteBtn" title="كتم الصوت / تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
-            <button type="button" class="call-btn" id="realtimeCallBtn" title="اتصال صوتي مباشر"><i class="fas fa-phone"></i></button>
-            <button type="button" class="menu-btn" id="menuToggle" aria-label="القائمة"><i class="fas fa-ellipsis-v"></i></button>
+            <button class="mute-btn" id="muteBtn" title="كتم الصوت / تفعيل الصوت"><i class="fas fa-volume-up"></i></button>
+            <button class="menu-btn" id="menuToggle" aria-label="القائمة"><i class="fas fa-ellipsis-v"></i></button>
         </div>
         <div class="header-left">
             <div class="btn-group">
@@ -413,8 +469,12 @@ HTML_TEMPLATE = r"""
     <div class="dropdown" id="dropdown">
         <button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
         <button class="item" onclick="window.location.href='/plans'"><i class="fas fa-gem"></i> ترقية</button>
+        
+        <!-- ===== NEW: زر مشاركة المحادثة (يظهر النافذة المنبثقة) ===== -->
         <button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button>
+        
         <button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button>
+        
         <div class="item" style="flex-direction: column; align-items: stretch; gap: 6px; cursor: default; border-bottom: 1px solid var(--border-color);">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-primary);">
                 <i class="fas fa-microphone" style="font-size: 18px; color: var(--text-secondary);"></i>
@@ -453,6 +513,7 @@ HTML_TEMPLATE = r"""
     <input type="file" id="fileInputGeneric" style="display: none;" />
 </div>
 
+<!-- ===== NEW: نافذة المشاركة الاجتماعية المنبثقة ===== -->
 <div class="share-modal" id="shareModal">
     <div class="box">
         <h3><i class="fas fa-share-alt" style="color:var(--primary-color);"></i> شارك المحادثة</h3>
@@ -497,14 +558,16 @@ HTML_TEMPLATE = r"""
         muteBtn.querySelector('i').className = 'fas fa-volume-mute';
         muteBtn.classList.add('muted');
 
-        muteBtn.addEventListener('click', function(e) {
-            e.preventDefault();
+        muteBtn.addEventListener('click', function() {
             isMuted = !isMuted;
             const icon = muteBtn.querySelector('i');
             if (isMuted) {
                 icon.className = 'fas fa-volume-mute';
                 muteBtn.classList.add('muted');
-                if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+                if (currentAudio) { 
+                    currentAudio.pause(); 
+                    currentAudio.currentTime = 0; 
+                }
             } else {
                 icon.className = 'fas fa-volume-up';
                 muteBtn.classList.remove('muted');
@@ -514,24 +577,31 @@ HTML_TEMPLATE = r"""
         let isMale = true;
         const genderOptions = document.querySelectorAll('.gender-option');
         menuToggle.addEventListener('click', function(e) {
-            e.preventDefault(); e.stopPropagation();
+            e.stopPropagation();
             dropdown.classList.toggle('show');
             if (dropdown.classList.contains('show')) {
                 loadHistory();
                 genderOptions.forEach(btn => btn.classList.remove('active'));
-                if (isMale) { document.querySelector('.gender-option[data-gender="male"]').classList.add('active'); }
-                else { document.querySelector('.gender-option[data-gender="female"]').classList.add('active'); }
+                if (isMale) {
+                    document.querySelector('.gender-option[data-gender="male"]').classList.add('active');
+                } else {
+                    document.querySelector('.gender-option[data-gender="female"]').classList.add('active');
+                }
             }
         });
 
         genderOptions.forEach(btn => {
             btn.addEventListener('click', function(e) {
-                e.preventDefault(); e.stopPropagation();
+                e.stopPropagation();
                 const gender = this.dataset.gender;
                 isMale = gender === 'male';
                 genderOptions.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-                fetch('/set_gender', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gender: gender }) });
+                fetch('/set_gender', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gender: gender })
+                });
                 dropdown.classList.remove('show');
             });
         });
@@ -555,7 +625,9 @@ HTML_TEMPLATE = r"""
                     empty.textContent = '📭 لا توجد محادثات سابقة';
                     historyList.appendChild(empty);
                 }
-            } catch (e) { console.error('خطأ في تحميل المحادثات:', e); }
+            } catch (e) {
+                console.error('خطأ في تحميل المحادثات:', e);
+            }
         }
 
         async function loadConversation(convId) {
@@ -572,11 +644,12 @@ HTML_TEMPLATE = r"""
                     });
                     dropdown.classList.remove('show');
                 }
-            } catch (e) { console.error('خطأ في تحميل المحادثة:', e); }
+            } catch (e) {
+                console.error('خطأ في تحميل المحادثة:', e);
+            }
         }
 
-        document.querySelector('[data-action="new"]').addEventListener('click', function(e) {
-            e.preventDefault();
+        document.querySelector('[data-action="new"]').addEventListener('click', function() {
             chatBox.innerHTML = '';
             conversationHistory = [];
             currentConvId = null;
@@ -586,291 +659,422 @@ HTML_TEMPLATE = r"""
             userInput.value = '';
         });
 
+        // ===== NEW: ميزة مشاركة المحادثة (فتح النافذة المنبثقة) =====
         document.querySelector('[data-action="share"]').addEventListener('click', function(e) {
-            e.preventDefault(); e.stopPropagation();
+            e.stopPropagation();
             if (!currentConvId) {
-                addMessage('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.', 'bot', true);
+                alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');
                 dropdown.classList.remove('show');
                 return;
             }
             const url = window.location.origin + '/share/' + currentConvId;
             const text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
+            
+            // تحديث روابط المشاركة
             document.getElementById('shareWhatsapp').href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
             document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
             document.getElementById('shareTwitter').href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
+            
+            // زر سناب شات ينسخ الرابط
             const snapBtn = document.getElementById('shareSnapchat');
             snapBtn.onclick = function(ev) {
                 ev.stopPropagation();
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(url).then(() => { addMessage('✅ تم نسخ الرابط! افتح سناب شات والصقه.', 'bot', true); })
-                    .catch(() => { addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true); });
-                } else { addMessage('❌ فشل النسخ، الرابط هو: ' + url, 'bot', true); }
+                    navigator.clipboard.writeText(url).then(() => {
+                        alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.');
+                    }).catch(() => {
+                        alert('❌ فشل النسخ، الرابط هو: ' + url);
+                    });
+                } else {
+                    alert('❌ فشل النسخ، الرابط هو: ' + url);
+                }
                 shareModal.classList.remove('show');
             };
+
             shareModal.classList.add('show');
             dropdown.classList.remove('show');
         });
 
-        shareModal.addEventListener('click', function(e) { if (e.target === shareModal) shareModal.classList.remove('show'); });
+        // عند الضغط خارج النافذة تنغلق
+        shareModal.addEventListener('click', function(e) {
+            if (e.target === shareModal) {
+                shareModal.classList.remove('show');
+            }
+        });
 
+        // ===== وظيفة تبديل الثيم (الفاتح أساسي، الداكن ثانوي) =====
         const themeToggleBtn = document.querySelector('[data-action="theme-toggle"]');
         const themeLabel = document.getElementById('themeLabel');
+        
         function setTheme(theme) {
             const html = document.documentElement;
-            if (theme === 'dark') { html.classList.add('dark-mode'); themeLabel.textContent = 'الوضع الليلي'; themeToggleBtn.querySelector('i').className = 'fas fa-moon'; localStorage.setItem('nibras-theme', 'dark'); }
-            else { html.classList.remove('dark-mode'); themeLabel.textContent = 'الوضع النهاري'; themeToggleBtn.querySelector('i').className = 'fas fa-sun'; localStorage.setItem('nibras-theme', 'light'); }
+            if (theme === 'dark') {
+                html.classList.add('dark-mode');
+                themeLabel.textContent = 'الوضع الليلي';
+                themeToggleBtn.querySelector('i').className = 'fas fa-moon';
+                localStorage.setItem('nibras-theme', 'dark');
+            } else {
+                html.classList.remove('dark-mode');
+                themeLabel.textContent = 'الوضع النهاري';
+                themeToggleBtn.querySelector('i').className = 'fas fa-sun';
+                localStorage.setItem('nibras-theme', 'light');
+            }
         }
+
         const savedTheme = localStorage.getItem('nibras-theme') || 'light';
         setTheme(savedTheme);
-        if (themeToggleBtn) { themeToggleBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); const current = document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light'; const newTheme = current === 'dark' ? 'light' : 'dark'; setTheme(newTheme); dropdown.classList.remove('show'); }); }
 
+        if (themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const current = document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light';
+                const newTheme = current === 'dark' ? 'light' : 'dark';
+                setTheme(newTheme);
+                dropdown.classList.remove('show');
+            });
+        }
+
+        // ===== باقي دوال الدردشة كما هي =====
         function formatBotText(text) {
-            var safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            var safe = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
             safe = safe.replace(/^### (.*)$/gm, '<h3>$1</h3>');
             safe = safe.replace(/^## (.*)$/gm, '<h2>$1</h2>');
             safe = safe.replace(/^# (.*)$/gm, '<h1>$1</h1>');
             safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
+
             var paragraphs = safe.split(/\n\s*\n/);
             return paragraphs.map(function(paragraph) {
-                paragraph = paragraph.trim(); if (!paragraph) return '';
+                paragraph = paragraph.trim();
+                if (!paragraph) return '';
                 paragraph = paragraph.replace(/\n/g, ' ');
                 return '<p>' + paragraph + '</p>';
             }).join('');
         }
 
         function addMessage(text, sender, isSystem, imageData) {
-            sender = sender || 'bot'; isSystem = isSystem || false;
+            sender = sender || 'bot';
+            isSystem = isSystem || false;
             var el = document.createElement('div');
             el.className = 'msg ' + sender;
             if (sender === 'error') el.classList.add('error');
+
             var now = new Date();
             var time = isSystem ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            
             if (imageData) {
                 el.innerHTML = '<img src="' + imageData + '" class="image-upload" /><span class="file-label">' + (text || 'صورة') + '</span>' + (time ? ' <span class="time">'+time+'</span>' : '');
-                chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight; return el;
+                chatBox.appendChild(el);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                return el;
             }
+
             var imageUrlMatch = text.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
-            var displayText = text; var generatedImageUrl = null;
-            if (imageUrlMatch) { generatedImageUrl = imageUrlMatch[0]; displayText = text.replace(imageUrlMatch[0], '').trim(); if (!displayText) displayText = '🖼️ الصورة المولدة'; }
+            var displayText = text;
+            var generatedImageUrl = null;
+
+            if (imageUrlMatch) {
+                generatedImageUrl = imageUrlMatch[0];
+                displayText = text.replace(imageUrlMatch[0], '').trim();
+                if (!displayText) displayText = '🖼️ الصورة المولدة';
+            }
+
             if (sender === 'bot' && !isSystem && !generatedImageUrl) {
                 el.innerHTML = '<div class="bot-content"><span class="typing-text"></span></div>' + (time ? ' <span class="time">'+time+'</span>' : '');
-                chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight;
-                var typingSpan = el.querySelector('.typing-text'); var index = 0; var userInteracted = false;
-                var onUserInteract = function() { userInteracted = true; chatBox.removeEventListener('touchstart', onUserInteract); chatBox.removeEventListener('scroll', onUserInteract); };
-                chatBox.addEventListener('touchstart', onUserInteract); chatBox.addEventListener('scroll', onUserInteract);
+                chatBox.appendChild(el);
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+                var typingSpan = el.querySelector('.typing-text');
+                var index = 0;
+                var userInteracted = false;
+
+                var onUserInteract = function() {
+                    userInteracted = true;
+                    chatBox.removeEventListener('touchstart', onUserInteract);
+                    chatBox.removeEventListener('scroll', onUserInteract);
+                };
+
+                chatBox.addEventListener('touchstart', onUserInteract);
+                chatBox.addEventListener('scroll', onUserInteract);
+
                 function typeChar() {
-                    if (index < displayText.length) { typingSpan.textContent += displayText.charAt(index); index++; if (!userInteracted) chatBox.scrollTop = chatBox.scrollHeight; setTimeout(typeChar, 20); }
-                    else { typingSpan.innerHTML = formatBotText(displayText); chatBox.scrollTop = chatBox.scrollHeight; }
+                    if (index < displayText.length) {
+                        typingSpan.textContent += displayText.charAt(index);
+                        index++;
+
+                        if (!userInteracted) {
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                        }
+
+                        setTimeout(typeChar, 20);
+                    } else {
+                        typingSpan.innerHTML = formatBotText(displayText);
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    }
                 }
-                typeChar(); return el;
+
+                typeChar();
+                return el;
             }
+
             var content = displayText;
-            if (sender === 'bot') content = '<div class="bot-content">' + formatBotText(displayText) + '</div>';
-            if (generatedImageUrl) content += '<br/><img src="' + generatedImageUrl + '" class="generated-image" />';
+
+            if (sender === 'bot') {
+                content = '<div class="bot-content">' + formatBotText(displayText) + '</div>';
+            }
+
+            if (generatedImageUrl) {
+                content += '<br/><img src="' + generatedImageUrl + '" class="generated-image" />';
+            }
+
             el.innerHTML = content + (time ? ' <span class="time">'+time+'</span>' : '');
-            chatBox.appendChild(el); chatBox.scrollTop = chatBox.scrollHeight; return el;
+            chatBox.appendChild(el);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return el;
         }
 
         function showWelcome() {
             if (!sessionStorage.getItem('welcomeShown')) {
                 var overlay = document.createElement('div');
                 overlay.className = 'welcome-overlay';
+
                 overlay.innerHTML = '<div class="welcome-box"><h2>👋 أهلاً بك في نبراس</h2><p>نورتنا! كيف نقدر نساعدك اليوم؟</p></div>';
+
                 document.body.appendChild(overlay);
                 sessionStorage.setItem('welcomeShown', 'true');
-                setTimeout(function() { if (document.body.contains(overlay)) { overlay.classList.add('fade-out'); setTimeout(function() { if (document.body.contains(overlay)) overlay.remove(); }, 500); } }, 5000);
-                var removeWelcome = function() { if (document.body.contains(overlay)) { overlay.classList.add('fade-out'); setTimeout(function() { if (document.body.contains(overlay)) overlay.remove(); }, 500); } document.removeEventListener('click', removeWelcome); userInput.removeEventListener('keydown', removeWelcome); };
-                document.addEventListener('click', removeWelcome); userInput.addEventListener('keydown', removeWelcome);
+
+                setTimeout(function() {
+                    if (document.body.contains(overlay)) {
+                        overlay.classList.add('fade-out');
+                        setTimeout(function() {
+                            if (document.body.contains(overlay)) overlay.remove();
+                        }, 500);
+                    }
+                }, 5000);
+
+                var removeWelcome = function() {
+                    if (document.body.contains(overlay)) {
+                        overlay.classList.add('fade-out');
+                        setTimeout(function() {
+                            if (document.body.contains(overlay)) overlay.remove();
+                        }, 500);
+                    }
+
+                    document.removeEventListener('click', removeWelcome);
+                    userInput.removeEventListener('keydown', removeWelcome);
+                };
+
+                document.addEventListener('click', removeWelcome);
+                userInput.addEventListener('keydown', removeWelcome);
             }
         }
 
-        function showImagePreview(dataUrl) { imagePreview.src = dataUrl; imagePreviewContainer.style.display = 'flex'; }
-        function clearPendingImage() { pendingImageData = null; imagePreviewContainer.style.display = 'none'; imagePreview.src = ''; }
-        removeImageBtn.addEventListener('click', function(e) { e.preventDefault(); clearPendingImage(); });
+        function showImagePreview(dataUrl) {
+            imagePreview.src = dataUrl;
+            imagePreviewContainer.style.display = 'flex';
+        }
 
-        userInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 80) + 'px'; });
+        function clearPendingImage() {
+            pendingImageData = null;
+            imagePreviewContainer.style.display = 'none';
+            imagePreview.src = '';
+        }
+
+        removeImageBtn.addEventListener('click', clearPendingImage);
+
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+        });
 
         var plusOpen = false;
-        plusBtn.addEventListener('click', function(e) { e.preventDefault(); plusOpen = !plusOpen; plusOptions.classList.toggle('show', plusOpen); this.classList.toggle('rotate', plusOpen); });
-        document.addEventListener('click', function(e) { if (!plusBtn.contains(e.target) && !plusOptions.contains(e.target)) { plusOptions.classList.remove('show'); plusOpen = false; plusBtn.classList.remove('rotate'); } });
 
-        galleryBtn.addEventListener('click', function(e) { e.preventDefault(); fileInput.click(); plusOptions.classList.remove('show'); });
-        fileInput.addEventListener('change', function(e) { if (this.files && this.files.length > 0) { var reader = new FileReader(); reader.onload = function(ev) { pendingImageData = ev.target.result; showImagePreview(pendingImageData); fileInput.value = ''; }; reader.readAsDataURL(this.files[0]); } });
-        cameraBtn.addEventListener('click', function(e) { e.preventDefault(); cameraInput.click(); plusOptions.classList.remove('show'); });
-        cameraInput.addEventListener('change', function(e) { if (this.files && this.files.length > 0) { var reader = new FileReader(); reader.onload = function(ev) { pendingImageData = ev.target.result; showImagePreview(pendingImageData); cameraInput.value = ''; }; reader.readAsDataURL(this.files[0]); } });
+        plusBtn.addEventListener('click', function() {
+            plusOpen = !plusOpen;
+            plusOptions.classList.toggle('show', plusOpen);
+            this.classList.toggle('rotate', plusOpen);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!plusBtn.contains(e.target) && !plusOptions.contains(e.target)) {
+                plusOptions.classList.remove('show');
+                plusOpen = false;
+                plusBtn.classList.remove('rotate');
+            }
+        });
+
+        galleryBtn.addEventListener('click', function() {
+            fileInput.click();
+            plusOptions.classList.remove('show');
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                var reader = new FileReader();
+
+                reader.onload = function(ev) {
+                    pendingImageData = ev.target.result;
+                    showImagePreview(pendingImageData);
+                    fileInput.value = '';
+                };
+
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+
+        cameraBtn.addEventListener('click', function() {
+            cameraInput.click();
+            plusOptions.classList.remove('show');
+        });
+
+        cameraInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                var reader = new FileReader();
+
+                reader.onload = function(ev) {
+                    pendingImageData = ev.target.result;
+                    showImagePreview(pendingImageData);
+                    cameraInput.value = '';
+                };
+
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
 
         async function sendMessage() {
             if (isWaiting) return;
-            var text = userInput.value.trim(); var imageToSend = pendingImageData;
+
+            var text = userInput.value.trim();
+            var imageToSend = pendingImageData;
+
             if (!text && !imageToSend) return;
+
             if (text) addMessage(text, 'user');
-            if (imageToSend) { addMessage('🖼️ صورة مرفقة', 'user', false, imageToSend); clearPendingImage(); }
-            userInput.value = ''; userInput.style.height = 'auto'; isWaiting = true;
+
+            if (imageToSend) {
+                addMessage('🖼️ صورة مرفقة', 'user', false, imageToSend);
+                clearPendingImage();
+            }
+
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            isWaiting = true;
+
             var typingDiv = document.createElement('div');
             typingDiv.className = 'msg bot typing-indicator';
             typingDiv.innerHTML = '<span class="typing-dots">جاري التفكير</span>';
-            chatBox.appendChild(typingDiv); chatBox.scrollTop = chatBox.scrollHeight;
-            var payload = { message: text || "📎 مرفق", image: imageToSend || null, history: conversationHistory, conv_id: currentConvId };
+            chatBox.appendChild(typingDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            var payload = {
+                message: text || "📎 مرفق",
+                image: imageToSend || null,
+                history: conversationHistory,
+                conv_id: currentConvId
+            };
+
             try {
-                var res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                var res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
                 var data = await res.json();
-                if (typingDiv && typingDiv.parentNode) typingDiv.remove();
-                if (res.ok) {
-                    addMessage(data.reply, 'bot');
-                    if (!isMuted && data.audio) {
-                        if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
-                        var audioSrc = 'data:audio/mp3;base64,' + data.audio;
-                        currentAudio = new Audio(audioSrc); currentAudio.play();
-                    }
-                    if (data.conv_id) currentConvId = data.conv_id;
-                } else { addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error'); }
-            } catch (e) {
-                if (typingDiv && typingDiv.parentNode) typingDiv.remove();
-                addMessage('تعذر الاتصال بالسيرفر، حاول مرة أخرى.', 'error');
-            } finally { isWaiting = false; }
-        }
-
-        sendBtn.addEventListener('click', function(e) { e.preventDefault(); sendMessage(); });
-        userInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } });
-        document.addEventListener('click', function(e) { if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('show'); });
-
-        var recognition = null;
-        micBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (!('webkitSpeechRecognition' in window)) { addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true); return; }
-            if (this.classList.contains('listening')) { this.classList.remove('listening'); if (recognition) recognition.stop(); return; }
-            var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognition = new SR();
-            recognition.lang = 'ar-SA';
-            this.classList.add('listening');
-            addMessage('جاري الاستماع...', 'bot', true);
-            recognition.onresult = function(event) { var transcript = event.results[0][0].transcript; userInput.value = transcript; micBtn.classList.remove('listening'); setTimeout(function() { sendMessage(); }, 300); };
-            recognition.onerror = function() { micBtn.classList.remove('listening'); };
-            recognition.start();
-        });
-
-        let realtimeSocket = null;
-        let realtimeStream = null;
-        let audioContext = null;
-        const callBtn = document.getElementById('realtimeCallBtn');
-
-        async function startRealtimeCall() {
-            try {
-                const tokenRes = await fetch('/api/realtime-token');
-                if (!tokenRes.ok) {
-                    const errorData = await tokenRes.json();
-                    if (errorData.error === 'premium_required') {
-                        addMessage('🔒 ' + errorData.message + '\nسيتم توجيهك لصفحة الترقية.', 'bot', true);
-                        setTimeout(() => { window.location.href = '/plans'; }, 1500);
-                    } else {
-                        addMessage('⚠️ ' + (errorData.message || 'حدث خطأ غير معروف.'), 'bot', true);
-                    }
-                    return;
+                
+                if (typingDiv && typingDiv.parentNode) {
+                    typingDiv.remove();
                 }
 
-                const tokenData = await tokenRes.json();
-                const ephemeralKey = tokenData.client_secret;
+                if (res.ok) {
+                    addMessage(data.reply, 'bot');
 
-                const ws = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', [
-                    'realtime',
-                    `openai-insecure-api-key.${ephemeralKey}`
-                ]);
-                realtimeSocket = ws;
-
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                realtimeStream = stream;
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-                ws.onopen = () => {
-                    console.log('✅ WebSocket مفتوح');
-                    // ✅ هنا نقوم بإرسال modalities في session.update
-                    ws.send(JSON.stringify({
-                        type: 'session.update',
-                        session: {
-                            modalities: ["audio", "text"],
-                            instructions: "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً.",
-                            voice: "marin",
-                            input_audio_format: "pcm16",
-                            output_audio_format: "pcm16",
-                            input_audio_transcription: { model: "whisper-1" },
-                            turn_detection: { type: "server_vad", threshold: 0.5, silence_duration_ms: 700 }
+                    if (!isMuted && data.audio) {
+                        if (currentAudio) { 
+                            currentAudio.pause(); 
+                            currentAudio.currentTime = 0; 
                         }
-                    }));
 
-                    const audioContext2 = new AudioContext();
-                    const source = audioContext2.createMediaStreamSource(stream);
-                    const processor = audioContext2.createScriptProcessor(4096, 1, 1);
-                    source.connect(processor);
-                    processor.connect(audioContext2.destination);
-
-                    processor.onaudioprocess = (event) => {
-                        if (ws.readyState === WebSocket.OPEN) {
-                            const inputData = event.inputBuffer.getChannelData(0);
-                            const pcmData = new Int16Array(inputData.length);
-                            for (let i = 0; i < inputData.length; i++) {
-                                pcmData[i] = Math.max(-32768, Math.min(32767, Math.round(inputData[i] * 32767)));
-                            }
-                            const base64 = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
-                            ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: base64 }));
-                        }
-                    };
-                };
-
-                ws.onmessage = (e) => {
-                    const event = JSON.parse(e.data);
-                    if (event.type === 'response.audio.delta') {
-                        const audioBase64 = event.delta;
-                        const binary = atob(audioBase64);
-                        const arrayBuffer = new ArrayBuffer(binary.length);
-                        const view = new Uint8Array(arrayBuffer);
-                        for (let i = 0; i < binary.length; i++) { view[i] = binary.charCodeAt(i); }
-                        audioContext.decodeAudioData(arrayBuffer, (buffer) => {
-                            const source = audioContext.createBufferSource();
-                            source.buffer = buffer;
-                            source.connect(audioContext.destination);
-                            source.start(0);
-                        });
+                        var audioSrc = 'data:audio/mp3;base64,' + data.audio;
+                        currentAudio = new Audio(audioSrc);
+                        currentAudio.play();
                     }
-                };
 
-                ws.onerror = (err) => { console.error('❌ خطأ في WebSocket:', err); stopRealtimeCall(); };
+                    if (data.conv_id) {
+                        currentConvId = data.conv_id;
+                    }
+                } else {
+                    addMessage('خطأ: ' + (data.error || 'مشكلة في السيرفر'), 'error');
+                }
 
-                ws.onclose = (event) => {
-                    console.log('🔌 WebSocket مغلق', event.code, event.reason);
-                    addMessage('⚠️ سبب الإغلاق هو: كود ' + event.code + ' - ' + (event.reason || 'الخادم رفض الطلب'), 'bot', true);
-                    stopRealtimeCall();
-                };
+            } catch (e) {
+                if (typingDiv && typingDiv.parentNode) {
+                    typingDiv.remove();
+                }
 
-                callBtn.classList.add('active');
-                callBtn.innerHTML = '<i class="fas fa-phone-slash"></i>';
-                addMessage('📞 تم فتح الاتصال الصوتي المباشر. تكلم بحرية.', 'bot', true);
+                addMessage('تعذر الاتصال بالسيرفر، حاول مرة أخرى.', 'error');
 
-            } catch (err) {
-                console.error('❌ خطأ في المكالمة:', err);
-                addMessage('❌ فشل فتح الاتصال الصوتي: ' + err.message, 'bot', true);
-                stopRealtimeCall();
+            } finally {
+                isWaiting = false;
             }
         }
 
-        function stopRealtimeCall() {
-            if (realtimeSocket) { try { realtimeSocket.close(); } catch (e) {} realtimeSocket = null; }
-            if (realtimeStream) { realtimeStream.getTracks().forEach(track => track.stop()); realtimeStream = null; }
-            if (audioContext) { try { audioContext.close(); } catch (e) {} audioContext = null; }
-            const audioElements = document.querySelectorAll('audio');
-            audioElements.forEach(a => { a.pause(); a.srcObject = null; });
-            callBtn.classList.remove('active');
-            callBtn.innerHTML = '<i class="fas fa-phone"></i>';
-            addMessage('📞 تم إغلاق الاتصال الصوتي.', 'bot', true);
-        }
+        sendBtn.addEventListener('click', sendMessage);
 
-        callBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (this.classList.contains('active')) { stopRealtimeCall(); }
-            else { startRealtimeCall(); }
+        userInput.addEventListener('keypress', function(e) { 
+            if (e.key === 'Enter') { 
+                e.preventDefault(); 
+                sendMessage(); 
+            } 
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!menuToggle.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        var recognition = null;
+
+        micBtn.addEventListener('click', function() {
+            if (!('webkitSpeechRecognition' in window)) {
+                addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true);
+                return;
+            }
+
+            if (this.classList.contains('listening')) {
+                this.classList.remove('listening');
+                if (recognition) recognition.stop();
+                return;
+            }
+
+            var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SR();
+            recognition.lang = 'ar-SA';
+
+            this.classList.add('listening');
+            addMessage('جاري الاستماع...', 'bot', true);
+
+            recognition.onresult = function(event) {
+                var transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                micBtn.classList.remove('listening');
+                setTimeout(function() { sendMessage(); }, 300);
+            };
+
+            recognition.onerror = function() {
+                micBtn.classList.remove('listening');
+            };
+
+            recognition.start();
         });
 
         showWelcome();
+
     })();
 </script>
 </body>
@@ -954,58 +1158,6 @@ PLANS_HTML = """
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
-
-@app.route('/api/realtime-token', methods=['GET'])
-def get_realtime_token():
-    if 'admin_email' in session:
-        pass
-    elif 'user_email' in session:
-        if session.get('is_premium'):
-            pass
-        else:
-            return jsonify({"error": "premium_required", "message": "🔒 التحدث مع المساعد يتطلب الترقية أو الاشتراك."}), 403
-    else:
-        return jsonify({"error": "premium_required", "message": "🔒 التحدث مع المساعد يتطلب الترقية أو الاشتراك."}), 403
-
-    try:
-        if not OPENAI_API_KEY:
-            return jsonify({"error": "مفتاح API مفقود"}), 500
-
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {OPENAI_API_KEY}"}
-        
-        instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
-        
-        payload = {
-            "session": {
-                "type": "realtime",
-                "model": "gpt-4o-realtime-preview",
-                "instructions": instructions,
-                "audio": {
-                    "input": {"format": {"type": "audio/pcm", "rate": 24000}},
-                    "output": {"format": {"type": "audio/pcm", "rate": 24000}, "voice": "marin"}
-                },
-                "turn_detection": {"type": "server_vad", "threshold": 0.5, "silence_duration_ms": 500}
-            }
-        }
-
-        response = requests.post(
-            "https://api.openai.com/v1/realtime/client_secrets",
-            headers=headers,
-            json=payload,
-            timeout=10
-        )
-        
-        if response.status_code != 200:
-            error_body = response.text
-            return jsonify({"error": "api_error", "message": f"فشل الخادم: {error_body}"}), response.status_code
-
-        data = response.json()
-        return jsonify({"client_secret": data.get("value") or data.get("client_secret")})
-        
-    except requests.exceptions.Timeout:
-        return jsonify({"error": "انتهى الوقت في الاتصال بـ OpenAI"}), 504
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/share/<conv_id>')
 def shared_conversation(conv_id):
@@ -1222,10 +1374,9 @@ def chat():
         try:
             user_gender = session.get('voice_gender', 'male')
             # ============================================================
-            # ✅ التعديل الجديد هنا: استدعاء الدالة مباشرة بدون asyncio.run
+            # ✅ استدعاء الدالة الجديدة (متزامنة) بدلاً من asyncio.run
             # ============================================================
             audio_base64 = generate_speech(reply, user_gender)
-            # ============================================================
         except Exception as e:
             print(f"⚠️ فشل توليد الصوت: {e}")
             audio_base64 = None
