@@ -124,13 +124,26 @@ def generate_image(prompt):
     except Exception as e:
         print(f"❌ فشل توليد الصورة: {e}"); return None
 
-async def generate_speech(text, gender):
-    voice_id = "ar-SA-HamedNeural" if gender == "male" else "ar-SA-ZariyahNeural"
-    communicate = edge_tts.Communicate(remove_emoji(text), voice_id, rate='-15%')
-    audio_data = b""
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio": audio_data += chunk["data"]
-    return base64.b64encode(audio_data).decode('utf-8')
+# ====================================================
+# ✅ التعديل الجديد: استخدام OpenAI TTS بدلاً من Edge TTS
+# ====================================================
+def generate_speech(text, gender):
+    try:
+        # اختيار الصوت: Onyx للذكر، Nova للأنثى (أفضل تطابق للهجة العربية)
+        voice = "onyx" if gender == "male" else "nova"
+        
+        response = client.audio.speech.create(
+            model="tts-1",          # نموذج خفيف وسريع
+            voice=voice,
+            input=remove_emoji(text),
+            response_format="mp3"   # تنسيق الصوت
+        )
+        audio_data = response.content  # استخراج البيانات الثنائية
+        return base64.b64encode(audio_data).decode('utf-8')
+    except Exception as e:
+        print(f"❌ فشل توليد الصوت عبر OpenAI: {e}")
+        return None
+# ====================================================
 
 SHARED_PAGE_HTML = """
 <!DOCTYPE html>
@@ -942,7 +955,6 @@ PLANS_HTML = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# ✅ التعديل الصحيح: إزالة modalities و output_modalities من الطلب (لأنها تُرسل في WebSocket)
 @app.route('/api/realtime-token', methods=['GET'])
 def get_realtime_token():
     if 'admin_email' in session:
@@ -963,7 +975,6 @@ def get_realtime_token():
         
         instructions = "أنت نبراس، مساعد ذكي سعودي. تحدث باختصار شديد وباللهجة البيضاء، وكن ودوداً ومباشراً."
         
-        # ✅ تم إزالة "modalities" و "output_modalities" لأنها تُرسل داخل WebSocket وليس في طلب التوكن
         payload = {
             "session": {
                 "type": "realtime",
@@ -1210,7 +1221,11 @@ def chat():
 
         try:
             user_gender = session.get('voice_gender', 'male')
-            audio_base64 = asyncio.run(generate_speech(reply, user_gender))
+            # ============================================================
+            # ✅ التعديل الجديد هنا: استدعاء الدالة مباشرة بدون asyncio.run
+            # ============================================================
+            audio_base64 = generate_speech(reply, user_gender)
+            # ============================================================
         except Exception as e:
             print(f"⚠️ فشل توليد الصوت: {e}")
             audio_base64 = None
