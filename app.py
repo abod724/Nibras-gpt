@@ -95,7 +95,9 @@ def login():
    if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
    if secrets.compare_digest(p,ap):session.clear();session['admin_email']=ae;return redirect(url_for('index'))
    else:return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
-  elif e and "@" in e:session['user_email']=e;session['trial_remaining']=5;session['is_trial_expired']=False;return redirect(url_for('index'))
+  elif e and "@" in e:
+   session['user_email']=e
+   return redirect(url_for('index'))
   else:return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
  return render_template_string(LH)
 @app.route('/logout')
@@ -125,19 +127,18 @@ def chat():
   d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
   if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
   is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com"
-  is_trial='user_email' in session and not is_admin;tr=session.get('trial_remaining',0);uid=get_user_id()
+  uid=get_user_id()
   if cid is None:sm[uid]=[]
-  if is_admin:model="gpt-4o";use_web=True;allow_img=True
-  elif is_trial and tr>0 and not session.get('is_trial_expired'):model="gpt-4o";use_web=False;allow_img=False
-  else:model="gpt-4o";use_web=False;allow_img=False
+  if is_admin:
+   model="gpt-4o";use_web=True;allow_img=True
+  else:
+   model="gpt-4o";use_web=False;allow_img=False
   draw_keys=["ارسم","أنشئ","انشئ","انشى","صوره","صورة","صور","رسم","ارسمي","صمم","ولّد","generate","draw","ارسم لي","أنشئ لي","انشئ لي","انشى لي","صوره لي"]
   if allow_img and any(k in um for k in draw_keys):
    print(f"🎨 اكتشاف طلب رسم: {um}")
    img_url=generate_image(um)
    if img_url:
     reply=f"🖼️ إليك الصورة التي طلبتها:\n{img_url}";sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-    if is_trial and tr>0:session['trial_remaining']=tr-1
-    if session.get('trial_remaining',0)==0:session['is_trial_expired']=True
     return jsonify({"reply":reply,"conv_id":nid})
   sm[uid].append({"role":"user","content":um});ch=sm[uid][-10:];msgs=[{"role":"system","content":SP}]
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
@@ -157,13 +158,14 @@ def chat():
    r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=1000,temperature=0.8);reply=r.choices[0].message.content.strip()
    if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
   except openai.BadRequestError as e:
-   print(f"⚠️ فشل {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
-   try:r=client.chat.completions.create(model="gpt-4o-mini",messages=msgs,max_completion_tokens=800,temperature=0.8);reply=r.choices[0].message.content.strip();reply=reply or "فشل النموذج المتقدم، تم التبديل للنموذج العادي."
+   print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
+   try:
+    fallback_model="gpt-4o-mini"
+    r=client.chat.completions.create(model=fallback_model,messages=msgs,max_completion_tokens=800,temperature=0.8);reply=r.choices[0].message.content.strip()
+    if not reply:reply="فشل النموذج المتقدم، تم التبديل للنموذج العادي."
    except Exception as e2:reply=f"حدث خطأ في الاتصال بـ OpenAI: {str(e2)}"
   except Exception as e:print(f"❌ خطأ: {e}");reply="حدث خطأ في السيرفر، حاول مرة أخرى."
   sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-  if is_trial and tr>0:session['trial_remaining']=tr-1
-  if session.get('trial_remaining',0)==0:session['is_trial_expired']=True
   try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
   except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
   return jsonify({"reply":reply,"audio":audio,"conv_id":nid})
