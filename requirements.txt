@@ -1,5 +1,5 @@
 flask
-openai
+openai>=1.0.0
 requests
 gunicorn
 edge-tts
