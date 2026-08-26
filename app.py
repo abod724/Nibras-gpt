@@ -198,7 +198,7 @@ SHARED_PAGE_HTML = """
 """
 
 # =====================================================================
-# ===== قالب الواجهة الرئيسية (تم تعديل الـ CSS لاستخدام dvh) =====
+# ===== قالب الواجهة الرئيسية (تم تعديل الـ CSS لاستخدام fixed) =====
 HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -288,7 +288,8 @@ HTML_TEMPLATE = r"""
         html, body {
             margin: 0;
             padding: 0;
-            height: 100dvh;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
             background: var(--bg-body);
             transition: background 0.3s ease;
@@ -297,34 +298,49 @@ HTML_TEMPLATE = r"""
             display: flex;
             justify-content: center;
             align-items: center;
+            position: relative;
         }
         .app {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             width: 100%;
             max-width: 450px;
-            height: 100dvh;
-            max-height: 100dvh;
+            margin: 0 auto;
             background: var(--bg-app);
             display: flex;
             flex-direction: column;
-            position: relative;
             overflow: hidden;
             transition: background 0.3s ease;
+            box-shadow: 0 0 20px var(--shadow-color);
         }
         @media (min-width: 600px) {
             .app {
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                bottom: auto;
+                right: auto;
                 height: 100dvh;
                 max-height: 100dvh;
                 border-radius: 20px;
                 box-shadow: 0 0 20px var(--shadow-color);
             }
         }
-        @media (orientation: landscape) {
+        @media (orientation: landscape) and (max-width: 599px) {
             .app {
                 max-width: 100%;
-                height: 100dvh;
-                max-height: 100dvh;
                 border-radius: 0;
                 box-shadow: none;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                transform: none;
+                height: 100%;
+                max-height: 100%;
             }
         }
         .header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; background: var(--bg-header); transition: background 0.3s ease; }
@@ -347,7 +363,7 @@ HTML_TEMPLATE = r"""
         .dropdown .conv-item { display: block; padding: 12px 18px; border-bottom: 1px solid var(--border-color); cursor: pointer; width: 100%; background: none; border: none; text-align: right; font-size: 16px; color: var(--text-primary); font-weight: 500; transition: background 0.2s; }
         .dropdown .conv-item:hover { background: var(--bg-hover); }
         .dropdown .conv-item:last-child { border-bottom: none; }
-        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; }
+        #chat { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); font-size: 16px; transition: background 0.3s ease; min-height: 0; }
         .msg { max-width: 80%; padding: 12px 18px; border-radius: 20px; font-size: 16px; font-weight: 600; line-height: 2; word-wrap: break-word; white-space: normal; color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
         .msg.user { align-self: flex-end; background: var(--bg-user-msg); border-bottom-left-radius: 6px; }
         .msg.bot { align-self: flex-start; background: var(--bg-bot-msg); border-bottom-right-radius: 6px; }
