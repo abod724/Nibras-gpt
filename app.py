@@ -8,11 +8,15 @@ app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:raise Exception("OPENAI_API_KEY غير موجود!")
 
-# ====== إجبار على وجود النموذج من متغير البيئة (بدون افتراضي) ======
+# ====== نموذج المحادثة من متغير البيئة فقط (بدون افتراضي) ======
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود! أضفه في متغيرات البيئة.")
 # ================================================================
+
+# ====== نموذج توليد الصور (ثابت) ======
+IMAGE_MODEL = "gpt-image-1-mini"  # يمكنك تغييره يدوياً إذا أردت
+# =====================================
 
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
@@ -75,8 +79,17 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 def generate_image(p):
- try:return client.images.generate(model="dall-e-3",prompt=p,n=1,size="1024x1024").data[0].url
- except Exception as e:print(f"❌ فشل توليد الصورة: {e}");return None
+ try:
+    return client.images.generate(
+        model=IMAGE_MODEL,
+        prompt=p,
+        n=1,
+        size="1024x1024",
+        quality="standard"
+    ).data[0].url
+ except Exception as e:
+    print(f"❌ فشل توليد الصورة: {e}")
+    return None
 def generate_speech(text, gender):
  try:
   voice="onyx" if gender=="male" else "nova"
@@ -136,7 +149,7 @@ def chat():
   is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com"
   uid=get_user_id()
   if cid is None:sm[uid]=[]
-  model = OPENAI_MODEL  # ← قراءة النموذج من البيئة (إلزامي)
+  model = OPENAI_MODEL  # ← من متغير البيئة فقط
   if is_admin:
    use_web=True;allow_img=True
   else:
@@ -166,12 +179,13 @@ def chat():
    r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=1000,temperature=0.8);reply=r.choices[0].message.content.strip()
    if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
   except openai.BadRequestError as e:
-   # ====== بدون احتياطي، نرفع الخطأ مباشرة ======
-   print(f"❌ فشل النموذج {model}: {e}")
-   return jsonify({"error": f"النموذج {model} غير مدعوم أو حدث خطأ: {str(e)}"}), 400
-  except Exception as e:
-   print(f"❌ خطأ عام: {e}")
-   return jsonify({"error": str(e)}), 500
+   print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
+   try:
+    fallback_model="gpt-4o-mini"
+    r=client.chat.completions.create(model=fallback_model,messages=msgs,max_completion_tokens=800,temperature=0.8);reply=r.choices[0].message.content.strip()
+    if not reply:reply="فشل النموذج المتقدم، تم التبديل للنموذج العادي."
+   except Exception as e2:reply=f"حدث خطأ في الاتصال بـ OpenAI: {str(e2)}"
+  except Exception as e:print(f"❌ خطأ: {e}");reply="حدث خطأ في السيرفر، حاول مرة أخرى."
   sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
   try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
   except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
