@@ -166,13 +166,12 @@ def chat():
    r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=1000,temperature=0.8);reply=r.choices[0].message.content.strip()
    if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
   except openai.BadRequestError as e:
-   print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
-   try:
-    fallback_model="gpt-4o-mini"
-    r=client.chat.completions.create(model=fallback_model,messages=msgs,max_completion_tokens=800,temperature=0.8);reply=r.choices[0].message.content.strip()
-    if not reply:reply="فشل النموذج المتقدم، تم التبديل للنموذج العادي."
-   except Exception as e2:reply=f"حدث خطأ في الاتصال بـ OpenAI: {str(e2)}"
-  except Exception as e:print(f"❌ خطأ: {e}");reply="حدث خطأ في السيرفر، حاول مرة أخرى."
+   # ====== بدون احتياطي، نرفع الخطأ مباشرة ======
+   print(f"❌ فشل النموذج {model}: {e}")
+   return jsonify({"error": f"النموذج {model} غير مدعوم أو حدث خطأ: {str(e)}"}), 400
+  except Exception as e:
+   print(f"❌ خطأ عام: {e}")
+   return jsonify({"error": str(e)}), 500
   sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
   try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
   except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
