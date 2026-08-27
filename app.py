@@ -7,7 +7,9 @@ app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:raise Exception("OPENAI_API_KEY غير موجود!")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-nano")  # ← نموذج 2025
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
+if not OPENAI_MODEL:
+    raise Exception("OPENAI_MODEL غير موجود! ضعه في متغيرات البيئة.")
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
 limiter.init_app(app)
@@ -130,7 +132,7 @@ def chat():
   is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com"
   uid=get_user_id()
   if cid is None:sm[uid]=[]
-  model = OPENAI_MODEL  # ← استخدام النموذج الجديد
+  model = OPENAI_MODEL  # ← استخدام النموذج من متغير البيئة
   if is_admin:
    use_web=True;allow_img=True
   else:
