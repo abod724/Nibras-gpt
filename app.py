@@ -172,19 +172,40 @@ def chat():
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
   img_data=d.get("image",None)
   if img_data and allow_img:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
+  
+  # ====== البحث عند الطلب (باستخدام gpt-4o مؤقتاً) ======
   if use_web:
-   try:
-    fc=""
-    for m in msgs:
-     if m["role"]=="user":fc+=m["content"]+"\n"
-     elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
-    sr=client.responses.create(model=model,instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",tools=[{"type":"web_search"}])
-    res=sr.output_text.strip()
-    if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
-   except Exception as e:print(f"⚠️ فشل البحث: {e}")
+      try:
+          # استخدام نموذج يدعم web_search (مثل gpt-4o)
+          search_model = "gpt-4o"
+          fc = ""
+          for m in msgs:
+              if m["role"] == "user":
+                  fc += m["content"] + "\n"
+              elif m["role"] == "assistant":
+                  fc += "نبراس: " + m["content"] + "\n"
+          sr = client.responses.create(
+              model=search_model,
+              instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",
+              input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",
+              tools=[{"type": "web_search"}]
+          )
+          res = sr.output_text.strip()
+          if res:
+              msgs.append({"role": "user", "content": f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
+          else:
+              print("⚠️ البحث لم ينتج نتيجة.")
+      except Exception as e:
+          print(f"❌ فشل البحث: {e}")
+          # سنضيف اعتذاراً في الرد النهائي
+  # =====================================================
+
   try:
    r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=1000,temperature=0.8);reply=r.choices[0].message.content.strip()
    if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
+   # إذا فشل البحث، نضيف اعتذاراً
+   if use_web and not any("نتيجة البحث" in m.get("content", "") for m in msgs):
+       reply = "⚠️ تعذر إجراء البحث حالياً، لكن راح أجاوبك من معرفتي العامة.\n\n" + reply
   except openai.BadRequestError as e:
    print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
    try:
