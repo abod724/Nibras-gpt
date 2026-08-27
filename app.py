@@ -8,15 +8,11 @@ app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:raise Exception("OPENAI_API_KEY غير موجود!")
 
-# ====== نموذج المحادثة من متغير البيئة فقط ======
+# ====== إجبار على وجود النموذج من متغير البيئة (بدون افتراضي) ======
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود! أضفه في متغيرات البيئة.")
-# ================================================
-
-# ====== نموذج توليد الصور ======
-IMAGE_MODEL = "gpt-image-1-mini"
-# ================================
+# ================================================================
 
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
@@ -61,7 +57,7 @@ SP=f"""
 **مصادر معرفتك:**
 1. **ملف المعرفة** (أدناه) هو مرجعك الأساسي.
 2. **معرفتك العامة**.
-3. **البحث بالويب** تستخدمه فقط عندما يطلب منك المستخدم صراحةً (مثل "ابحث عن..." أو "أحدث معلومات...").
+3. **البحث بالويب** تستخدمه عندما يسألك عن أي شيء حديث أو غير موجود في ملف المعرفة.
 **ملف المعرفة الخاص بك:**
 {kc}
 **⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
@@ -71,8 +67,7 @@ SP=f"""
 - استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
 **تعليمات مهمة:**
 - إذا سألك المستخدم عن أي شيء، حاول أولاً الإجابة من ملف المعرفة.
-- إذا لم تجد المعلومة في ملف المعرفة، استخدم معرفتك العامة.
-- إذا طلب منك البحث صراحة، فاستخدم البحث بالويب.
+- إذا لم تجد المعلومة في ملف المعرفة، استخدم البحث بالويب.
 - دائماً حافظ على لهجتك العامية البيضاء.
 - إذا لم تجد المعلومة في أي من المصادر، قل بصراحة "ما عندي علم".
 - لا تكتب "لحظة" أو "انتظر"، فقط انتظر النتيجة ورد مباشرة.
@@ -80,17 +75,8 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 def generate_image(p):
- try:
-    return client.images.generate(
-        model=IMAGE_MODEL,
-        prompt=p,
-        n=1,
-        size="1024x1024",
-        quality="standard"
-    ).data[0].url
- except Exception as e:
-    print(f"❌ فشل توليد الصورة: {e}")
-    return None
+ try:return client.images.generate(model="dall-e-3",prompt=p,n=1,size="1024x1024").data[0].url
+ except Exception as e:print(f"❌ فشل توليد الصورة: {e}");return None
 def generate_speech(text, gender):
  try:
   voice="onyx" if gender=="male" else "nova"
@@ -150,17 +136,11 @@ def chat():
   is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com"
   uid=get_user_id()
   if cid is None:sm[uid]=[]
-  model = OPENAI_MODEL
-
-  # ====== البحث بالويب فقط عند الطلب (للأدمن) ======
-  search_keywords = ["ابحث", "بحث", "أحدث", "ويب", "حدث", "معلومة حديثة", "search", "web"]
-  if is_admin and any(k in um for k in search_keywords):
-      use_web = True
+  model = OPENAI_MODEL  # ← قراءة النموذج من البيئة (إلزامي)
+  if is_admin:
+   use_web=True;allow_img=True
   else:
-      use_web = False
-  allow_img = is_admin
-  # ==================================================
-
+   use_web=False;allow_img=False
   draw_keys=["ارسم","أنشئ","انشئ","انشى","صوره","صورة","صور","رسم","ارسمي","صمم","ولّد","generate","draw","ارسم لي","أنشئ لي","انشئ لي","انشى لي","صوره لي"]
   if allow_img and any(k in um for k in draw_keys):
    print(f"🎨 اكتشاف طلب رسم: {um}")
@@ -172,48 +152,26 @@ def chat():
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
   img_data=d.get("image",None)
   if img_data and allow_img:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
-  
-  # ====== البحث عند الطلب (باستخدام gpt-4o مؤقتاً) ======
   if use_web:
-      try:
-          # استخدام نموذج يدعم web_search (مثل gpt-4o)
-          search_model = "gpt-4o"
-          fc = ""
-          for m in msgs:
-              if m["role"] == "user":
-                  fc += m["content"] + "\n"
-              elif m["role"] == "assistant":
-                  fc += "نبراس: " + m["content"] + "\n"
-          sr = client.responses.create(
-              model=search_model,
-              instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",
-              input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",
-              tools=[{"type": "web_search"}]
-          )
-          res = sr.output_text.strip()
-          if res:
-              msgs.append({"role": "user", "content": f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
-          else:
-              print("⚠️ البحث لم ينتج نتيجة.")
-      except Exception as e:
-          print(f"❌ فشل البحث: {e}")
-          # سنضيف اعتذاراً في الرد النهائي
-  # =====================================================
-
+   try:
+    fc=""
+    for m in msgs:
+     if m["role"]=="user":fc+=m["content"]+"\n"
+     elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
+    sr=client.responses.create(model=model,instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",tools=[{"type":"web_search"}])
+    res=sr.output_text.strip()
+    if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
+   except Exception as e:print(f"⚠️ فشل البحث: {e}")
   try:
    r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=1000,temperature=0.8);reply=r.choices[0].message.content.strip()
    if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
-   # إذا فشل البحث، نضيف اعتذاراً
-   if use_web and not any("نتيجة البحث" in m.get("content", "") for m in msgs):
-       reply = "⚠️ تعذر إجراء البحث حالياً، لكن راح أجاوبك من معرفتي العامة.\n\n" + reply
   except openai.BadRequestError as e:
-   print(f"⚠️ فشل نموذج {model}: {e}. جارٍ التبديل لـ gpt-4o-mini.")
-   try:
-    fallback_model="gpt-4o-mini"
-    r=client.chat.completions.create(model=fallback_model,messages=msgs,max_completion_tokens=800,temperature=0.8);reply=r.choices[0].message.content.strip()
-    if not reply:reply="فشل النموذج المتقدم، تم التبديل للنموذج العادي."
-   except Exception as e2:reply=f"حدث خطأ في الاتصال بـ OpenAI: {str(e2)}"
-  except Exception as e:print(f"❌ خطأ: {e}");reply="حدث خطأ في السيرفر، حاول مرة أخرى."
+   # ====== بدون احتياطي، نرفع الخطأ مباشرة ======
+   print(f"❌ فشل النموذج {model}: {e}")
+   return jsonify({"error": f"النموذج {model} غير مدعوم أو حدث خطأ: {str(e)}"}), 400
+  except Exception as e:
+   print(f"❌ خطأ عام: {e}")
+   return jsonify({"error": str(e)}), 500
   sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
   try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
   except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
