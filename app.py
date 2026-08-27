@@ -77,22 +77,32 @@ def generate_speech(text, gender):
   return base64.b64encode(r.content).decode('utf-8')
  except Exception as e:print(f"❌ فشل الصوت: {e}");return None
 
-# ========== FIXED: Voice Session Endpoint ==========
+# ========== FIXED: Voice Session using requests ==========
 @app.route('/voice-session', methods=['POST'])
 @limiter.limit("2 per minute")
 def voice_session():
     try:
-        # الطريقة الصحيحة لـ OpenAI Realtime API (Beta)
-        session = client.beta.realtime.sessions.create(
-            model="gpt-4o-realtime-preview-2024-12-17",
-            voice="verse"  # أو "alloy", "echo", "shimmer"
-        )
-        return jsonify({
-            "client_secret": session.client_secret,
-            "model": session.model
-        })
+        url = "https://api.openai.com/v1/realtime/sessions"
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-4o-realtime-preview-2024-12-17",
+            "voice": "verse"
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            return jsonify({
+                "client_secret": data.get("client_secret"),
+                "model": data.get("model")
+            })
+        else:
+            print(f"❌ فشل إنشاء الجلسة: {response.text}")
+            return jsonify({"error": response.text}), response.status_code
     except Exception as e:
-        print(f"❌ فشل إنشاء جلسة الصوت: {e}")
+        print(f"❌ خطأ في جلسة الصوت: {e}")
         return jsonify({"error": str(e)}), 500
 # =================================================
 
