@@ -7,6 +7,7 @@ app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:raise Exception("OPENAI_API_KEY غير موجود!")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-nano")  # ← نموذج 2025
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
 limiter.init_app(app)
@@ -129,10 +130,11 @@ def chat():
   is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com"
   uid=get_user_id()
   if cid is None:sm[uid]=[]
+  model = OPENAI_MODEL  # ← استخدام النموذج الجديد
   if is_admin:
-   model="gpt-4o";use_web=True;allow_img=True
+   use_web=True;allow_img=True
   else:
-   model="gpt-4o";use_web=False;allow_img=False
+   use_web=False;allow_img=False
   draw_keys=["ارسم","أنشئ","انشئ","انشى","صوره","صورة","صور","رسم","ارسمي","صمم","ولّد","generate","draw","ارسم لي","أنشئ لي","انشئ لي","انشى لي","صوره لي"]
   if allow_img and any(k in um for k in draw_keys):
    print(f"🎨 اكتشاف طلب رسم: {um}")
@@ -150,7 +152,7 @@ def chat():
     for m in msgs:
      if m["role"]=="user":fc+=m["content"]+"\n"
      elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
-    sr=client.responses.create(model="gpt-4o",instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",tools=[{"type":"web_search"}])
+    sr=client.responses.create(model=model,instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",tools=[{"type":"web_search"}])
     res=sr.output_text.strip()
     if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
    except Exception as e:print(f"⚠️ فشل البحث: {e}")
