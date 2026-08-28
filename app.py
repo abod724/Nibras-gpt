@@ -76,7 +76,7 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة المحسّنة مع تعديلات Pillow ======
+# ====== دالة توليد الصورة باستخدام Unsplash مع تعديلات Pillow ======
 def generate_image(prompt):
     try:
         access_key = os.environ.get("UNSPLASH_ACCESS_KEY")
@@ -99,7 +99,6 @@ def generate_image(prompt):
         data = response.json()
         
         if response.status_code != 200 or not data.get("urls"):
-            # محاولة ثانية ببحث أوسع
             words = cleaned.split()
             if len(words) > 2:
                 fallback_query = requests.utils.quote(words[0] + " " + words[1] + " nature")
@@ -122,18 +121,14 @@ def generate_image(prompt):
         # ====== التعديلات باستخدام Pillow ======
         if "أسود" in prompt or "ابيض واسود" in prompt or "رمادي" in prompt:
             img = img.convert("L")
-        
         if "فلتر" in prompt or "ضبابي" in prompt:
             img = img.filter(ImageFilter.BLUR)
-        
         if "زاهي" in prompt or "ساطع" in prompt:
             enhancer = ImageEnhance.Brightness(img)
             img = enhancer.enhance(1.5)
-        
         if "قص" in prompt or "توسيط" in prompt:
             width, height = img.size
             img = img.crop((width//4, height//4, width*3//4, height*3//4))
-        
         if "نص" in prompt or "عبارة" in prompt:
             draw = ImageDraw.Draw(img)
             try:
@@ -141,9 +136,7 @@ def generate_image(prompt):
             except:
                 font = ImageFont.load_default()
             draw.text((50, 50), "نبراس", fill="white", font=font)
-        
         if "إطار" in prompt:
-            # إضافة إطار ملون (أزرق)
             width, height = img.size
             img_with_border = Image.new("RGB", (width+20, height+20), (0, 100, 255))
             img_with_border.paste(img, (10, 10))
@@ -153,7 +146,6 @@ def generate_image(prompt):
         buffered = io.BytesIO()
         img.save(buffered, format="JPEG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-        
         return f"data:image/jpeg;base64,{img_base64}"
         
     except Exception as e:
