@@ -155,10 +155,16 @@ def chat():
   uid=get_user_id()
   if cid is None:sm[uid]=[]
   model = OPENAI_MODEL
+  
+  # ====== التعديل هنا: الصور للجميع، البحث للأدمن فقط ======
   if is_admin:
-   use_web=True;allow_img=True
+   use_web=True
+   allow_img=True
   else:
-   use_web=False;allow_img=False
+   use_web=False      # البحث مقفل للضيوف
+   allow_img=True     # الصور من Unsplash مجانية للجميع
+  # ======================================================
+
   draw_keys=["ارسم","أنشئ","انشئ","انشى","صوره","صورة","صور","رسم","ارسمي","صمم","ولّد","generate","draw","ارسم لي","أنشئ لي","انشئ لي","انشى لي","صوره لي"]
   if allow_img and any(k in um for k in draw_keys):
    print(f"🎨 اكتشاف طلب رسم: {um}")
