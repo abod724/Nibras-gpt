@@ -156,17 +156,29 @@ def chat():
   if cid is None:sm[uid]=[]
   model = OPENAI_MODEL
   
-  # ====== التعديل هنا: الصور للجميع، البحث للأدمن فقط ======
+  # ====== الصور للجميع، البحث للأدمن فقط ======
   if is_admin:
    use_web=True
    allow_img=True
   else:
-   use_web=False      # البحث مقفل للضيوف
-   allow_img=True     # الصور من Unsplash مجانية للجميع
-  # ======================================================
+   use_web=False
+   allow_img=True
+  # ==========================================
+  
+  # ====== قائمة العبارات الدقيقة لطلب الصورة ======
+  draw_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
+  def is_image_request(text):
+      text_lower = text.lower().strip()
+      # إذا كانت الرسالة قصيرة جداً (كلمة واحدة) وما فيها طلب واضح، لا نشتغل
+      if len(text_lower.split()) <= 1:
+          return False
+      for phrase in draw_phrases:
+          if text_lower.startswith(phrase) or phrase in text_lower:
+              return True
+      return False
+  # ==============================================
 
-  draw_keys=["ارسم","أنشئ","انشئ","انشى","صوره","صورة","صور","رسم","ارسمي","صمم","ولّد","generate","draw","ارسم لي","أنشئ لي","انشئ لي","انشى لي","صوره لي"]
-  if allow_img and any(k in um for k in draw_keys):
+  if allow_img and is_image_request(um):
    print(f"🎨 اكتشاف طلب رسم: {um}")
    img_result = generate_image(um)
    if img_result and img_result.startswith("ERROR:"):
@@ -188,6 +200,7 @@ def chat():
         sm[uid].append({"role": "assistant", "content": reply})
         nid = save_user_conversation(uid, sm[uid], cid)
         return jsonify({"reply": reply, "conv_id": nid})
+  
   sm[uid].append({"role":"user","content":um});ch=sm[uid][-10:];msgs=[{"role":"system","content":SP}]
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
   img_data=d.get("image",None)
