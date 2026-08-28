@@ -5,3 +5,4 @@ gunicorn
 edge-tts
 uvicorn
 flask-limiter
+Pillow
