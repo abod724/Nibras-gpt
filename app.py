@@ -3,6 +3,9 @@ import openai,os,secrets,json,hashlib,asyncio,edge_tts,base64,re,sqlite3,request
 from datetime import datetime
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from PIL import Image, ImageFilter, ImageDraw, ImageFont, ImageEnhance
+import io
+
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
@@ -73,24 +76,86 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة باستخدام Unsplash (آمن ومجاني) ======
+# ====== دالة توليد الصورة المحسّنة مع تعديلات Pillow ======
 def generate_image(prompt):
     try:
         access_key = os.environ.get("UNSPLASH_ACCESS_KEY")
         if not access_key:
             return "ERROR: UNSPLASH_ACCESS_KEY غير موجود في البيئة"
         
-        query = requests.utils.quote(prompt)
+        # تنظيف النص من عبارات الطلب
+        cleaned = prompt
+        phrases_to_remove = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
+        for phrase in phrases_to_remove:
+            cleaned = cleaned.replace(phrase, "")
+        cleaned = cleaned.strip()
+        if not cleaned:
+            cleaned = "منظر طبيعي"
+        
+        query = requests.utils.quote(cleaned + " high quality photo")
         url = f"https://api.unsplash.com/photos/random?query={query}&orientation=landscape"
         headers = {"Authorization": f"Client-ID {access_key}"}
         response = requests.get(url, headers=headers)
         data = response.json()
         
-        if response.status_code == 200 and data.get("urls"):
-            return data["urls"]["regular"]
+        if response.status_code != 200 or not data.get("urls"):
+            # محاولة ثانية ببحث أوسع
+            words = cleaned.split()
+            if len(words) > 2:
+                fallback_query = requests.utils.quote(words[0] + " " + words[1] + " nature")
+                fallback_url = f"https://api.unsplash.com/photos/random?query={fallback_query}&orientation=landscape"
+                fallback_response = requests.get(fallback_url, headers=headers)
+                fallback_data = fallback_response.json()
+                if fallback_response.status_code == 200 and fallback_data.get("urls"):
+                    image_url = fallback_data["urls"]["regular"]
+                else:
+                    return "ERROR: لم أجد صورة مناسبة"
+            else:
+                return "ERROR: لم أجد صورة مناسبة"
         else:
-            error_msg = data.get('errors', ['خطأ غير معروف'])[0]
-            return f"ERROR: لم أجد صورة مناسبة - {error_msg}"
+            image_url = data["urls"]["regular"]
+        
+        # تحميل الصورة
+        img_response = requests.get(image_url)
+        img = Image.open(io.BytesIO(img_response.content))
+        
+        # ====== التعديلات باستخدام Pillow ======
+        if "أسود" in prompt or "ابيض واسود" in prompt or "رمادي" in prompt:
+            img = img.convert("L")
+        
+        if "فلتر" in prompt or "ضبابي" in prompt:
+            img = img.filter(ImageFilter.BLUR)
+        
+        if "زاهي" in prompt or "ساطع" in prompt:
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(1.5)
+        
+        if "قص" in prompt or "توسيط" in prompt:
+            width, height = img.size
+            img = img.crop((width//4, height//4, width*3//4, height*3//4))
+        
+        if "نص" in prompt or "عبارة" in prompt:
+            draw = ImageDraw.Draw(img)
+            try:
+                font = ImageFont.truetype("arial.ttf", 50)
+            except:
+                font = ImageFont.load_default()
+            draw.text((50, 50), "نبراس", fill="white", font=font)
+        
+        if "إطار" in prompt:
+            # إضافة إطار ملون (أزرق)
+            width, height = img.size
+            img_with_border = Image.new("RGB", (width+20, height+20), (0, 100, 255))
+            img_with_border.paste(img, (10, 10))
+            img = img_with_border
+        
+        # حفظ الصورة المعدلة كـ base64
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG")
+        img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        
+        return f"data:image/jpeg;base64,{img_base64}"
+        
     except Exception as e:
         return f"ERROR:{str(e)}"
 # ===================================================================
@@ -169,7 +234,6 @@ def chat():
   draw_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
   def is_image_request(text):
       text_lower = text.lower().strip()
-      # إذا كانت الرسالة قصيرة جداً (كلمة واحدة) وما فيها طلب واضح، لا نشتغل
       if len(text_lower.split()) <= 1:
           return False
       for phrase in draw_phrases:
