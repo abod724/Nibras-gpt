@@ -8,12 +8,10 @@ app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:raise Exception("OPENAI_API_KEY غير موجود!")
 
-# ====== متغيرات البيئة للصور (تقرأ من Render فقط، بدون افتراضي) ======
-IMAGE_MODEL = os.environ.get("IMAGE_MODEL")
-IMAGE_SIZE = os.environ.get("IMAGE_SIZE")
-# ====================================================================
+# ====== لم نعد نقرأ IMAGE_MODEL أو IMAGE_SIZE من البيئة ======
+# (لن يتم استخدامهما، تقدر تتركهم في ريندر عادي ولا ياثرون)
 
-# ====== إجبار على وجود النموذج من متغير البيئة (بدون افتراضي) ======
+# ====== إجبار على وجود النموذج النصي من متغير البيئة ======
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود! أضفه في متغيرات البيئة.")
@@ -80,22 +78,18 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة (تتحقق من وجود المتغيرات وترجع الخطأ) ======
+# ====== دالة توليد الصورة باستخدام Pollinations.ai (مجاني بدون مفتاح) ======
 def generate_image(p):
-    if not IMAGE_MODEL or not IMAGE_SIZE:
-        return "ERROR: متغيرات IMAGE_MODEL أو IMAGE_SIZE غير محددة في البيئة"
     try:
-        print(f"🎨 محاولة توليد صورة بالنموذج: {IMAGE_MODEL} بالحجم: {IMAGE_SIZE}")
-        response = client.images.generate(
-            model=IMAGE_MODEL,
-            prompt=p,
-            n=1,
-            size=IMAGE_SIZE
-        )
-        return response.data[0].url
+        # ترميز النص ليكون صالحاً للرابط
+        encoded_prompt = requests.utils.quote(p)
+        # رابط الخدمة المجانية - نطلب صورة بجودة 1024x1024 بدون شعار
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+        # نعيد الرابط مباشرة (الخدمة تولد الصورة لحظياً عند فتح الرابط)
+        return image_url
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ فشل توليد الصورة: {error_msg}")
+        print(f"❌ فشل توليد الصورة عبر Pollinations: {error_msg}")
         return f"ERROR:{error_msg}"
 # ===================================================================
 
