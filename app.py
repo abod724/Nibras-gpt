@@ -265,7 +265,14 @@ def chat():
         nid = save_user_conversation(uid, sm[uid], cid)
         return jsonify({"reply": reply, "conv_id": nid})
   
-  sm[uid].append({"role":"user","content":um});ch=sm[uid][-10:];msgs=[{"role":"system","content":SP}]
+  # ====== تقليل عدد رسائل التاريخ إلى 6 واقتطاع الطويلة ======
+  ch = sm[uid][-6:]
+  for i, msg in enumerate(ch):
+      if len(msg["content"]) > 500:
+          ch[i]["content"] = msg["content"][:500] + "..."
+  # =======================================================
+  
+  msgs=[{"role":"system","content":SP}]
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
   img_data=d.get("image",None)
   if img_data and allow_img:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
