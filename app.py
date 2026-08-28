@@ -3,7 +3,6 @@ import openai,os,secrets,json,hashlib,asyncio,edge_tts,base64,re,sqlite3,request
 from datetime import datetime
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
@@ -60,8 +59,8 @@ SP=f"""
 **ملف المعرفة الخاص بك:**
 {kc}
 **⚠️ قواعد التنسيق الإلزامية (يجب الالتزام بها):**
-- اكتب ردك في فقرات نصية عادية متصلة.
-- **ممنوع** وضع كل جملة في سطر مستقل.
+- اكتب ردك في فقرات نصية عادية متصلة (مثل ChatGPT والمقالات).
+- **ممنوع** وضع كل جملة في سطر مستقل (ممنوع الشعر). اكتب جملة طويلة تكمل في السطر التالي.
 - اترك **سطراً فارغاً** بين كل فقرة وأخرى.
 - استخدم `**الخط العريض**` لعناوين الفقرات، و `-` للقوائم.
 **تعليمات مهمة:**
@@ -74,42 +73,24 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة باستخدام Unsplash فقط (بدون Pillow) ======
+# ====== دالة توليد الصورة باستخدام Unsplash (آمن ومجاني) ======
 def generate_image(prompt):
     try:
         access_key = os.environ.get("UNSPLASH_ACCESS_KEY")
         if not access_key:
             return "ERROR: UNSPLASH_ACCESS_KEY غير موجود في البيئة"
         
-        # تنظيف النص من عبارات الطلب
-        cleaned = prompt
-        phrases_to_remove = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
-        for phrase in phrases_to_remove:
-            cleaned = cleaned.replace(phrase, "")
-        cleaned = cleaned.strip()
-        if not cleaned:
-            cleaned = "منظر طبيعي"
-        
-        query = requests.utils.quote(cleaned + " high quality photo")
+        query = requests.utils.quote(prompt)
         url = f"https://api.unsplash.com/photos/random?query={query}&orientation=landscape"
         headers = {"Authorization": f"Client-ID {access_key}"}
         response = requests.get(url, headers=headers)
         data = response.json()
         
-        if response.status_code != 200 or not data.get("urls"):
-            # محاولة ثانية ببحث أوسع
-            words = cleaned.split()
-            if len(words) > 2:
-                fallback_query = requests.utils.quote(words[0] + " " + words[1] + " nature")
-                fallback_url = f"https://api.unsplash.com/photos/random?query={fallback_query}&orientation=landscape"
-                fallback_response = requests.get(fallback_url, headers=headers)
-                fallback_data = fallback_response.json()
-                if fallback_response.status_code == 200 and fallback_data.get("urls"):
-                    return fallback_data["urls"]["regular"]
-            return "ERROR: لم أجد صورة مناسبة"
-        else:
+        if response.status_code == 200 and data.get("urls"):
             return data["urls"]["regular"]
-        
+        else:
+            error_msg = data.get('errors', ['خطأ غير معروف'])[0]
+            return f"ERROR: لم أجد صورة مناسبة - {error_msg}"
     except Exception as e:
         return f"ERROR:{str(e)}"
 # ===================================================================
@@ -188,6 +169,7 @@ def chat():
   draw_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
   def is_image_request(text):
       text_lower = text.lower().strip()
+      # إذا كانت الرسالة قصيرة جداً (كلمة واحدة) وما فيها طلب واضح، لا نشتغل
       if len(text_lower.split()) <= 1:
           return False
       for phrase in draw_phrases:
@@ -198,22 +180,6 @@ def chat():
 
   if allow_img and is_image_request(um):
    print(f"🎨 اكتشاف طلب رسم: {um}")
-   
-   # ====== التعديل الجديد: إذا ما حدد وش يبي، يسأله ======
-   cleaned = um
-   phrases_to_remove = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
-   for phrase in phrases_to_remove:
-       cleaned = cleaned.replace(phrase, "")
-   cleaned = cleaned.strip()
-   
-   if not cleaned or len(cleaned.split()) <= 1:
-       reply = "وش نوع الصورة اللي تبي؟ حدد لي شيء معين (مثل: بحر، جبل، وردة)"
-       sm[uid].append({"role": "user", "content": um})
-       sm[uid].append({"role": "assistant", "content": reply})
-       nid = save_user_conversation(uid, sm[uid], cid)
-       return jsonify({"reply": reply, "conv_id": nid})
-   # ========================================================
-   
    img_result = generate_image(um)
    if img_result and img_result.startswith("ERROR:"):
         error_clear = img_result.replace("ERROR:", "")
@@ -235,14 +201,7 @@ def chat():
         nid = save_user_conversation(uid, sm[uid], cid)
         return jsonify({"reply": reply, "conv_id": nid})
   
-  # ====== تقليل عدد رسائل التاريخ إلى 6 واقتطاع الطويلة ======
-  ch = sm[uid][-6:]
-  for i, msg in enumerate(ch):
-      if len(msg["content"]) > 500:
-          ch[i]["content"] = msg["content"][:500] + "..."
-  # =======================================================
-  
-  msgs=[{"role":"system","content":SP}]
+  sm[uid].append({"role":"user","content":um});ch=sm[uid][-10:];msgs=[{"role":"system","content":SP}]
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
   img_data=d.get("image",None)
   if img_data and allow_img:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
@@ -261,12 +220,14 @@ def chat():
    if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
   except openai.BadRequestError as e:
    print(f"❌ فشل النموذج {model}: {e}")
+   # ====== التعديل المطلوب: رسالة ودية عند تجاوز حد الرموز ======
    if "rate_limit_exceeded" in str(e):
        reply = "نبراس مشغول الان اقل من دقيقة لاتذهب"
        sm[uid].append({"role": "assistant", "content": reply})
        nid = save_user_conversation(uid, sm[uid], cid)
        return jsonify({"reply": reply, "conv_id": nid})
-   return jsonify({"error": f"حدث خطأ: {str(e)}"}), 400
+   # ================================================================
+   return jsonify({"error": f"النموذج {model} غير مدعوم أو حدث خطأ: {str(e)}"}), 400
   except Exception as e:
    print(f"❌ خطأ عام: {e}")
    return jsonify({"error": str(e)}), 500
