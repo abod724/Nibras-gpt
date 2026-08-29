@@ -73,14 +73,13 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة تنظيف النص لاستخراج الموضوع الحقيقي ======
-command_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم لي صورة", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw", "ابي فيديو", "ابي مقطع", "فيديو لي", "شغل لي فيديو", "عرض فيديو", "ابي فيديوهات", "جيب فيديو"]
+# ====== دالة تنظيف النص لاستخراج الموضوع الحقيقي (محسنة) ======
+command_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم لي صورة", "ارسم صورة", "ارسم", "أنشئ لي", "انشئ لي", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw", "ابي فيديو", "ابي مقطع", "فيديو لي", "شغل لي فيديو", "عرض فيديو", "ابي فيديوهات", "جيب فيديو", "ابي"]
 
 def clean_prompt(text):
     text_original = text
     text_lower = text.lower().strip()
     
-    # حذف كلمات الأمر من الجملة
     for phrase in command_phrases:
         if text_lower.startswith(phrase):
             text = text_original[len(phrase):].strip()
@@ -88,18 +87,22 @@ def clean_prompt(text):
         elif phrase in text_lower:
             text = text_original.replace(phrase, "").strip()
             break
-            
-    # تنظيف علامات الترقيم
+    else:
+        text = text_original
+
+    # إزالة الكلمات الشائعة غير الضرورية للبحث
+    for word in [" لي", " صورة", " صوره", " صور", " فيديو", " مقطع", " من", " في"]:
+        text = text.replace(word, "").strip()
+        
     text = re.sub(r'[،,.!؟?]', '', text).strip()
     
-    # إذا أصبح النص فارغاً، نعطيه كلمة افتراضية
     if not text:
         text = "طبيعة"
         
     return text
 # ===================================================================
 
-# ====== دالة جلب الصور من Pixabay (معدلة لاستخدام params) ======
+# ====== دالة جلب الصور من Pixabay (مع إضافة اللغة العربية) ======
 def generate_image(prompt):
     try:
         api_key = os.environ.get("PIXABAY_API_KEY")
@@ -110,20 +113,26 @@ def generate_image(prompt):
             'key': api_key,
             'q': prompt,
             'image_type': 'photo',
-            'per_page': 3
+            'per_page': 3,
+            'lang': 'ar'
         }
         response = requests.get("https://pixabay.com/api/", params=params)
         data = response.json()
         
-        if response.status_code == 200 and data.get("hits"):
-            return data["hits"][0]["largeImageURL"]
+        if response.status_code == 200:
+            if 'error' in data:
+                return f"ERROR: {data['error']}"
+            if data.get("hits"):
+                return data["hits"][0]["largeImageURL"]
+            else:
+                return "ERROR: لم أجد صورة تطابق هذا الوصف (جرّب كلمة أبسط)"
         else:
-            error_msg = data.get('error', 'لم أجد صورة مناسبة')
+            error_msg = data.get('error', f'فشل الاتصال (الرمز {response.status_code})')
             return f"ERROR: {error_msg}"
     except Exception as e:
         return f"ERROR: {str(e)}"
 
-# ====== دالة جلب الفيديوهات من Pixabay (معدلة لاستخدام params) ======
+# ====== دالة جلب الفيديوهات من Pixabay (مع إضافة اللغة العربية) ======
 def generate_video(prompt):
     try:
         api_key = os.environ.get("PIXABAY_API_KEY")
@@ -133,21 +142,27 @@ def generate_video(prompt):
         params = {
             'key': api_key,
             'q': prompt,
-            'per_page': 3
+            'per_page': 3,
+            'lang': 'ar'
         }
         response = requests.get("https://pixabay.com/api/videos/", params=params)
         data = response.json()
         
-        if response.status_code == 200 and data.get("hits"):
-            video_data = data["hits"][0]["videos"]
-            if "large" in video_data:
-                return video_data["large"]["url"]
-            elif "medium" in video_data:
-                return video_data["medium"]["url"]
+        if response.status_code == 200:
+            if 'error' in data:
+                return f"ERROR: {data['error']}"
+            if data.get("hits"):
+                video_data = data["hits"][0]["videos"]
+                if "large" in video_data:
+                    return video_data["large"]["url"]
+                elif "medium" in video_data:
+                    return video_data["medium"]["url"]
+                else:
+                    return video_data["small"]["url"]
             else:
-                return video_data["small"]["url"]
+                return "ERROR: لم أجد فيديو يطابق هذا الوصف (جرّب كلمة أبسط)"
         else:
-            error_msg = data.get('error', 'لم أجد فيديو مناسب')
+            error_msg = data.get('error', f'فشل الاتصال (الرمز {response.status_code})')
             return f"ERROR: {error_msg}"
     except Exception as e:
         return f"ERROR: {str(e)}"
@@ -246,7 +261,6 @@ def chat():
   # ====== معالجة طلب الفيديو ======
   if allow_img and is_video_request(um):
    print(f"🎬 اكتشاف طلب فيديو: {um}")
-   # تنظيف النص من كلمات الأمر قبل البحث
    vid_prompt = clean_prompt(um)
    vid_result = generate_video(vid_prompt)
    if vid_result and vid_result.startswith("ERROR:"):
@@ -273,7 +287,6 @@ def chat():
   # ====== معالجة طلب الصورة ======
   if allow_img and is_image_request(um):
    print(f"🎨 اكتشاف طلب رسم: {um}")
-   # تنظيف النص من كلمات الأمر قبل البحث
    img_prompt = clean_prompt(um)
    img_result = generate_image(img_prompt)
    if img_result and img_result.startswith("ERROR:"):
