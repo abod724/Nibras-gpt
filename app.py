@@ -73,23 +73,81 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة باستخدام Pixabay (آمن ومجاني) ======
+# ====== دالة تنظيف النص لاستخراج الموضوع الحقيقي ======
+command_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم لي صورة", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw", "ابي فيديو", "ابي مقطع", "فيديو لي", "شغل لي فيديو", "عرض فيديو", "ابي فيديوهات", "جيب فيديو"]
+
+def clean_prompt(text):
+    text_original = text
+    text_lower = text.lower().strip()
+    
+    # حذف كلمات الأمر من الجملة
+    for phrase in command_phrases:
+        if text_lower.startswith(phrase):
+            text = text_original[len(phrase):].strip()
+            break
+        elif phrase in text_lower:
+            text = text_original.replace(phrase, "").strip()
+            break
+            
+    # تنظيف علامات الترقيم
+    text = re.sub(r'[،,.!؟?]', '', text).strip()
+    
+    # إذا أصبح النص فارغاً، نعطيه كلمة افتراضية
+    if not text:
+        text = "طبيعة"
+        
+    return text
+# ===================================================================
+
+# ====== دالة جلب الصور من Pixabay (معدلة لاستخدام params) ======
 def generate_image(prompt):
     try:
         api_key = os.environ.get("PIXABAY_API_KEY")
         if not api_key:
             return "ERROR: PIXABAY_API_KEY غير موجود في البيئة"
         
-        query = requests.utils.quote(prompt)
-        url = f"https://pixabay.com/api/?key={api_key}&q={query}&image_type=photo&per_page=3"
-        response = requests.get(url)
+        params = {
+            'key': api_key,
+            'q': prompt,
+            'image_type': 'photo',
+            'per_page': 3
+        }
+        response = requests.get("https://pixabay.com/api/", params=params)
         data = response.json()
         
         if response.status_code == 200 and data.get("hits"):
-            # نأخذ أول صورة (الأكثر تطابقاً)
             return data["hits"][0]["largeImageURL"]
         else:
             error_msg = data.get('error', 'لم أجد صورة مناسبة')
+            return f"ERROR: {error_msg}"
+    except Exception as e:
+        return f"ERROR: {str(e)}"
+
+# ====== دالة جلب الفيديوهات من Pixabay (معدلة لاستخدام params) ======
+def generate_video(prompt):
+    try:
+        api_key = os.environ.get("PIXABAY_API_KEY")
+        if not api_key:
+            return "ERROR: PIXABAY_API_KEY غير موجود في البيئة"
+        
+        params = {
+            'key': api_key,
+            'q': prompt,
+            'per_page': 3
+        }
+        response = requests.get("https://pixabay.com/api/videos/", params=params)
+        data = response.json()
+        
+        if response.status_code == 200 and data.get("hits"):
+            video_data = data["hits"][0]["videos"]
+            if "large" in video_data:
+                return video_data["large"]["url"]
+            elif "medium" in video_data:
+                return video_data["medium"]["url"]
+            else:
+                return video_data["small"]["url"]
+        else:
+            error_msg = data.get('error', 'لم أجد فيديو مناسب')
             return f"ERROR: {error_msg}"
     except Exception as e:
         return f"ERROR: {str(e)}"
@@ -165,22 +223,59 @@ def chat():
    allow_img=True
   # ==========================================
   
-  # ====== قائمة العبارات الدقيقة لطلب الصورة ======
+  # ====== قائمة العبارات لطلب الصورة ======
   draw_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
   def is_image_request(text):
       text_lower = text.lower().strip()
-      # إذا كانت الرسالة قصيرة جداً (كلمة واحدة) وما فيها طلب واضح، لا نشتغل
-      if len(text_lower.split()) <= 1:
-          return False
       for phrase in draw_phrases:
           if text_lower.startswith(phrase) or phrase in text_lower:
               return True
       return False
   # ==============================================
 
+  # ====== قائمة العبارات لطلب الفيديو ======
+  video_phrases = ["ابي فيديو", "ابي مقطع", "فيديو لي", "شغل لي فيديو", "عرض فيديو", "ابي فيديوهات", "جيب فيديو"]
+  def is_video_request(text):
+      text_lower = text.lower().strip()
+      for phrase in video_phrases:
+          if text_lower.startswith(phrase) or phrase in text_lower:
+              return True
+      return False
+  # ================================================
+
+  # ====== معالجة طلب الفيديو ======
+  if allow_img and is_video_request(um):
+   print(f"🎬 اكتشاف طلب فيديو: {um}")
+   # تنظيف النص من كلمات الأمر قبل البحث
+   vid_prompt = clean_prompt(um)
+   vid_result = generate_video(vid_prompt)
+   if vid_result and vid_result.startswith("ERROR:"):
+        error_clear = vid_result.replace("ERROR:", "")
+        reply = f"⚠️ عذراً، ما قدرت أجيب الفيديو. السبب: {error_clear}"
+        sm[uid].append({"role": "user", "content": um})
+        sm[uid].append({"role": "assistant", "content": reply})
+        nid = save_user_conversation(uid, sm[uid], cid)
+        return jsonify({"reply": reply, "conv_id": nid})
+   elif vid_result:
+        reply = f"🎬 إليك الفيديو الذي طلبته:"
+        sm[uid].append({"role": "user", "content": um})
+        sm[uid].append({"role": "assistant", "content": reply + "\n" + vid_result})
+        nid = save_user_conversation(uid, sm[uid], cid)
+        return jsonify({"reply": reply, "image_url": vid_result, "conv_id": nid}) 
+   else:
+        reply = "⚠️ عذراً، تعذر جلب الفيديو بسبب خطأ غير معروف."
+        sm[uid].append({"role": "user", "content": um})
+        sm[uid].append({"role": "assistant", "content": reply})
+        nid = save_user_conversation(uid, sm[uid], cid)
+        return jsonify({"reply": reply, "conv_id": nid})
+  # =======================================
+
+  # ====== معالجة طلب الصورة ======
   if allow_img and is_image_request(um):
    print(f"🎨 اكتشاف طلب رسم: {um}")
-   img_result = generate_image(um)
+   # تنظيف النص من كلمات الأمر قبل البحث
+   img_prompt = clean_prompt(um)
+   img_result = generate_image(img_prompt)
    if img_result and img_result.startswith("ERROR:"):
         error_clear = img_result.replace("ERROR:", "")
         reply = f"⚠️ عذراً، ما قدرت أولد الصورة. السبب: {error_clear}"
@@ -200,6 +295,7 @@ def chat():
         sm[uid].append({"role": "assistant", "content": reply})
         nid = save_user_conversation(uid, sm[uid], cid)
         return jsonify({"reply": reply, "conv_id": nid})
+  # ===========================================
   
   sm[uid].append({"role":"user","content":um});ch=sm[uid][-10:];msgs=[{"role":"system","content":SP}]
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
