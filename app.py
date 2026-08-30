@@ -73,7 +73,7 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة باستخدام Unsplash ======
+# ====== دالة توليد الصورة باستخدام Unsplash (مجانية للجميع) ======
 def generate_image(prompt):
     try:
         access_key = os.environ.get("UNSPLASH_ACCESS_KEY")
@@ -193,7 +193,8 @@ def chat():
   sm[uid].append({"role":"user","content":um});ch=sm[uid][-10:];msgs=[{"role":"system","content":SP}]
   for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
   img_data=d.get("image",None)
-  if img_data and allow_img:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
+  # تحليل الصور للأدمن فقط (حماية للرصيد)
+  if img_data and is_admin:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
   if use_web:
    try:
     fc=""
