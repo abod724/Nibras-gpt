@@ -73,7 +73,7 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة باستخدام Pexels API (التعديل المطلوب) ======
+# ====== دالة توليد الصورة باستخدام Pexels API ======
 def generate_image(prompt):
     try:
         api_key = os.environ.get("PEXELS_API_KEY")
@@ -88,6 +88,31 @@ def generate_image(prompt):
             return data["photos"][0]["src"]["large"]
         else:
             error_msg = data.get('error', 'لم أجد صورة مناسبة')
+            return f"ERROR: {error_msg}"
+    except Exception as e:
+        return f"ERROR: {str(e)}"
+
+# ====== دالة البحث عن فيديو باستخدام Pexels API ======
+def search_video(prompt):
+    try:
+        api_key = os.environ.get("PEXELS_API_KEY")
+        if not api_key:
+            return "ERROR: PEXELS_API_KEY غير موجود في البيئة"
+        query = requests.utils.quote(prompt)
+        url = f"https://api.pexels.com/videos/search?query={query}&per_page=1"
+        headers = {"Authorization": api_key}
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        if response.status_code == 200 and data.get("videos") and len(data["videos"]) > 0:
+            video_files = data["videos"][0]["video_files"]
+            for vf in video_files:
+                if vf.get("quality") == "hd" and vf.get("link"):
+                    return vf["link"]
+            if video_files and video_files[0].get("link"):
+                return video_files[0]["link"]
+            return "ERROR: ما لقيت رابط فيديو"
+        else:
+            error_msg = data.get('error', 'لم أجد فيديو مناسباً')
             return f"ERROR: {error_msg}"
     except Exception as e:
         return f"ERROR: {str(e)}"
@@ -226,7 +251,7 @@ def chat():
   else:
    use_web=False
    allow_img=True
-  draw_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw"]
+  draw_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw", "فيديو", "ابي فيديو", "عرض فيديو"]
   def is_image_request(text):
       text_lower = text.lower().strip()
       if len(text_lower.split()) <= 1:
@@ -236,7 +261,36 @@ def chat():
               return True
       return False
   if allow_img and is_image_request(um):
-   print(f"🎨 اكتشاف طلب رسم: {um}")
+   print(f"🎨 اكتشاف طلب رسم أو فيديو: {um}")
+   
+   # تحقق إذا كان طلب فيديو
+   video_keywords = ["فيديو", "ابي فيديو", "عرض فيديو"]
+   is_video = any(kw in um for kw in video_keywords)
+   
+   if is_video:
+       # ====== طلب فيديو ======
+       video_result = search_video(um)
+       if video_result and video_result.startswith("ERROR:"):
+           error_clear = video_result.replace("ERROR:", "")
+           reply = f"⚠️ عذراً، ما قدرت أجيب الفيديو. السبب: {error_clear}"
+           sm[uid].append({"role": "user", "content": um})
+           sm[uid].append({"role": "assistant", "content": reply})
+           nid = save_user_conversation(uid, sm[uid], cid)
+           return jsonify({"reply": reply, "conv_id": nid})
+       elif video_result:
+           reply = f"🎬 إليك الفيديو الذي طلبتـه:"
+           sm[uid].append({"role": "user", "content": um})
+           sm[uid].append({"role": "assistant", "content": reply + "\n" + video_result})
+           nid = save_user_conversation(uid, sm[uid], cid)
+           return jsonify({"reply": reply, "image_url": video_result, "conv_id": nid})  # نعيده بنفس مفتاح image_url عشان يظهر في الشات
+       else:
+           reply = "⚠️ عذراً، تعذر جلب الفيديو بسبب خطأ غير معروف."
+           sm[uid].append({"role": "user", "content": um})
+           sm[uid].append({"role": "assistant", "content": reply})
+           nid = save_user_conversation(uid, sm[uid], cid)
+           return jsonify({"reply": reply, "conv_id": nid})
+   
+   # ====== باقي الكود الخاص بالصور ======
    img_result = generate_image(um)
    if img_result and img_result.startswith("ERROR:"):
         error_clear = img_result.replace("ERROR:", "")
