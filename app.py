@@ -268,10 +268,12 @@ def chat():
            return jsonify({"reply": reply, "conv_id": nid})
        elif video_result:
            reply = f"🎬 إليك الفيديو الذي طلبتـه:"
+           # نضيف الرابط إلى نص الرد مباشرة
+           reply_with_url = reply + "\n" + video_result
            sm[uid].append({"role": "user", "content": um})
-           sm[uid].append({"role": "assistant", "content": reply + "\n" + video_result})
+           sm[uid].append({"role": "assistant", "content": reply_with_url})
            nid = save_user_conversation(uid, sm[uid], cid)
-           return jsonify({"reply": reply, "image_url": video_result, "conv_id": nid})
+           return jsonify({"reply": reply_with_url, "image_url": video_result, "conv_id": nid})
        else:
            reply = "⚠️ عذراً، تعذر جلب الفيديو بسبب خطأ غير معروف."
            sm[uid].append({"role": "user", "content": um})
@@ -288,10 +290,12 @@ def chat():
         return jsonify({"reply": reply, "conv_id": nid})
    elif img_result:
         reply = f"🖼️ إليك الصورة التي طلبتها:"
+        # نضيف الرابط إلى نص الرد مباشرة
+        reply_with_url = reply + "\n" + img_result
         sm[uid].append({"role": "user", "content": um})
-        sm[uid].append({"role": "assistant", "content": reply + "\n" + img_result})
+        sm[uid].append({"role": "assistant", "content": reply_with_url})
         nid = save_user_conversation(uid, sm[uid], cid)
-        return jsonify({"reply": reply, "image_url": img_result, "conv_id": nid})
+        return jsonify({"reply": reply_with_url, "image_url": img_result, "conv_id": nid})
    else:
         reply = "⚠️ عذراً، تعذر توليد الصورة بسبب خطأ غير معروف."
         sm[uid].append({"role": "user", "content": um})
