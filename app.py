@@ -73,24 +73,24 @@ SP=f"""
 def remove_emoji(t):
  return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 
-# ====== دالة توليد الصورة باستخدام Unsplash ======
+# ====== دالة توليد الصورة باستخدام Pexels API (التعديل المطلوب) ======
 def generate_image(prompt):
     try:
-        access_key = os.environ.get("UNSPLASH_ACCESS_KEY")
-        if not access_key:
-            return "ERROR: UNSPLASH_ACCESS_KEY غير موجود في البيئة"
+        api_key = os.environ.get("PEXELS_API_KEY")
+        if not api_key:
+            return "ERROR: PEXELS_API_KEY غير موجود في البيئة"
         query = requests.utils.quote(prompt)
-        url = f"https://api.unsplash.com/photos/random?query={query}&orientation=landscape"
-        headers = {"Authorization": f"Client-ID {access_key}"}
+        url = f"https://api.pexels.com/v1/search?query={query}&per_page=1&orientation=landscape"
+        headers = {"Authorization": api_key}
         response = requests.get(url, headers=headers)
         data = response.json()
-        if response.status_code == 200 and data.get("urls"):
-            return data["urls"]["regular"]
+        if response.status_code == 200 and data.get("photos") and len(data["photos"]) > 0:
+            return data["photos"][0]["src"]["large"]
         else:
-            error_msg = data.get('errors', ['خطأ غير معروف'])[0]
-            return f"ERROR: لم أجد صورة مناسبة - {error_msg}"
+            error_msg = data.get('error', 'لم أجد صورة مناسبة')
+            return f"ERROR: {error_msg}"
     except Exception as e:
-        return f"ERROR:{str(e)}"
+        return f"ERROR: {str(e)}"
 # ===================================================================
 
 def generate_speech(text, gender):
