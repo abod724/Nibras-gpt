@@ -20,10 +20,10 @@ limiter.init_app(app)
 @app.route('/robots.txt')
 def serve_robots():return send_from_directory('static','robots.txt')
 
-# ====== مسار assetlinks.json المطلوب من Google Play ======
-@app.route('/.well-known/assetlinks.json')
-def serve_assetlinks():
-    return send_from_directory('static', 'assetlinks.json')
+# ====== مسار عام لخدمة جميع الملفات من مجلد .well-known في الجذر ======
+@app.route('/.well-known/<path:filename>')
+def serve_well_known(filename):
+    return send_from_directory('.well-known', filename)
 # ======================================================
 
 DB_FILE="conversations.db"
