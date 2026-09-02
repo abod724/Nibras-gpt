@@ -15,8 +15,17 @@ if not OPENAI_MODEL:
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
 limiter.init_app(app)
+
+# ====== خدمة الملفات الثابتة ======
 @app.route('/robots.txt')
 def serve_robots():return send_from_directory('static','robots.txt')
+
+# ====== مسار assetlinks.json المطلوب من Google Play ======
+@app.route('/.well-known/assetlinks.json')
+def serve_assetlinks():
+    return send_from_directory('static', 'assetlinks.json')
+# ======================================================
+
 DB_FILE="conversations.db"
 def init_db():
  conn=sqlite3.connect(DB_FILE);c=conn.cursor()
