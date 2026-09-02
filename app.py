@@ -8,7 +8,11 @@ app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:raise Exception("OPENAI_API_KEY غير موجود!")
 
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+# ====== النموذج يقرأ من متغير البيئة فقط (بدون افتراضي) ======
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
+if not OPENAI_MODEL:
+    raise Exception("OPENAI_MODEL غير موجود! أضفه في متغيرات البيئة.")
+# ============================================================
 
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
@@ -124,11 +128,10 @@ def search_web(query):
         if not keywords:
             keywords = query
         with DDGS() as ddgs:
-            results = ddgs.text(keywords, max_results=3, region='wt-wt')
+            results = ddgs.text(keywords, max_results=5, region='wt-wt', safesearch='off')
             if not results:
                 return None
-            # نجيب عناوين وملخصات واضحة
-            formatted = "\n".join([f"- {r['title']}: {r['body'][:200]}" for r in results])
+            formatted = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
             return formatted
     except Exception as e:
         print(f"⚠️ فشل بحث DuckDuckGo: {e}")
@@ -361,7 +364,6 @@ def chat():
   # ====== البحث المجاني (لجميع المستخدمين) ======
   search_result = search_web(um)
   if search_result:
-      # نضع نتيجة البحث في التاريخ مع إشارة واضحة للنموذج
       hist.append({"role": "user", "content": f"نتيجة البحث عن '{um}':\n{search_result}\n\n⚠️ هذه هي المعلومات المتاحة حالياً من الويب. استخدمها فقط، ولا تخلطها بمعلوماتك العامة."})
       print("✅ تم جلب نتائج بحث مجانية من DuckDuckGo")
 
