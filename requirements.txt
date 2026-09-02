@@ -6,4 +6,4 @@ edge-tts
 uvicorn
 flask-limiter
 Pillow
-markdown==3.7
+duckduckgo-search
