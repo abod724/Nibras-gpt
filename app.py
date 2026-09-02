@@ -166,3 +166,191 @@ SPH="""<!DOCTYPE html>... (ضع كود SPH كاملاً من ملفك القدي
 HT=r"""<!DOCTYPE html>... (ضع كود HT كاملاً من ملفك القديم) ..."""
 
 LH="""<!DOCTYPE html>... (ضع كود LH كاملاً من ملفك القديم) ..."""
+@app.route('/')
+def index():return render_template_string(HT)
+
+@app.route('/share/<cid>')
+def shared_conversation(cid):
+ conn=sqlite3.connect(DB_FILE);c=conn.cursor();c.execute("SELECT messages,title FROM conversations WHERE conv_id=?",(cid,));r=c.fetchone();conn.close()
+ if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
+ return "⚠️ المحادثة غير موجودة",404
+
+@app.route('/login',methods=['GET','POST'])
+@limiter.limit("3 per minute")
+def login():
+ if request.method=='POST':
+  e=request.form.get('email');p=request.form.get('password');ae="abdullaha0569361@gmail.com";ap=os.environ.get("ADMIN_PASSWORD")
+  if e==ae:
+   if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن.")
+   if secrets.compare_digest(p,ap):session.clear();session['admin_email']=ae;return redirect(url_for('index'))
+   else:return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
+  elif e and "@" in e:
+   session['user_email']=e
+   return redirect(url_for('index'))
+  else:return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
+ return render_template_string(LH)
+
+@app.route('/logout')
+def logout():session.clear();return redirect(url_for('index'))
+
+@app.route('/history')
+def history():
+ uid=get_user_id();cs=get_user_conversations(uid);cs.sort(key=lambda x:x["timestamp"],reverse=True);return jsonify({"conversations":[{"id":c["id"],"title":c["title"]} for c in cs]})
+
+@app.route('/load_conversation/<cid>')
+def load_conversation(cid):
+ uid=get_user_id();ms=load_conversation_by_id(uid,cid)
+ if ms:return jsonify({"messages":ms})
+ return jsonify({"messages":None}),404
+
+@app.route('/delete_message', methods=['POST'])
+def delete_message():
+    try:
+        d=request.get_json();cid=d.get('conv_id');idx=d.get('index')
+        uid=get_user_id()
+        if not cid or idx is None:return jsonify({"status":"error","message":"بيانات ناقصة"}),400
+        msgs=load_conversation_by_id(uid,cid)
+        if not msgs:return jsonify({"status":"error","message":"المحادثة غير موجودة"}),404
+        if idx<0 or idx>=len(msgs):return jsonify({"status":"error","message":"الرسالة غير موجودة"}),404
+        del msgs[idx]
+        save_user_conversation(uid,msgs,cid)
+        return jsonify({"status":"ok"})
+    except Exception as e:return jsonify({"status":"error","message":str(e)}),500
+
+@app.route('/delete_my_data', methods=['POST'])
+def delete_my_data():
+    uid = get_user_id()
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM conversations WHERE user_id = ?", (uid,))
+    conn.commit()
+    conn.close()
+    session.clear()
+    return jsonify({"status": "success", "message": "تم حذف جميع بياناتك."})
+
+def get_user_id():
+ if 'admin_email' in session:return "admin_"+session['admin_email']
+ elif 'user_email' in session:return "user_"+session['user_email']
+ else:
+  rip=request.headers.get('X-Forwarded-For')
+  if rip:rip=rip.split(',')[0].strip()
+  else:rip=request.remote_addr
+  return "guest_"+(rip or 'unknown')
+
+@app.route('/set_gender',methods=['POST'])
+def set_gender():d=request.get_json();session['voice_gender']=d.get('gender','male');return jsonify({"status":"ok"})
+
+# ====== نقطة الدردشة الرئيسية (معدلة بالكامل) ======
+@app.route('/chat',methods=['POST'])
+@limiter.limit("5 per minute")
+def chat():
+ try:
+  d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
+  if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
+  uid=get_user_id()
+  if cid is None:sm[uid]=[]
+  model = OPENAI_MODEL
+
+  # ====== الصور والفيديو (Pexels - مجاني) ======
+  draw_phrases = ["ارسم لي", "ابي صورة", "ابي صوره", "ابي صورت", "صوره لي", "ارسم", "أنشئ", "انشئ", "انشى", "صمم", "ولّد", "generate", "draw", "فيديو", "ابي فيديو", "عرض فيديو"]
+  is_image_req = any(phrase in um for phrase in draw_phrases)
+
+  if is_image_req:
+   video_keywords = ["فيديو", "ابي فيديو", "عرض فيديو"]
+   is_video = any(kw in um for kw in video_keywords)
+   if is_video:
+       video_result = search_video(um)
+       if video_result and video_result.startswith("ERROR:"):
+           reply = f"⚠️ عذراً، ما قدرت أجيب الفيديو: {video_result.replace('ERROR:', '')}"
+           sm[uid].append({"role": "user", "content": um})
+           sm[uid].append({"role": "assistant", "content": reply})
+           nid = save_user_conversation(uid, sm[uid], cid)
+           return jsonify({"reply": reply, "conv_id": nid})
+       elif video_result:
+           reply = f"🎬 إليك الفيديو الذي طلبتـه:\n{video_result}"
+           sm[uid].append({"role": "user", "content": um})
+           sm[uid].append({"role": "assistant", "content": reply})
+           nid = save_user_conversation(uid, sm[uid], cid)
+           return jsonify({"reply": reply, "image_url": video_result, "conv_id": nid})
+       else:
+           reply = "⚠️ عذراً، تعذر جلب الفيديو."
+           sm[uid].append({"role": "user", "content": um})
+           sm[uid].append({"role": "assistant", "content": reply})
+           nid = save_user_conversation(uid, sm[uid], cid)
+           return jsonify({"reply": reply, "conv_id": nid})
+
+   img_result = generate_image(um)
+   if img_result and img_result.startswith("ERROR:"):
+        reply = f"⚠️ عذراً، ما قدرت أولد الصورة: {img_result.replace('ERROR:', '')}"
+        sm[uid].append({"role": "user", "content": um})
+        sm[uid].append({"role": "assistant", "content": reply})
+        nid = save_user_conversation(uid, sm[uid], cid)
+        return jsonify({"reply": reply, "conv_id": nid})
+   elif img_result:
+        reply = f"🖼️ إليك الصورة التي طلبتها:\n{img_result}"
+        sm[uid].append({"role": "user", "content": um})
+        sm[uid].append({"role": "assistant", "content": reply})
+        nid = save_user_conversation(uid, sm[uid], cid)
+        return jsonify({"reply": reply, "image_url": img_result, "conv_id": nid})
+   else:
+        reply = "⚠️ عذراً، تعذر توليد الصورة."
+        sm[uid].append({"role": "user", "content": um})
+        sm[uid].append({"role": "assistant", "content": reply})
+        nid = save_user_conversation(uid, sm[uid], cid)
+        return jsonify({"reply": reply, "conv_id": nid})
+
+  # ====== البحث المجاني بالويب (للجميع) ======
+  search_result = search_web(um)
+  if search_result:
+      hist.append({"role": "user", "content": f"نتيجة البحث عن '{um}':\n{search_result}\n\nاستخدم هذه المعلومات في ردك."})
+      print("✅ تم جلب نتائج بحث مجانية من DuckDuckGo")
+
+  # ====== بناء المحادثة ======
+  context = hist[-10:] if len(hist) > 10 else hist
+  msgs=[{"role":"system","content":SP}]
+  for e in context:msgs.append({"role":e["role"],"content":e["content"]})
+  msgs.append({"role":"user","content":um})
+
+  # ====== استدعاء النموذج (المدفوع لكن رخيص) ======
+  try:
+   r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=1000,temperature=0.8);reply=r.choices[0].message.content.strip()
+   if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
+  except Exception as e:
+   print(f"❌ فشل النموذج: {e}")
+   return jsonify({"error": str(e)}), 500
+
+  # ====== تنظيف النص ======
+  lines = reply.split('\n')
+  merged_paragraphs = []
+  current_paragraph = []
+  for line in lines:
+      line = line.strip()
+      if not line:
+          if current_paragraph:
+              merged_paragraphs.append(' '.join(current_paragraph))
+              current_paragraph = []
+      else:
+          current_paragraph.append(line)
+  if current_paragraph:
+      merged_paragraphs.append(' '.join(current_paragraph))
+  reply = '\n\n'.join(merged_paragraphs)
+
+  # ====== حفظ المحادثة ======
+  sm[uid].append({"role":"user","content":um})
+  sm[uid].append({"role":"assistant","content":reply})
+  if len(sm[uid]) > 50:
+      sm[uid] = sm[uid][-50:]
+  nid = save_user_conversation(uid, sm[uid], cid)
+
+  # ====== الصوت المجاني ======
+  try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
+  except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
+
+  return jsonify({"reply":reply,"audio":audio,"conv_id":nid})
+
+ except Exception as e:print(f"❌ خطأ عام: {e}");return jsonify({"error":str(e)}),500
+
+@app.route('/<path:filename>')
+def serve_static_files(filename):return send_from_directory(app.static_folder,filename)
+
+if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
