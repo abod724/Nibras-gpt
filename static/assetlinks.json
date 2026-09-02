@@ -1,1 +1,8 @@
-
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.onrender.nibras_al.twa",
+        "sha256_cert_fingerprints": ["CD:F5:3F:F4:AF:19:1B:2D:C4:87:B5:CF:94:CB:D4:E2:9B:DF:3F:E7:4C:2D:03:98:3F:BB:9A:D0:56:80:D4:36"]
+      }
+    }]
