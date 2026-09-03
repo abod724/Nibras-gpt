@@ -6,4 +6,5 @@ edge-tts
 uvicorn
 flask-limiter
 Pillow
-duckduckgo-search
+Flask-Mail
+pyotp
