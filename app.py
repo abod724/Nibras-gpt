@@ -3,12 +3,6 @@ import openai,os,secrets,json,hashlib,asyncio,edge_tts,base64,re,sqlite3,request
 from datetime import datetime
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-import pyotp
-import threading
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
@@ -21,47 +15,6 @@ if not OPENAI_MODEL:
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
 limiter.init_app(app)
-
-# ====== إعدادات البريد الإلكتروني (SMTP) ======
-MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
-MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
-if not MAIL_USERNAME or not MAIL_PASSWORD:
-    print("⚠️ تحذير: MAIL_USERNAME أو MAIL_PASSWORD غير موجودين في البيئة!")
-
-def send_email(recipient, subject, body):
-    """إرسال بريد إلكتروني باستخدام SMTP (بدون Flask-Mail)"""
-    try:
-        # إعداد الرسالة
-        msg = MIMEMultipart()
-        msg['From'] = MAIL_USERNAME
-        msg['To'] = recipient
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-
-        # الاتصال بخادم Gmail
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(MAIL_USERNAME, MAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except Exception as e:
-        print(f"❌ فشل إرسال البريد: {type(e).__name__}: {e}")
-        return False
-
-# ====== دالة إرسال رمز التحقق في خلفية منفصلة ======
-def send_otp_email(recipient, otp):
-    print(f"🔑 رمز التحقق لـ {recipient}: {otp}")
-    success = send_email(
-        recipient,
-        'رمز التحقق الخاص بك',
-        f'رمز التحقق الخاص بك هو: {otp}'
-    )
-    if success:
-        print("✅ تم إرسال البريد بنجاح")
-    else:
-        print("❌ فشل إرسال البريد")
-# =========================================================
 
 # ====== خدمة الملفات الثابتة ======
 @app.route('/robots.txt')
@@ -255,123 +208,37 @@ window.deleteMyData = function() {
 };
 })();</script></body></html>"""
 LH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}body{background:#f0f2f5;display:flex;justify-content:center;align-items:center;height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:400px;text-align:center}h2{font-size:28px;color:#1a2b3c;margin-bottom:25px}input{width:100%;padding:14px 16px;margin:12px 0;border:1px solid #dce1e8;border-radius:12px;font-size:18px;background:#fafbfc;box-sizing:border-box}input:focus{outline:0;border-color:#4a6a8a;background:#fff}button{width:100%;padding:16px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer;margin-top:15px}button:hover{background:#3a5a7a}a{color:#4a6a8a;text-decoration:none;font-size:16px;display:inline-block;margin-top:20px}.error{color:#d9534f;margin-bottom:15px}</style></head><body><div class="box"><h2>🔐 تسجيل الدخول</h2>{% if error %}<div class="error">{{ error }}</div>{% endif %}<form method="POST"><input type="email" name="email" placeholder="البريد الإلكتروني" required><input type="password" name="password" placeholder="كلمة المرور" required><button type="submit">دخول</button></form><a href="/">⬅ العودة للرئيسية</a><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:inline-block; margin-top:5px; font-size:12px; text-decoration:underline;">سياسة الخصوصية</a></div></body></html>"""
-
-# ====== صفحة التحقق من الرمز (OTP) - مع زر عودة ======
-VERIFY_HTML = """
-<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-    <meta charset="UTF-8">
-    <title>التحقق من الرمز</title>
-    <style>
-        body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0f2f5;display:flex;justify-content:center;align-items:center;height:100dvh;margin:0;padding:15px}
-        .box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:400px;text-align:center}
-        input{width:100%;padding:14px 16px;margin:12px 0;border:1px solid #dce1e8;border-radius:12px;font-size:18px;box-sizing:border-box}
-        button{width:100%;padding:16px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer}
-        .error{color:#d9534f;margin-bottom:15px}
-        .back-link{display:inline-block;margin-top:15px;color:#4a6a8a;text-decoration:none;font-size:16px}
-    </style>
-</head>
-<body>
-    <div class="box">
-        <h2>📧 تأكيد الرمز</h2>
-        <p>تم إرسال رمز تحقق مكون من 6 أرقام إلى بريدك الإلكتروني.</p>
-        {% if error %}<div class="error">{{ error }}</div>{% endif %}
-        <form method="POST">
-            <input type="text" name="otp" placeholder="أدخل الرمز" required maxlength="6">
-            <button type="submit">تأكيد</button>
-        </form>
-        <a href="/" class="back-link">⬅ العودة للرئيسية</a>
-    </div>
-</body>
-</html>
-"""
-# =========================================================
-
-# ====== المسارات ======
 @app.route('/')
 def index():return render_template_string(HT)
-
 @app.route('/share/<cid>')
 def shared_conversation(cid):
  conn=sqlite3.connect(DB_FILE);c=conn.cursor();c.execute("SELECT messages,title FROM conversations WHERE conv_id=?",(cid,));r=c.fetchone();conn.close()
  if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
  return "⚠️ المحادثة غير موجودة أو تم حذفها.",404
-
 @app.route('/login',methods=['GET','POST'])
 @limiter.limit("3 per minute")
 def login():
  if request.method=='POST':
-  e=request.form.get('email').strip()
-  p=request.form.get('password', '').strip()
-  ae="abdullaha0569361@gmail.com"
-  ap=os.environ.get("ADMIN_PASSWORD")
-  
-  # التحقق من البريد الإلكتروني الصحيح
-  if not e or "@" not in e:
-      return render_template_string(LH, error="يرجى إدخال بريد إلكتروني صحيح.")
-  
-  # تحديد نوع المستخدم
-  user_type = None
-  if e == ae:
-      # أدمن: يحتاج كلمة مرور
-      if not ap:
-          return render_template_string(LH, error="خطأ: لم يتم إعداد كلمة مرور الأدمن.")
-      if not secrets.compare_digest(p, ap):
-          return render_template_string(LH, error="كلمة مرور الأدمن غير صحيحة.")
-      user_type = 'admin'
-  else:
-      # مستخدم عادي: لا يحتاج كلمة مرور
-      user_type = 'user'
-  
-  # إنشاء رمز OTP
-  otp_secret = pyotp.random_base32()
-  otp = pyotp.TOTP(otp_secret).now()
-  session['pending_email'] = e
-  session['pending_otp'] = otp
-  session['pending_type'] = user_type
-  
-  # إرسال البريد في خلفية منفصلة
-  threading.Thread(target=send_otp_email, args=(e, otp)).start()
-  return redirect(url_for('verify_otp'))
-  
+  e=request.form.get('email');p=request.form.get('password');ae="abdullaha0569361@gmail.com";ap=os.environ.get("ADMIN_PASSWORD")
+  if e==ae:
+   if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
+   if secrets.compare_digest(p,ap):session.clear();session['admin_email']=ae;return redirect(url_for('index'))
+   else:return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
+  elif e and "@" in e:
+   session['user_email']=e
+   return redirect(url_for('index'))
+  else:return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
  return render_template_string(LH)
-
-@app.route('/verify_otp', methods=['GET', 'POST'])
-def verify_otp():
-    if request.method == 'POST':
-        user_otp = request.form.get('otp')
-        stored_otp = session.get('pending_otp')
-        if user_otp == stored_otp:
-            email = session.get('pending_email')
-            user_type = session.get('pending_type')
-            
-            if user_type == 'admin':
-                session['admin_email'] = email
-            else:
-                session['user_email'] = email
-            
-            session.pop('pending_otp', None)
-            session.pop('pending_email', None)
-            session.pop('pending_type', None)
-            return redirect(url_for('index'))
-        else:
-            return render_template_string(VERIFY_HTML, error="الرمز غير صحيح، حاول مرة أخرى.")
-    return render_template_string(VERIFY_HTML)
-
 @app.route('/logout')
 def logout():session.clear();return redirect(url_for('index'))
-
 @app.route('/history')
 def history():
  uid=get_user_id();cs=get_user_conversations(uid);cs.sort(key=lambda x:x["timestamp"],reverse=True);return jsonify({"conversations":[{"id":c["id"],"title":c["title"]} for c in cs]})
-
 @app.route('/load_conversation/<cid>')
 def load_conversation(cid):
  uid=get_user_id();ms=load_conversation_by_id(uid,cid)
  if ms:return jsonify({"messages":ms})
  return jsonify({"messages":None}),404
-
 @app.route('/delete_message', methods=['POST'])
 def delete_message():
     try:
@@ -385,7 +252,6 @@ def delete_message():
         save_user_conversation(uid,msgs,cid)
         return jsonify({"status":"ok"})
     except Exception as e:return jsonify({"status":"error","message":str(e)}),500
-
 @app.route('/delete_my_data', methods=['POST'])
 def delete_my_data():
     uid = get_user_id()
@@ -396,7 +262,6 @@ def delete_my_data():
     conn.close()
     session.clear()
     return jsonify({"status": "success", "message": "تم حذف جميع بياناتك ومحادثاتك بنجاح."})
-
 def get_user_id():
  if 'admin_email' in session:return "admin_"+session['admin_email']
  elif 'user_email' in session:return "user_"+session['user_email']
@@ -405,10 +270,8 @@ def get_user_id():
   if rip:rip=rip.split(',')[0].strip()
   else:rip=request.remote_addr
   return "guest_"+(rip or 'unknown')
-
 @app.route('/set_gender',methods=['POST'])
 def set_gender():d=request.get_json();session['voice_gender']=d.get('gender','male');return jsonify({"status":"ok"})
-
 @app.route('/chat',methods=['POST'])
 @limiter.limit("5 per minute")
 def chat():
@@ -530,8 +393,6 @@ def chat():
   except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
   return jsonify({"reply":reply,"audio":audio,"conv_id":nid})
  except Exception as e:print(f"❌ خطأ عام: {e}");return jsonify({"error":str(e)}),500
-
 @app.route('/<path:filename>')
 def serve_static_files(filename):return send_from_directory(app.static_folder,filename)
-
 if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
