@@ -3,9 +3,11 @@ import openai,os,secrets,json,hashlib,asyncio,edge_tts,base64,re,sqlite3,request
 from datetime import datetime
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_mail import Mail, Message
 import pyotp
 import threading
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
@@ -16,34 +18,50 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود! أضفه في متغيرات البيئة.")
 
-# ====== إعدادات البريد الإلكتروني ======
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
-
-mail = Mail(app)
-
-# ====== دالة إرسال البريد في خلفية منفصلة (معدلة لحل السياق) ======
-def send_otp_email(recipient, otp):
-    # طباعة الرمز في السجلات عشان تشوفه حتى لو البريد ما وصل
-    print(f"🔑 رمز التحقق لـ {recipient}: {otp}")
-    try:
-        # الحل السحري: إعطاء الخيط سياق التطبيق الحالي
-        with app.app_context():
-            msg = Message('رمز التحقق الخاص بك', recipients=[recipient])
-            msg.body = f'رمز التحقق الخاص بك هو: {otp}'
-            mail.send(msg)
-            print("✅ تم إرسال البريد بنجاح")
-    except Exception as e:
-        print(f"❌ فشل إرسال البريد: {e}")
-# ==================================================
-
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","20 per hour"])
 limiter.init_app(app)
+
+# ====== إعدادات البريد الإلكتروني (SMTP) ======
+MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
+MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
+if not MAIL_USERNAME or not MAIL_PASSWORD:
+    print("⚠️ تحذير: MAIL_USERNAME أو MAIL_PASSWORD غير موجودين في البيئة!")
+
+def send_email(recipient, subject, body):
+    """إرسال بريد إلكتروني باستخدام SMTP (بدون Flask-Mail)"""
+    try:
+        # إعداد الرسالة
+        msg = MIMEMultipart()
+        msg['From'] = MAIL_USERNAME
+        msg['To'] = recipient
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+        # الاتصال بخادم Gmail
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(MAIL_USERNAME, MAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"❌ فشل إرسال البريد: {type(e).__name__}: {e}")
+        return False
+
+# ====== دالة إرسال رمز التحقق في خلفية منفصلة ======
+def send_otp_email(recipient, otp):
+    print(f"🔑 رمز التحقق لـ {recipient}: {otp}")
+    success = send_email(
+        recipient,
+        'رمز التحقق الخاص بك',
+        f'رمز التحقق الخاص بك هو: {otp}'
+    )
+    if success:
+        print("✅ تم إرسال البريد بنجاح")
+    else:
+        print("❌ فشل إرسال البريد")
+# =========================================================
 
 # ====== خدمة الملفات الثابتة ======
 @app.route('/robots.txt')
@@ -284,25 +302,39 @@ def shared_conversation(cid):
 @limiter.limit("3 per minute")
 def login():
  if request.method=='POST':
-  e=request.form.get('email');p=request.form.get('password');ae="abdullaha0569361@gmail.com";ap=os.environ.get("ADMIN_PASSWORD")
-  if e==ae:
-   if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
-   if secrets.compare_digest(p,ap):
-       # إنشاء رمز OTP
-       otp_secret = pyotp.random_base32()
-       otp = pyotp.TOTP(otp_secret).now()
-       session['pending_email'] = e
-       session['pending_otp'] = otp
-       session['otp_secret'] = otp_secret
-       # إرسال البريد في خلفية منفصلة (لا يعلق الطلب)
-       threading.Thread(target=send_otp_email, args=(e, otp)).start()
-       return redirect(url_for('verify_otp'))
-   else:
-    return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
-  elif e and "@" in e:
-   session['user_email']=e
-   return redirect(url_for('index'))
-  else:return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
+  e=request.form.get('email').strip()
+  p=request.form.get('password', '').strip()
+  ae="abdullaha0569361@gmail.com"
+  ap=os.environ.get("ADMIN_PASSWORD")
+  
+  # التحقق من البريد الإلكتروني الصحيح
+  if not e or "@" not in e:
+      return render_template_string(LH, error="يرجى إدخال بريد إلكتروني صحيح.")
+  
+  # تحديد نوع المستخدم
+  user_type = None
+  if e == ae:
+      # أدمن: يحتاج كلمة مرور
+      if not ap:
+          return render_template_string(LH, error="خطأ: لم يتم إعداد كلمة مرور الأدمن.")
+      if not secrets.compare_digest(p, ap):
+          return render_template_string(LH, error="كلمة مرور الأدمن غير صحيحة.")
+      user_type = 'admin'
+  else:
+      # مستخدم عادي: لا يحتاج كلمة مرور
+      user_type = 'user'
+  
+  # إنشاء رمز OTP
+  otp_secret = pyotp.random_base32()
+  otp = pyotp.TOTP(otp_secret).now()
+  session['pending_email'] = e
+  session['pending_otp'] = otp
+  session['pending_type'] = user_type
+  
+  # إرسال البريد في خلفية منفصلة
+  threading.Thread(target=send_otp_email, args=(e, otp)).start()
+  return redirect(url_for('verify_otp'))
+  
  return render_template_string(LH)
 
 @app.route('/verify_otp', methods=['GET', 'POST'])
@@ -311,11 +343,17 @@ def verify_otp():
         user_otp = request.form.get('otp')
         stored_otp = session.get('pending_otp')
         if user_otp == stored_otp:
-            # التحقق ناجح، ننشئ الجلسة النهائية
-            session['admin_email'] = session.get('pending_email')
+            email = session.get('pending_email')
+            user_type = session.get('pending_type')
+            
+            if user_type == 'admin':
+                session['admin_email'] = email
+            else:
+                session['user_email'] = email
+            
             session.pop('pending_otp', None)
             session.pop('pending_email', None)
-            session.pop('otp_secret', None)
+            session.pop('pending_type', None)
             return redirect(url_for('index'))
         else:
             return render_template_string(VERIFY_HTML, error="الرمز غير صحيح، حاول مرة أخرى.")
