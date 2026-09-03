@@ -6,5 +6,3 @@ edge-tts
 uvicorn
 flask-limiter
 Pillow
-Flask-Mail
-pyotp
