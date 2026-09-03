@@ -5,7 +5,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_mail import Mail, Message
 import pyotp
-import threading  # <-- جديد لإرسال البريد في الخلفية
+import threading
 
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
@@ -26,12 +26,17 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
 
 mail = Mail(app)
 
-# ====== دالة إرسال البريد في خلفية منفصلة ======
+# ====== دالة إرسال البريد في خلفية منفصلة (معدلة لحل السياق) ======
 def send_otp_email(recipient, otp):
+    # طباعة الرمز في السجلات عشان تشوفه حتى لو البريد ما وصل
+    print(f"🔑 رمز التحقق لـ {recipient}: {otp}")
     try:
-        msg = Message('رمز التحقق الخاص بك', recipients=[recipient])
-        msg.body = f'رمز التحقق الخاص بك هو: {otp}'
-        mail.send(msg)
+        # الحل السحري: إعطاء الخيط سياق التطبيق الحالي
+        with app.app_context():
+            msg = Message('رمز التحقق الخاص بك', recipients=[recipient])
+            msg.body = f'رمز التحقق الخاص بك هو: {otp}'
+            mail.send(msg)
+            print("✅ تم إرسال البريد بنجاح")
     except Exception as e:
         print(f"❌ فشل إرسال البريد: {e}")
 # ==================================================
