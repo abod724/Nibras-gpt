@@ -137,20 +137,16 @@ def search_video(prompt):
 # ==================== دالة الصوت المعدلة (edge_tts) ====================
 def generate_speech(text, gender):
     try:
-        # اختيار صوت سعودي طبيعي
         if gender == "female":
-            voice = "ar-SA-ZariyahNeural"  # أنثى سعودية
+            voice = "ar-SA-ZariyahNeural"
         else:
-            voice = "ar-SA-HamedNeural"    # ذكر سعودي (موجود في edge-tts)
-
+            voice = "ar-SA-HamedNeural"
         communicate = edge_tts.Communicate(text, voice)
         audio_data = bytearray()
-
         async def collect_audio():
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
                     audio_data.extend(chunk["data"])
-
         asyncio.run(collect_audio())
         return base64.b64encode(audio_data).decode('utf-8')
     except Exception as e:
@@ -173,68 +169,834 @@ HT=r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><me
 .code-block-wrapper{position:relative;margin:16px 0;border-radius:14px;border:1px solid var(--border-color);background:var(--bg-input);overflow:hidden;display:block;width:100%;overflow-x:auto;box-shadow:0 2px 8px rgba(0,0,0,0.05)}.code-block-wrapper pre{margin:0;padding:20px 60px 20px 24px;background:transparent;border:none;border-radius:0;white-space:pre;word-break:normal;font-size:15px;line-height:1.8;font-family:'Courier New',Consolas,monospace;direction:ltr;text-align:left}.code-block-wrapper .copy-code-btn{position:absolute;top:12px;left:14px;background:var(--bg-hover);border:1px solid var(--border-color);color:var(--text-secondary);border-radius:10px;padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;z-index:5;display:flex;align-items:center;gap:6px}.code-block-wrapper .copy-code-btn:hover{background:var(--primary-color);color:#fff;border-color:var(--primary-color);transform:scale(1.02)}.code-block-wrapper .copy-code-btn.copied{background:#28a745;color:#fff;border-color:#28a745}
 </style></head><body><div class="app"><div class="header"><div class="header-right"><button class="mute-btn" id="muteBtn"><i class="fas fa-volume-up"></i></button><button class="menu-btn" id="menuToggle"><i class="fas fa-ellipsis-v"></i></button></div><div class="header-left"><div class="btn-group">{% if session.get('admin_email') or session.get('user_email') %}<a href="/logout" class="btn btn-outline">تسجيل خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div><div class="dropdown" id="dropdown"><button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button>
 <button class="item" onclick="window.location.href='/tools'"><i class="fas fa-tools"></i> 🧰 أدوات مجانية</button>
-<button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button><button class="item" onclick="deleteMyData()" style="color: #ff4d4d;"><i class="fas fa-trash-alt"></i> حذف حسابي</button><button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button><div class="item" style="flex-direction:column;align-items:stretch;gap:6px;cursor:default;border-bottom:1px solid var(--border-color)"><div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-primary)"><i class="fas fa-microphone" style="font-size:18px;color:var(--text-secondary)"></i><span>صوت المساعد</span></div><div style="display:flex;gap:8px"><button class="gender-option active" data-gender="male">👨 ذكر</button><button class="gender-option" data-gender="female">👩 أنثى</button></div></div><div id="historyList"></div></div><div id="chat"></div><div id="imagePreviewContainer"><img id="imagePreview" src=""/><span class="label">📎 صورة معلقة</span><button id="removeImageBtn">✕ إزالة</button></div><div class="input-area"><button class="btn-icon mic-btn" id="micBtn"><i class="fas fa-microphone"></i></button><button class="plus-btn" id="plusBtn"><i class="fas fa-plus"></i></button><div class="plus-options" id="plusOptions"><button class="option-btn camera" id="cameraBtn"><i class="fas fa-camera"></i></button><button class="option-btn gallery" id="galleryBtn"><i class="fas fa-images"></i></button><button class="option-btn files" id="filesBtn"><i class="fas fa-folder"></i></button></div><textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea><button class="send" id="sendBtn"><i class="fas fa-arrow-left"></i></button></div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="fileInputGeneric" style="display:none"/></div><div class="share-modal" id="shareModal"><div class="box"><h3><i class="fas fa-share-alt" style="color:var(--primary-color)"></i> شارك المحادثة</h3><div class="share-grid"><a href="#" id="shareWhatsapp" target="_blank" class="share-btn whatsapp"><i class="fab fa-whatsapp"></i> واتساب</a><a href="#" id="shareFacebook" target="_blank" class="share-btn facebook"><i class="fab fa-facebook"></i> فيسبوك</a><a href="#" id="shareTwitter" target="_blank" class="share-btn twitter"><i class="fab fa-x-twitter"></i> X</a><button id="shareSnapchat" class="share-btn snapchat"><i class="fab fa-snapchat"></i> سناب شات</button></div><button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إلغاء</button></div></div><script>(function(){let ch=[],pid=null,iw=!1,cid=null,ca=null;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),fib=document.getElementById('filesBtn'),fig=document.getElementById('fileInputGeneric'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),sm=document.getElementById('shareModal');let im=!0;const mut=document.getElementById('muteBtn');mut.querySelector('i').className='fas fa-volume-mute';mut.classList.add('muted');mut.addEventListener('click',function(){im=!im;const ic=mut.querySelector('i');if(im){ic.className='fas fa-volume-mute';mut.classList.add('muted');if(ca){ca.pause();ca.currentTime=0}}else{ic.className='fas fa-volume-up';mut.classList.remove('muted')}});let isMale=!0;const gopts=document.querySelectorAll('.gender-option');mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();gopts.forEach(b=>b.classList.remove('active'));if(isMale)document.querySelector('.gender-option[data-gender="male"]').classList.add('active');else document.querySelector('.gender-option[data-gender="female"]').classList.add('active')}});gopts.forEach(b=>{b.addEventListener('click',function(e){e.stopPropagation();const g=this.dataset.gender;isMale=g==='male';gopts.forEach(x=>x.classList.remove('active'));this.classList.add('active');fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})});dd.classList.remove('show')})});async function loadHistory(){try{const r=await fetch('/history'),d=await r.json();hl.innerHTML='';if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const b=document.createElement('button');b.className='conv-item';b.textContent=c.title;b.onclick=()=>loadConversation(c.id);hl.appendChild(b)})}else{const e=document.createElement('div');e.className='item';e.textContent='📭 لا توجد محادثات سابقة';hl.appendChild(e)}}catch(e){console.error('خطأ في تحميل المحادثات:',e)}}async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){console.error('خطأ في تحميل المحادثة:',e)}}document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.style.display='none';ui.value=''});document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();if(!cid){alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');dd.classList.remove('show');return}const url=window.location.origin+'/share/'+cid,text=encodeURIComponent('اطلع على محادثتي مع نبراس:');document.getElementById('shareWhatsapp').href='https://api.whatsapp.com/send?text='+text+'%20'+encodeURIComponent(url);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(url)+'&text='+text;const snap=document.getElementById('shareSnapchat');snap.onclick=function(ev){ev.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.')).catch(()=>alert('❌ فشل النسخ، الرابط هو: '+url))}else alert('❌ فشل النسخ، الرابط هو: '+url);sm.classList.remove('show')};sm.classList.add('show');dd.classList.remove('show')});sm.addEventListener('click',function(e){if(e.target===sm)sm.classList.remove('show')});const ttb=document.querySelector('[data-action="theme-toggle"]'),tl=document.getElementById('themeLabel');function setTheme(t){const h=document.documentElement;if(t==='dark'){h.classList.add('dark-mode');tl.textContent='الوضع الليلي';ttb.querySelector('i').className='fas fa-moon';localStorage.setItem('nibras-theme','dark')}else{h.classList.remove('dark-mode');tl.textContent='الوضع النهاري';ttb.querySelector('i').className='fas fa-sun';localStorage.setItem('nibras-theme','light')}}const st=localStorage.getItem('nibras-theme')||'light';setTheme(st);if(ttb){ttb.addEventListener('click',function(e){e.stopPropagation();const cur=document.documentElement.classList.contains('dark-mode')?'dark':'light';const nw=cur==='dark'?'light':'dark';setTheme(nw);dd.classList.remove('show')})}}
-// ====== دالة تنسيق النص المعدلة (مع ترميز HTML) ======
-function formatBotText(t){ 
-    let s=String(t||'');
-    // ترميز HTML لحماية من XSS
-    s = s.replace(/&/g, '&amp;')
-         .replace(/</g, '&lt;')
-         .replace(/>/g, '&gt;')
-         .replace(/"/g, '&quot;')
-         .replace(/'/g, '&#39;');
-    let paragraphs = s.split(/\n\s*\n/);
-    let result = paragraphs.map(p => p.replace(/[\r\n]+/g, ' ').trim()).filter(p => p.length > 0).join('<br><br>');
-    return result;
-}
-// =========================================================
-function initCodeCopyButtons(){document.querySelectorAll('.copy-code-btn').forEach(function(btn){btn.removeEventListener('click',codeCopyHandler);btn.addEventListener('click',codeCopyHandler);});}
-function codeCopyHandler(e){e.stopPropagation();const btn=e.currentTarget;const code=btn.getAttribute('data-code')||btn.parentElement.querySelector('code')?.textContent||'';if(!code){showToast('❌ لا يوجد كود للنسخ');return}function copyDone(){btn.textContent='✅ تم النسخ!';btn.classList.add('copied');showToast('✅ تم نسخ الكود!');setTimeout(function(){btn.textContent='📋 نسخ الكود';btn.classList.remove('copied')},2200);}function copyFail(){showToast('❌ فشل النسخ');}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(copyDone).catch(function(){fallbackCopy(code,copyDone,copyFail)});}else{fallbackCopy(code,copyDone,copyFail);}}
-function fallbackCopy(text,onSuccess,onFail){try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';ta.style.left='-9999px';ta.style.top='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();onSuccess();}catch(e){onFail();}}
-function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>{t.style.animation='toastOut .3s ease forwards';setTimeout(()=>t.remove(),300)},1500);}
-function addMessage(t, s, isSys, img, imageUrl){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(s==='error')el.classList.add('error');const now=new Date(),tm=isSys?'':now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});if(img){el.innerHTML='<img src="'+img+'" class="image-upload" /><span class="file-label">'+(t||'صورة')+'</span>'+(tm?' <span class="time">'+tm+'</span>':'');cb.appendChild(el);cb.scrollTop=cb.scrollHeight;return el}const imatch=t.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);const vmatch=t.match(/(https?:\/\/[^\s]+\.(mp4|webm|mov))/i)||(t.includes('video')?t.match(/(https?:\/\/[^\s]+)/):null);let dt=t,genUrl=null;if(imatch){genUrl=imatch[0];dt=t.replace(imatch[0],'').trim();if(!dt)dt='الصورة المولدة'}if(s==='bot'&&!isSys&&!genUrl&&!imageUrl){const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML='<span class="typing-text"></span>';const actions=document.createElement('div');actions.className='actions';const copyBtn=document.createElement('button');copyBtn.className='copy-btn';copyBtn.innerHTML='<i class="fas fa-copy"></i>';copyBtn.title='نسخ النص';copyBtn.addEventListener('click',function(e){e.stopPropagation();const fullText=dt;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(fullText).then(()=>{copyBtn.innerHTML='<i class="fas fa-check"></i>';copyBtn.classList.add('copied');showToast('تم نسخ النص!');setTimeout(()=>{copyBtn.innerHTML='<i class="fas fa-copy"></i>';copyBtn.classList.remove('copied')},2000)}).catch(()=>{showToast('فشل النسخ')})}else{showToast('المتصفح لا يدعم النسخ')}});const shareBtn=document.createElement('button');shareBtn.className='copy-btn';shareBtn.innerHTML='<i class="fas fa-share-alt"></i>';shareBtn.title='مشاركة النص';shareBtn.addEventListener('click',function(e){e.stopPropagation();const fullText=dt;const url='https://api.whatsapp.com/send?text='+encodeURIComponent(fullText);window.open(url,'_blank');});const delBtn=document.createElement('button');delBtn.className='del-msg-btn';delBtn.innerHTML='<i class="fas fa-trash-alt"></i>';delBtn.title='حذف هذه الرسالة';delBtn.addEventListener('click',function(e){e.stopPropagation();deleteMessage(el)});actions.appendChild(copyBtn);actions.appendChild(shareBtn);actions.appendChild(delBtn);wrapper.appendChild(textDiv);wrapper.appendChild(actions);el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;const ts=textDiv.querySelector('.typing-text');let idx=0,interacted=false;const onInteract=function(){interacted=true;cb.removeEventListener('touchstart',onInteract);cb.removeEventListener('scroll',onInteract)};cb.addEventListener('touchstart',onInteract);cb.addEventListener('scroll',onInteract);function typeChar(){if(idx<dt.length){ts.textContent+=dt.charAt(idx);idx++;if(!interacted)cb.scrollTop=cb.scrollHeight;setTimeout(typeChar,20)}else{const formatted=formatBotText(dt);ts.innerHTML=formatted;initCodeCopyButtons();cb.scrollTop=cb.scrollHeight}}typeChar();return el}let content=dt;if(s==='bot')content=formatBotText(dt);if(genUrl)content+='<br/><img src="'+genUrl+'" class="generated-image" />';if(imageUrl){if(imageUrl.match(/\.(mp4|webm|mov)$/i)||imageUrl.includes('video')){content+='<br/><video controls class="generated-video" src="'+imageUrl+'"></video>';}else{content+='<br/><img src="'+imageUrl+'" class="generated-image" />';}}const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML=content;wrapper.appendChild(textDiv);if(s==='bot'&&!isSys){const actions=document.createElement('div');actions.className='actions';const copyBtn=document.createElement('button');copyBtn.className='copy-btn';copyBtn.innerHTML='<i class="fas fa-copy"></i>';copyBtn.title='نسخ النص';copyBtn.addEventListener('click',function(e){e.stopPropagation();const fullText=dt;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(fullText).then(()=>{copyBtn.innerHTML='<i class="fas fa-check"></i>';copyBtn.classList.add('copied');showToast('تم نسخ النص!');setTimeout(()=>{copyBtn.innerHTML='<i class="fas fa-copy"></i>';copyBtn.classList.remove('copied')},2000)}).catch(()=>{showToast('فشل النسخ')})}else{showToast('المتصفح لا يدعم النسخ')}});const shareBtn=document.createElement('button');shareBtn.className='copy-btn';shareBtn.innerHTML='<i class="fas fa-share-alt"></i>';shareBtn.title='مشاركة النص';shareBtn.addEventListener('click',function(e){e.stopPropagation();const fullText=dt;const url='https://api.whatsapp.com/send?text='+encodeURIComponent(fullText);window.open(url,'_blank');});const delBtn=document.createElement('button');delBtn.className='del-msg-btn';delBtn.innerHTML='<i class="fas fa-trash-alt"></i>';delBtn.title='حذف هذه الرسالة';delBtn.addEventListener('click',function(e){e.stopPropagation();deleteMessage(el)});actions.appendChild(copyBtn);actions.appendChild(shareBtn);actions.appendChild(delBtn);wrapper.appendChild(actions)}el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;initCodeCopyButtons();return el}
-async function deleteMessage(el){if(!cid){showToast('لا توجد محادثة');return}if(!confirm('هل تريد حذف هذه الرسالة؟'))return;try{const idx=Array.from(cb.children).indexOf(el);const r=await fetch('/delete_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid,index:idx})});const d=await r.json();if(d.status==='ok'){ch.splice(idx,1);el.remove();showToast('تم حذف الرسالة');}else{showToast('فشل الحذف: '+d.message);}}catch(e){showToast('خطأ في الاتصال')}}
-function showWelcome(){if(!sessionStorage.getItem('welcomeShown')){const ov=document.createElement('div');ov.className='welcome-overlay';ov.innerHTML='<div class="welcome-box"><h2>👋 أهلاً بك في نبراس</h2><p>نورتنا! كيف نقدر نساعدك اليوم؟</p></div>';document.body.appendChild(ov);sessionStorage.setItem('welcomeShown','true');setTimeout(function(){if(document.body.contains(ov)){ov.classList.add('fade-out');setTimeout(function(){if(document.body.contains(ov))ov.remove()},500)}},5000);const rm=function(){if(document.body.contains(ov)){ov.classList.add('fade-out');setTimeout(function(){if(document.body.contains(ov))ov.remove()},500)}document.removeEventListener('click',rm);ui.removeEventListener('keydown',rm)};document.addEventListener('click',rm);ui.addEventListener('keydown',rm)}}
-function showImagePreview(d){ip.src=d;ipc.style.display='flex'}
-function clearPending(){pid=null;ipc.style.display='none';ip.src=''}
-rib.addEventListener('click',clearPending);
-ui.addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'});
-let poOpen=false;
-pb.addEventListener('click',function(){poOpen=!poOpen;po.classList.toggle('show',poOpen);this.classList.toggle('rotate',poOpen)});
-document.addEventListener('click',function(e){if(!pb.contains(e.target)&&!po.contains(e.target)){po.classList.remove('show');poOpen=false;pb.classList.remove('rotate')}});
-gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
-fi.addEventListener('change',function(e){if(this.files&&this.files.length>0){const r=new FileReader();r.onload=function(ev){pid=ev.target.result;showImagePreview(pid);fi.value=''};r.readAsDataURL(this.files[0])}});
-cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
-ci.addEventListener('change',function(e){if(this.files&&this.files.length>0){const r=new FileReader();r.onload=function(ev){pid=ev.target.result;showImagePreview(pid);ci.value=''};r.readAsDataURL(this.files[0])}});
-fib.addEventListener('click',function(){fig.click();po.classList.remove('show')});
-fig.addEventListener('change',function(e){if(this.files&&this.files.length>0){const r=new FileReader();r.onload=function(ev){pid=ev.target.result;showImagePreview(pid);fig.value=''};r.readAsDataURL(this.files[0])}});
-async function sendMessage(){if(iw)return;const t=ui.value.trim(),img=pid;if(!t&&!img)return;if(t)addMessage(t,'user');if(img){addMessage('صورة مرفقة','user',false,img);clearPending()}ui.value='';ui.style.height='auto';iw=true;const td=document.createElement('div');td.className='msg bot typing-indicator';td.innerHTML='<span class="typing-dots">جاري التفكير</span>';cb.appendChild(td);cb.scrollTop=cb.scrollHeight;const payload={message:t||"مرفق",image:img||null,history:ch,conv_id:cid};try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),d=await r.json();if(td.parentNode)td.remove();if(r.ok){addMessage(d.reply, 'bot', false, null, d.image_url);if(!im&&d.audio){if(ca){ca.pause();ca.currentTime=0}const src='data:audio/mp3;base64,'+d.audio;ca=new Audio(src);ca.play()}if(d.conv_id)cid=d.conv_id}else addMessage('خطأ: '+(d.error||'مشكلة في السيرفر'),'error')}catch(e){if(td.parentNode)td.remove();addMessage('تعذر الاتصال بالسيرفر، حاول مرة أخرى.','error')}finally{iw=false}}
-sb.addEventListener('click',sendMessage);
-ui.addEventListener('keypress',function(e){if(e.key==='Enter'){e.preventDefault();sendMessage()}});
-document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
-let recog=null;
-mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage('المتصفح لا يدعم التعرف على الصوت.','bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='ar-SA';this.classList.add('listening');addMessage('جاري الاستماع...','bot',true);recog.onresult=function(e){const tr=e.results[0][0].transcript;ui.value=tr;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});showWelcome()
-window.deleteMyData = function() {
-    if (!confirm('⚠️ هل أنت متأكد؟ سيتم حذف جميع محادثاتك وبياناتك نهائياً.')) return;
-    fetch('/delete_my_data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            alert('✅ تم حذف جميع بياناتك بنجاح.');
-            window.location.href = '/';
-        } else {
-            alert('❌ فشل الحذف: ' + (data.message || 'خطأ غير معروف'));
+<button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button><button class="item" onclick="deleteMyData()" style="color: #ff4d4d;"><i class="fas fa-trash-alt"></i> حذف حسابي</button><button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button><div class="item" style="flex-direction:column;align-items:stretch;gap:6px;cursor:default;border-bottom:1px solid var(--border-color)"><div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-primary)"><i class="fas fa-microphone" style="font-size:18px;color:var(--text-secondary)"></i><span>صوت المساعد</span></div><div style="display:flex;gap:8px"><button class="gender-option active" data-gender="male">👨 ذكر</button><button class="gender-option" data-gender="female">👩 أنثى</button></div></div><div id="historyList"></div></div><div id="chat"></div><div id="imagePreviewContainer"><img id="imagePreview" src=""/><span class="label">📎 صورة معلقة</span><button id="removeImageBtn">✕ إزالة</button></div><div class="input-area"><button class="btn-icon mic-btn" id="micBtn"><i class="fas fa-microphone"></i></button><button class="plus-btn" id="plusBtn"><i class="fas fa-plus"></i></button><div class="plus-options" id="plusOptions"><button class="option-btn camera" id="cameraBtn"><i class="fas fa-camera"></i></button><button class="option-btn gallery" id="galleryBtn"><i class="fas fa-images"></i></button><button class="option-btn files" id="filesBtn"><i class="fas fa-folder"></i></button></div><textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea><button class="send" id="sendBtn"><i class="fas fa-arrow-left"></i></button></div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="fileInputGeneric" style="display:none"/></div><div class="share-modal" id="shareModal"><div class="box"><h3><i class="fas fa-share-alt" style="color:var(--primary-color)"></i> شارك المحادثة</h3><div class="share-grid"><a href="#" id="shareWhatsapp" target="_blank" class="share-btn whatsapp"><i class="fab fa-whatsapp"></i> واتساب</a><a href="#" id="shareFacebook" target="_blank" class="share-btn facebook"><i class="fab fa-facebook"></i> فيسبوك</a><a href="#" id="shareTwitter" target="_blank" class="share-btn twitter"><i class="fab fa-x-twitter"></i> X</a><button id="shareSnapchat" class="share-btn snapchat"><i class="fab fa-snapchat"></i> سناب شات</button></div><button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إلغاء</button></div></div><script>
+// ====== بداية الكود مع تحسينات التوافق ومعالج الأخطاء ======
+(function(){
+    console.log("✅ بدء تشغيل نبراس (JS)");
+
+    // معالج الأخطاء العام لعرض أي خطأ في شاشة المحادثة
+    window.onerror = function(msg, url, line, col, error) {
+        var errMsg = '⚠️ خطأ في الجافا سكريبت: ' + msg;
+        console.error(errMsg);
+        var chatEl = document.getElementById('chat');
+        if (chatEl) {
+            var errDiv = document.createElement('div');
+            errDiv.className = 'msg error';
+            errDiv.textContent = errMsg + ' (انظر سجلات الخادم)';
+            chatEl.appendChild(errDiv);
         }
-    })
-    .catch(err => {
-        alert('❌ حدث خطأ في الاتصال.');
-        console.error(err);
-    });
-};
-})();</script></body></html>"""
+        return true;
+    };
+
+    try {
+        var ch=[], pid=null, iw=false, cid=null, ca=null;
+        var cb = document.getElementById('chat');
+        var ui = document.getElementById('userInput');
+        var sb = document.getElementById('sendBtn');
+        var mb = document.getElementById('micBtn');
+        var fi = document.getElementById('fileInput');
+        var ci = document.getElementById('cameraInput');
+        var mt = document.getElementById('menuToggle');
+        var dd = document.getElementById('dropdown');
+        var pb = document.getElementById('plusBtn');
+        var po = document.getElementById('plusOptions');
+        var cab = document.getElementById('cameraBtn');
+        var gb = document.getElementById('galleryBtn');
+        var fib = document.getElementById('filesBtn');
+        var fig = document.getElementById('fileInputGeneric');
+        var ipc = document.getElementById('imagePreviewContainer');
+        var ip = document.getElementById('imagePreview');
+        var rib = document.getElementById('removeImageBtn');
+        var hl = document.getElementById('historyList');
+        var sm = document.getElementById('shareModal');
+
+        // التحقق من وجود العناصر الأساسية
+        if (!cb) console.warn("⚠️ #chat غير موجود");
+        if (!ui) console.warn("⚠️ #userInput غير موجود");
+        if (!sb) console.warn("⚠️ #sendBtn غير موجود");
+        if (!mt) console.warn("⚠️ #menuToggle غير موجود");
+
+        // إذا كانت العناصر الأساسية مفقودة، نعرض خطأ في الشاشة
+        if (!sb || !ui) {
+            if (cb) {
+                var errDiv = document.createElement('div');
+                errDiv.className = 'msg error';
+                errDiv.textContent = '❌ فشل تحميل الواجهة، حاول تحديث الصفحة.';
+                cb.appendChild(errDiv);
+            }
+            return;
+        }
+
+        var im = true;
+        var mut = document.getElementById('muteBtn');
+        if (mut) {
+            var muteIcon = mut.querySelector('i');
+            if (muteIcon) muteIcon.className = 'fas fa-volume-mute';
+            mut.classList.add('muted');
+            mut.addEventListener('click', function(){
+                im = !im;
+                var ic = mut.querySelector('i');
+                if (im) {
+                    if (ic) ic.className = 'fas fa-volume-mute';
+                    mut.classList.add('muted');
+                    if (ca) { ca.pause(); ca.currentTime = 0; }
+                } else {
+                    if (ic) ic.className = 'fas fa-volume-up';
+                    mut.classList.remove('muted');
+                }
+            });
+        }
+
+        var isMale = true;
+        var gopts = document.querySelectorAll('.gender-option');
+        if (mt) {
+            mt.addEventListener('click', function(e){
+                e.stopPropagation();
+                dd.classList.toggle('show');
+                if (dd.classList.contains('show')) {
+                    loadHistory();
+                    gopts.forEach(function(b){ b.classList.remove('active'); });
+                    if (isMale) {
+                        var maleBtn = document.querySelector('.gender-option[data-gender="male"]');
+                        if (maleBtn) maleBtn.classList.add('active');
+                    } else {
+                        var femaleBtn = document.querySelector('.gender-option[data-gender="female"]');
+                        if (femaleBtn) femaleBtn.classList.add('active');
+                    }
+                }
+            });
+        }
+
+        gopts.forEach(function(b){
+            b.addEventListener('click', function(e){
+                e.stopPropagation();
+                var g = this.dataset.gender;
+                isMale = (g === 'male');
+                gopts.forEach(function(x){ x.classList.remove('active'); });
+                this.classList.add('active');
+                fetch('/set_gender', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gender: g })
+                }).catch(function(err){ console.error("خطأ في ضبط الجنس:", err); });
+                if (dd) dd.classList.remove('show');
+            });
+        });
+
+        async function loadHistory() {
+            try {
+                var r = await fetch('/history');
+                if (!r.ok) throw new Error("فشل تحميل التاريخ");
+                var d = await r.json();
+                if (hl) {
+                    hl.innerHTML = '';
+                    if (d.conversations && d.conversations.length > 0) {
+                        d.conversations.forEach(function(c){
+                            var b = document.createElement('button');
+                            b.className = 'conv-item';
+                            b.textContent = c.title;
+                            b.onclick = function() { loadConversation(c.id); };
+                            hl.appendChild(b);
+                        });
+                    } else {
+                        var e = document.createElement('div');
+                        e.className = 'item';
+                        e.textContent = '📭 لا توجد محادثات سابقة';
+                        hl.appendChild(e);
+                    }
+                }
+            } catch(e) {
+                console.error('خطأ في تحميل المحادثات:', e);
+                if (cb) {
+                    var errDiv = document.createElement('div');
+                    errDiv.className = 'msg error';
+                    errDiv.textContent = '⚠️ فشل تحميل المحادثات السابقة';
+                    cb.appendChild(errDiv);
+                }
+            }
+        }
+
+        async function loadConversation(id) {
+            try {
+                var r = await fetch('/load_conversation/' + id);
+                if (!r.ok) throw new Error("فشل تحميل المحادثة");
+                var d = await r.json();
+                if (d.messages && cb) {
+                    cb.innerHTML = '';
+                    ch = d.messages;
+                    cid = id;
+                    d.messages.forEach(function(m){
+                        var s = (m.role === 'user') ? 'user' : 'bot';
+                        addMessage(m.content, s, true);
+                    });
+                    if (dd) dd.classList.remove('show');
+                }
+            } catch(e) {
+                console.error('خطأ في تحميل المحادثة:', e);
+            }
+        }
+
+        var newBtn = document.querySelector('[data-action="new"]');
+        if (newBtn) {
+            newBtn.addEventListener('click', function(){
+                if (cb) cb.innerHTML = '';
+                ch = [];
+                cid = null;
+                if (dd) dd.classList.remove('show');
+                pid = null;
+                if (ipc) ipc.style.display = 'none';
+                if (ui) ui.value = '';
+            });
+        }
+
+        var shareBtn = document.querySelector('[data-action="share"]');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', function(e){
+                e.stopPropagation();
+                if (!cid) {
+                    alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');
+                    if (dd) dd.classList.remove('show');
+                    return;
+                }
+                var url = window.location.origin + '/share/' + cid;
+                var text = encodeURIComponent('اطلع على محادثتي مع نبراس:');
+                var wa = document.getElementById('shareWhatsapp');
+                var fb = document.getElementById('shareFacebook');
+                var tw = document.getElementById('shareTwitter');
+                var snap = document.getElementById('shareSnapchat');
+                if (wa) wa.href = 'https://api.whatsapp.com/send?text=' + text + '%20' + encodeURIComponent(url);
+                if (fb) fb.href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url);
+                if (tw) tw.href = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + text;
+                if (snap) {
+                    snap.onclick = function(ev){
+                        ev.stopPropagation();
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(url).then(function(){
+                                alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.');
+                            }).catch(function(){
+                                alert('❌ فشل النسخ، الرابط هو: ' + url);
+                            });
+                        } else {
+                            alert('❌ فشل النسخ، الرابط هو: ' + url);
+                        }
+                        if (sm) sm.classList.remove('show');
+                    };
+                }
+                if (sm) sm.classList.add('show');
+                if (dd) dd.classList.remove('show');
+            });
+        }
+
+        if (sm) {
+            sm.addEventListener('click', function(e){
+                if (e.target === sm) sm.classList.remove('show');
+            });
+        }
+
+        var ttb = document.querySelector('[data-action="theme-toggle"]');
+        var tl = document.getElementById('themeLabel');
+        function setTheme(t) {
+            var h = document.documentElement;
+            if (t === 'dark') {
+                h.classList.add('dark-mode');
+                if (tl) tl.textContent = 'الوضع الليلي';
+                if (ttb) {
+                    var i = ttb.querySelector('i');
+                    if (i) i.className = 'fas fa-moon';
+                }
+                localStorage.setItem('nibras-theme', 'dark');
+            } else {
+                h.classList.remove('dark-mode');
+                if (tl) tl.textContent = 'الوضع النهاري';
+                if (ttb) {
+                    var i = ttb.querySelector('i');
+                    if (i) i.className = 'fas fa-sun';
+                }
+                localStorage.setItem('nibras-theme', 'light');
+            }
+        }
+        var st = localStorage.getItem('nibras-theme') || 'light';
+        setTheme(st);
+        if (ttb) {
+            ttb.addEventListener('click', function(e){
+                e.stopPropagation();
+                var cur = document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light';
+                var nw = (cur === 'dark') ? 'light' : 'dark';
+                setTheme(nw);
+                if (dd) dd.classList.remove('show');
+            });
+        }
+
+        // ====== دالة تنسيق النص ======
+        function formatBotText(t) {
+            try {
+                var s = String(t || '');
+                s = s.replace(/&/g, '&amp;')
+                     .replace(/</g, '&lt;')
+                     .replace(/>/g, '&gt;')
+                     .replace(/"/g, '&quot;')
+                     .replace(/'/g, '&#39;');
+                var paragraphs = s.split(/\n\s*\n/);
+                var result = paragraphs.map(function(p) {
+                    return p.replace(/[\r\n]+/g, ' ').trim();
+                }).filter(function(p) { return p.length > 0; }).join('<br><br>');
+                return result;
+            } catch(e) {
+                console.error("خطأ في formatBotText:", e);
+                return t || '';
+            }
+        }
+
+        function showToast(msg) {
+            var old = document.querySelector('.toast');
+            if (old) old.remove();
+            var t = document.createElement('div');
+            t.className = 'toast';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(function(){
+                t.style.animation = 'toastOut .3s ease forwards';
+                setTimeout(function(){ if (t.parentNode) t.remove(); }, 300);
+            }, 1500);
+        }
+
+        function initCodeCopyButtons() {
+            document.querySelectorAll('.copy-code-btn').forEach(function(btn){
+                btn.removeEventListener('click', codeCopyHandler);
+                btn.addEventListener('click', codeCopyHandler);
+            });
+        }
+
+        function codeCopyHandler(e) {
+            e.stopPropagation();
+            var btn = e.currentTarget;
+            var code = btn.getAttribute('data-code') || '';
+            if (!code) {
+                var pre = btn.parentElement.querySelector('code');
+                if (pre) code = pre.textContent || '';
+            }
+            if (!code) {
+                showToast('❌ لا يوجد كود للنسخ');
+                return;
+            }
+            function copyDone() {
+                btn.textContent = '✅ تم النسخ!';
+                btn.classList.add('copied');
+                showToast('✅ تم نسخ الكود!');
+                setTimeout(function(){
+                    btn.textContent = '📋 نسخ الكود';
+                    btn.classList.remove('copied');
+                }, 2200);
+            }
+            function copyFail() {
+                showToast('❌ فشل النسخ');
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(code).then(copyDone).catch(function(){
+                    fallbackCopy(code, copyDone, copyFail);
+                });
+            } else {
+                fallbackCopy(code, copyDone, copyFail);
+            }
+        }
+
+        function fallbackCopy(text, onSuccess, onFail) {
+            try {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                ta.style.left = '-9999px';
+                ta.style.top = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+                onSuccess();
+            } catch(e) {
+                onFail();
+            }
+        }
+
+        // ====== دالة إضافة رسالة ======
+        function addMessage(t, s, isSys, img, imageUrl) {
+            try {
+                s = s || 'bot';
+                isSys = isSys || false;
+                if (!cb) return null;
+                var el = document.createElement('div');
+                el.className = 'msg ' + s;
+                if (s === 'error') el.classList.add('error');
+                var now = new Date();
+                var tm = isSys ? '' : now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+                if (img) {
+                    el.innerHTML = '<img src="'+img+'" class="image-upload" /><span class="file-label">'+(t||'صورة')+'</span>'+(tm ? ' <span class="time">'+tm+'</span>' : '');
+                    cb.appendChild(el);
+                    cb.scrollTop = cb.scrollHeight;
+                    return el;
+                }
+                var imatch = t.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);
+                var dt = t, genUrl = null;
+                if (imatch) {
+                    genUrl = imatch[0];
+                    dt = t.replace(imatch[0], '').trim();
+                    if (!dt) dt = 'الصورة المولدة';
+                }
+                if (s === 'bot' && !isSys && !genUrl && !imageUrl) {
+                    var wrapper = document.createElement('div');
+                    wrapper.className = 'content-wrapper';
+                    var textDiv = document.createElement('div');
+                    textDiv.className = 'content-text';
+                    textDiv.innerHTML = '<span class="typing-text"></span>';
+                    var actions = document.createElement('div');
+                    actions.className = 'actions';
+                    var copyBtn = document.createElement('button');
+                    copyBtn.className = 'copy-btn';
+                    copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                    copyBtn.title = 'نسخ النص';
+                    copyBtn.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        var fullText = dt;
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(fullText).then(function(){
+                                copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                                copyBtn.classList.add('copied');
+                                showToast('تم نسخ النص!');
+                                setTimeout(function(){
+                                    copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                                    copyBtn.classList.remove('copied');
+                                }, 2000);
+                            }).catch(function(){
+                                showToast('فشل النسخ');
+                            });
+                        } else {
+                            showToast('المتصفح لا يدعم النسخ');
+                        }
+                    });
+                    var shareBtn2 = document.createElement('button');
+                    shareBtn2.className = 'copy-btn';
+                    shareBtn2.innerHTML = '<i class="fas fa-share-alt"></i>';
+                    shareBtn2.title = 'مشاركة النص';
+                    shareBtn2.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        var fullText = dt;
+                        var url = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(fullText);
+                        window.open(url, '_blank');
+                    });
+                    var delBtn = document.createElement('button');
+                    delBtn.className = 'del-msg-btn';
+                    delBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                    delBtn.title = 'حذف هذه الرسالة';
+                    delBtn.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        deleteMessage(el);
+                    });
+                    actions.appendChild(copyBtn);
+                    actions.appendChild(shareBtn2);
+                    actions.appendChild(delBtn);
+                    wrapper.appendChild(textDiv);
+                    wrapper.appendChild(actions);
+                    el.appendChild(wrapper);
+                    if (tm) {
+                        var timeSpan = document.createElement('span');
+                        timeSpan.className = 'time';
+                        timeSpan.textContent = tm;
+                        el.appendChild(timeSpan);
+                    }
+                    cb.appendChild(el);
+                    cb.scrollTop = cb.scrollHeight;
+                    var ts = textDiv.querySelector('.typing-text');
+                    var idx = 0, interacted = false;
+                    var onInteract = function(){
+                        interacted = true;
+                        cb.removeEventListener('touchstart', onInteract);
+                        cb.removeEventListener('scroll', onInteract);
+                    };
+                    cb.addEventListener('touchstart', onInteract);
+                    cb.addEventListener('scroll', onInteract);
+                    function typeChar() {
+                        if (idx < dt.length) {
+                            ts.textContent += dt.charAt(idx);
+                            idx++;
+                            if (!interacted) cb.scrollTop = cb.scrollHeight;
+                            setTimeout(typeChar, 20);
+                        } else {
+                            var formatted = formatBotText(dt);
+                            ts.innerHTML = formatted;
+                            initCodeCopyButtons();
+                            cb.scrollTop = cb.scrollHeight;
+                        }
+                    }
+                    typeChar();
+                    return el;
+                }
+                var content = dt;
+                if (s === 'bot') content = formatBotText(dt);
+                if (genUrl) content += '<br/><img src="'+genUrl+'" class="generated-image" />';
+                if (imageUrl) {
+                    if (imageUrl.match(/\.(mp4|webm|mov)$/i) || imageUrl.includes('video')) {
+                        content += '<br/><video controls class="generated-video" src="'+imageUrl+'"></video>';
+                    } else {
+                        content += '<br/><img src="'+imageUrl+'" class="generated-image" />';
+                    }
+                }
+                var wrapper2 = document.createElement('div');
+                wrapper2.className = 'content-wrapper';
+                var textDiv2 = document.createElement('div');
+                textDiv2.className = 'content-text';
+                textDiv2.innerHTML = content;
+                wrapper2.appendChild(textDiv2);
+                if (s === 'bot' && !isSys) {
+                    var actions2 = document.createElement('div');
+                    actions2.className = 'actions';
+                    var copyBtn2 = document.createElement('button');
+                    copyBtn2.className = 'copy-btn';
+                    copyBtn2.innerHTML = '<i class="fas fa-copy"></i>';
+                    copyBtn2.title = 'نسخ النص';
+                    copyBtn2.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        var fullText = dt;
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(fullText).then(function(){
+                                copyBtn2.innerHTML = '<i class="fas fa-check"></i>';
+                                copyBtn2.classList.add('copied');
+                                showToast('تم نسخ النص!');
+                                setTimeout(function(){
+                                    copyBtn2.innerHTML = '<i class="fas fa-copy"></i>';
+                                    copyBtn2.classList.remove('copied');
+                                }, 2000);
+                            }).catch(function(){
+                                showToast('فشل النسخ');
+                            });
+                        } else {
+                            showToast('المتصفح لا يدعم النسخ');
+                        }
+                    });
+                    var shareBtn3 = document.createElement('button');
+                    shareBtn3.className = 'copy-btn';
+                    shareBtn3.innerHTML = '<i class="fas fa-share-alt"></i>';
+                    shareBtn3.title = 'مشاركة النص';
+                    shareBtn3.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        var fullText = dt;
+                        var url = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(fullText);
+                        window.open(url, '_blank');
+                    });
+                    var delBtn2 = document.createElement('button');
+                    delBtn2.className = 'del-msg-btn';
+                    delBtn2.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                    delBtn2.title = 'حذف هذه الرسالة';
+                    delBtn2.addEventListener('click', function(e){
+                        e.stopPropagation();
+                        deleteMessage(el);
+                    });
+                    actions2.appendChild(copyBtn2);
+                    actions2.appendChild(shareBtn3);
+                    actions2.appendChild(delBtn2);
+                    wrapper2.appendChild(actions2);
+                }
+                el.appendChild(wrapper2);
+                if (tm) {
+                    var timeSpan2 = document.createElement('span');
+                    timeSpan2.className = 'time';
+                    timeSpan2.textContent = tm;
+                    el.appendChild(timeSpan2);
+                }
+                cb.appendChild(el);
+                cb.scrollTop = cb.scrollHeight;
+                initCodeCopyButtons();
+                return el;
+            } catch(e) {
+                console.error("خطأ في addMessage:", e);
+                if (cb) {
+                    var errEl = document.createElement('div');
+                    errEl.className = 'msg error';
+                    errEl.textContent = '⚠️ حدث خطأ في عرض الرسالة: ' + e.message;
+                    cb.appendChild(errEl);
+                }
+                return null;
+            }
+        }
+
+        async function deleteMessage(el) {
+            if (!cid) { showToast('لا توجد محادثة'); return; }
+            if (!confirm('هل تريد حذف هذه الرسالة؟')) return;
+            try {
+                var idx = Array.from(cb.children).indexOf(el);
+                var r = await fetch('/delete_message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conv_id: cid, index: idx })
+                });
+                var d = await r.json();
+                if (d.status === 'ok') {
+                    ch.splice(idx, 1);
+                    el.remove();
+                    showToast('تم حذف الرسالة');
+                } else {
+                    showToast('فشل الحذف: ' + d.message);
+                }
+            } catch(e) {
+                showToast('خطأ في الاتصال');
+            }
+        }
+
+        // ====== وظائف الصور والإرسال ======
+        function showWelcome() {
+            if (!sessionStorage.getItem('welcomeShown')) {
+                var ov = document.createElement('div');
+                ov.className = 'welcome-overlay';
+                ov.innerHTML = '<div class="welcome-box"><h2>👋 أهلاً بك في نبراس</h2><p>نورتنا! كيف نقدر نساعدك اليوم؟</p></div>';
+                document.body.appendChild(ov);
+                sessionStorage.setItem('welcomeShown', 'true');
+                setTimeout(function(){
+                    if (document.body.contains(ov)) {
+                        ov.classList.add('fade-out');
+                        setTimeout(function(){ if (document.body.contains(ov)) ov.remove(); }, 500);
+                    }
+                }, 5000);
+                var rm = function(){
+                    if (document.body.contains(ov)) {
+                        ov.classList.add('fade-out');
+                        setTimeout(function(){ if (document.body.contains(ov)) ov.remove(); }, 500);
+                    }
+                    document.removeEventListener('click', rm);
+                    if (ui) ui.removeEventListener('keydown', rm);
+                };
+                document.addEventListener('click', rm);
+                if (ui) ui.addEventListener('keydown', rm);
+            }
+        }
+
+        function showImagePreview(d) {
+            if (ip) ip.src = d;
+            if (ipc) ipc.style.display = 'flex';
+        }
+
+        function clearPending() {
+            pid = null;
+            if (ipc) ipc.style.display = 'none';
+            if (ip) ip.src = '';
+        }
+
+        if (rib) rib.addEventListener('click', clearPending);
+
+        if (ui) {
+            ui.addEventListener('input', function(){
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+            });
+        }
+
+        var poOpen = false;
+        if (pb && po) {
+            pb.addEventListener('click', function(){
+                poOpen = !poOpen;
+                po.classList.toggle('show', poOpen);
+                this.classList.toggle('rotate', poOpen);
+            });
+        }
+
+        // مستمع النقر العام (بشرط وجود العناصر)
+        document.addEventListener('click', function(e){
+            // إغلاق plus options
+            if (pb && po && !pb.contains(e.target) && !po.contains(e.target)) {
+                po.classList.remove('show');
+                poOpen = false;
+                pb.classList.remove('rotate');
+            }
+            // إغلاق القائمة المنسدلة
+            if (mt && dd && !mt.contains(e.target) && !dd.contains(e.target)) {
+                dd.classList.remove('show');
+            }
+        });
+
+        if (gb && fi) {
+            gb.addEventListener('click', function(){ fi.click(); if (po) po.classList.remove('show'); });
+        }
+        if (fi) {
+            fi.addEventListener('change', function(e){
+                if (this.files && this.files.length > 0) {
+                    var r = new FileReader();
+                    r.onload = function(ev) {
+                        pid = ev.target.result;
+                        showImagePreview(pid);
+                        fi.value = '';
+                    };
+                    r.readAsDataURL(this.files[0]);
+                }
+            });
+        }
+
+        if (cab && ci) {
+            cab.addEventListener('click', function(){ ci.click(); if (po) po.classList.remove('show'); });
+        }
+        if (ci) {
+            ci.addEventListener('change', function(e){
+                if (this.files && this.files.length > 0) {
+                    var r = new FileReader();
+                    r.onload = function(ev) {
+                        pid = ev.target.result;
+                        showImagePreview(pid);
+                        ci.value = '';
+                    };
+                    r.readAsDataURL(this.files[0]);
+                }
+            });
+        }
+
+        if (fib && fig) {
+            fib.addEventListener('click', function(){ fig.click(); if (po) po.classList.remove('show'); });
+        }
+        if (fig) {
+            fig.addEventListener('change', function(e){
+                if (this.files && this.files.length > 0) {
+                    var r = new FileReader();
+                    r.onload = function(ev) {
+                        pid = ev.target.result;
+                        showImagePreview(pid);
+                        fig.value = '';
+                    };
+                    r.readAsDataURL(this.files[0]);
+                }
+            });
+        }
+
+        // ====== إرسال الرسالة ======
+        async function sendMessage() {
+            if (iw) return;
+            var t = ui ? ui.value.trim() : '';
+            var img = pid;
+            if (!t && !img) return;
+            if (t) addMessage(t, 'user');
+            if (img) {
+                addMessage('صورة مرفقة', 'user', false, img);
+                clearPending();
+            }
+            if (ui) {
+                ui.value = '';
+                ui.style.height = 'auto';
+            }
+            iw = true;
+            var td = document.createElement('div');
+            td.className = 'msg bot typing-indicator';
+            td.innerHTML = '<span class="typing-dots">جاري التفكير</span>';
+            if (cb) {
+                cb.appendChild(td);
+                cb.scrollTop = cb.scrollHeight;
+            }
+            var payload = { message: t || "مرفق", image: img || null, history: ch, conv_id: cid };
+            try {
+                var r = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                var d = await r.json();
+                if (td.parentNode) td.remove();
+                if (r.ok) {
+                    addMessage(d.reply, 'bot', false, null, d.image_url);
+                    if (!im && d.audio) {
+                        if (ca) { ca.pause(); ca.currentTime = 0; }
+                        var src = 'data:audio/mp3;base64,' + d.audio;
+                        ca = new Audio(src);
+                        ca.play().catch(function(e){ console.warn("فشل تشغيل الصوت:", e); });
+                    }
+                    if (d.conv_id) cid = d.conv_id;
+                } else {
+                    addMessage('خطأ: ' + (d.error || 'مشكلة في السيرفر'), 'error');
+                }
+            } catch(e) {
+                if (td.parentNode) td.remove();
+                addMessage('تعذر الاتصال بالسيرفر، حاول مرة أخرى.', 'error');
+            } finally {
+                iw = false;
+            }
+        }
+
+        if (sb) {
+            sb.addEventListener('click', sendMessage);
+            console.log("✅ زر الإرسال مربوط");
+        }
+
+        if (ui) {
+            ui.addEventListener('keypress', function(e){
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+
+        // ====== الميكروفون ======
+        var recog = null;
+        if (mb) {
+            mb.addEventListener('click', function(){
+                if (!('webkitSpeechRecognition' in window)) {
+                    addMessage('المتصفح لا يدعم التعرف على الصوت.', 'bot', true);
+                    return;
+                }
+                if (this.classList.contains('listening')) {
+                    this.classList.remove('listening');
+                    if (recog) recog.stop();
+                    return;
+                }
+                var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recog = new SR();
+                recog.lang = 'ar-SA';
+                this.classList.add('listening');
+                addMessage('جاري الاستماع...', 'bot', true);
+                recog.onresult = function(e) {
+                    var tr = e.results[0][0].transcript;
+                    if (ui) ui.value = tr;
+                    mb.classList.remove('listening');
+                    setTimeout(function(){ sendMessage(); }, 300);
+                };
+                recog.onerror = function() {
+                    mb.classList.remove('listening');
+                };
+                recog.start();
+            });
+        }
+
+        showWelcome();
+
+        // تعريف deleteMyData عالمياً
+        window.deleteMyData = function() {
+            if (!confirm('⚠️ هل أنت متأكد؟ سيتم حذف جميع محادثاتك وبياناتك نهائياً.')) return;
+            fetch('/delete_my_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            })
+            .then(function(response){ return response.json(); })
+            .then(function(data){
+                if (data.status === 'success') {
+                    alert('✅ تم حذف جميع بياناتك بنجاح.');
+                    window.location.href = '/';
+                } else {
+                    alert('❌ فشل الحذف: ' + (data.message || 'خطأ غير معروف'));
+                }
+            })
+            .catch(function(err){
+                alert('❌ حدث خطأ في الاتصال.');
+                console.error(err);
+            });
+        };
+
+        console.log("✅ تم تهيئة جميع الأزرار بنجاح");
+
+    } catch(e) {
+        console.error("❌ خطأ فادح في الـ JS:", e);
+        var chatEl = document.getElementById('chat');
+        if (chatEl) {
+            var errDiv = document.createElement('div');
+            errDiv.className = 'msg error';
+            errDiv.textContent = '❌ خطأ فادح: ' + e.message + '. حاول تحديث الصفحة.';
+            chatEl.appendChild(errDiv);
+        }
+    }
+})();
+</script></body></html>"""
 LH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}body{background:#f0f2f5;display:flex;justify-content:center;align-items:center;height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:400px;text-align:center}h2{font-size:28px;color:#1a2b3c;margin-bottom:25px}input{width:100%;padding:14px 16px;margin:12px 0;border:1px solid #dce1e8;border-radius:12px;font-size:18px;background:#fafbfc;box-sizing:border-box}input:focus{outline:0;border-color:#4a6a8a;background:#fff}button{width:100%;padding:16px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer;margin-top:15px}button:hover{background:#3a5a7a}a{color:#4a6a8a;text-decoration:none;font-size:16px;display:inline-block;margin-top:20px}.error{color:#d9534f;margin-bottom:15px}</style></head><body><div class="box"><h2>🔐 تسجيل الدخول</h2>{% if error %}<div class="error">{{ error }}</div>{% endif %}<form method="POST"><input type="email" name="email" placeholder="البريد الإلكتروني" required><input type="password" name="password" placeholder="كلمة المرور" required><button type="submit">دخول</button></form><a href="/">⬅ العودة للرئيسية</a><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:inline-block; margin-top:5px; font-size:12px; text-decoration:underline;">سياسة الخصوصية</a></div></body></html>"""
 @app.route('/')
 def index():return render_template_string(HT)
