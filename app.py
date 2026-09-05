@@ -133,14 +133,31 @@ def search_video(prompt):
             return f"ERROR: {error_msg}"
     except Exception as e:
         return f"ERROR: {str(e)}"
-# ===================================================================
 
+# ==================== دالة الصوت المعدلة (edge_tts) ====================
 def generate_speech(text, gender):
- try:
-  voice="onyx" if gender=="male" else "nova"
-  r=client.audio.speech.create(model="tts-1",voice=voice,input=remove_emoji(text),response_format="mp3",speed=1.0)
-  return base64.b64encode(r.content).decode('utf-8')
- except Exception as e:print(f"❌ فشل الصوت: {e}");return None
+    try:
+        # اختيار صوت سعودي طبيعي
+        if gender == "female":
+            voice = "ar-SA-ZariyahNeural"  # أنثى سعودية
+        else:
+            voice = "ar-SA-HamedNeural"    # ذكر سعودي (موجود في edge-tts)
+
+        communicate = edge_tts.Communicate(text, voice)
+        audio_data = bytearray()
+
+        async def collect_audio():
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_data.extend(chunk["data"])
+
+        asyncio.run(collect_audio())
+        return base64.b64encode(audio_data).decode('utf-8')
+    except Exception as e:
+        print(f"❌ فشل الصوت: {e}")
+        return None
+# ======================================================================
+
 SPH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>📄 محادثة نبراس</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;white-space:normal;word-wrap:break-word;overflow-wrap:break-word}.msg.user .content{background:#eaeef2}.msg.bot .content{background:#f5f7fa}.msg .content p{margin-bottom:8px}.msg .content p:last-child{margin-bottom:0}.msg .time{font-size:11px;color:#8b949e;margin-top:4px;display:block}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}@media(max-width:500px){.container{padding:15px}.msg .content{max-width:100%}}</style></head></body><div class="container"><div class="header"><h1>💬 {{ title or 'محادثة نبراس' }}</h1><a href="/">⬅ الرئيسية</a></div><div>{% for msg in messages %}<div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}"><div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div><div class="content">{{ msg.content|replace('\n','<br>')|safe }}<span class="time">{{ loop.index }}. {{ 'مستخدم' if msg.role == 'user' else 'نبراس' }}</span></div></div>{% endfor %}</div><div class="footer">تمت المشاركة من <a href="/">نبراس</a> - مساعد ذكي</div></div></body></html>"""
 
 # ====== صفحة الأدوات المجانية (بدون حفر الباطن) ======
