@@ -72,9 +72,12 @@ def search_video(p):
 def generate_speech(text,gender):
  try:
   voice="ar-SA-ZariyahNeural" if gender=="female" else "ar-SA-HamedNeural"
-  communicate=edge_tts.Communicate(text,voice);audio=bytearray()
-  async def c():async for chunk in communicate.stream():
-   if chunk["type"]=="audio":audio.extend(chunk["data"])
+  communicate=edge_tts.Communicate(text,voice)
+  audio=bytearray()
+  async def c():
+   async for chunk in communicate.stream():
+    if chunk["type"]=="audio":
+     audio.extend(chunk["data"])
   asyncio.run(c())
   return base64.b64encode(audio).decode()
  except:return None
