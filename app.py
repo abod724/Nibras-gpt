@@ -1,6 +1,3 @@
-
-عبدالله حسين سمران المطيري ‏ <abdullaha0569361@gmail.com>	5 سبتمبر 2026 في 3:53 ص
-إلى: عبدالله حسين سمران المطيري ‏<abdullaha0569361@gmail.com>‏
 from flask import Flask,request,jsonify,render_template_string,session,redirect,url_for,send_from_directory
 import openai,os,secrets,json,hashlib,asyncio,edge_tts,base64,re,sqlite3,requests
 from datetime import datetime
