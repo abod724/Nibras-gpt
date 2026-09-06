@@ -19,89 +19,89 @@ def serve_well_known(filename):return send_from_directory('.well-known',filename
 DB_FILE="conversations.db"
 def get_db():conn=sqlite3.connect(DB_FILE,check_same_thread=False,timeout=15);conn.row_factory=sqlite3.Row;return conn
 def init_db():
- conn=get_db()
- conn.execute('''CREATE TABLE IF NOT EXISTS conversations (user_id TEXT, conv_id TEXT PRIMARY KEY, messages TEXT, timestamp TEXT, title TEXT)''')
- conn.execute('''CREATE TABLE IF NOT EXISTS cache (question TEXT PRIMARY KEY, answer TEXT, created TEXT)''')
- conn.execute('''CREATE TABLE IF NOT EXISTS guest_usage (guest_id TEXT PRIMARY KEY, count INT DEFAULT 0, date TEXT)''')
- conn.commit();conn.close()
+    conn=get_db()
+    conn.execute('''CREATE TABLE IF NOT EXISTS conversations (user_id TEXT, conv_id TEXT PRIMARY KEY, messages TEXT, timestamp TEXT, title TEXT)''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS cache (question TEXT PRIMARY KEY, answer TEXT, created TEXT)''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS guest_usage (guest_id TEXT PRIMARY KEY, count INT DEFAULT 0, date TEXT)''')
+    conn.commit();conn.close()
 def check_guest_limit_safe(gid):
- try:
-  today=datetime.now().strftime("%Y-%m-%d");conn=get_db();row=conn.execute("SELECT count, date FROM guest_usage WHERE guest_id=?",(gid,)).fetchone()
-  if not row:conn.execute("INSERT INTO guest_usage VALUES (?,?,?)",(gid,1,today));conn.commit();conn.close();return True
-  if row[1]!=today:conn.execute("UPDATE guest_usage SET count=1, date=? WHERE guest_id=?",(today,gid));conn.commit();conn.close();return True
-  if row[0]>=15:conn.close();return False
-  conn.execute("UPDATE guest_usage SET count=count+1 WHERE guest_id=?",(gid,));conn.commit();conn.close();return True
- except:return True
+    try:
+        today=datetime.now().strftime("%Y-%m-%d");conn=get_db();row=conn.execute("SELECT count, date FROM guest_usage WHERE guest_id=?",(gid,)).fetchone()
+        if not row:conn.execute("INSERT INTO guest_usage VALUES (?,?,?)",(gid,1,today));conn.commit();conn.close();return True
+        if row[1]!=today:conn.execute("UPDATE guest_usage SET count=1, date=? WHERE guest_id=?",(today,gid));conn.commit();conn.close();return True
+        if row[0]>=15:conn.close();return False
+        conn.execute("UPDATE guest_usage SET count=count+1 WHERE guest_id=?",(gid,));conn.commit();conn.close();return True
+    except:return True
 def get_cached(q):
- try:conn=get_db();r=conn.execute("SELECT answer FROM cache WHERE question=?",(q.strip(),)).fetchone();conn.close();return r[0] if r else None
- except:return None
+    try:conn=get_db();r=conn.execute("SELECT answer FROM cache WHERE question=?",(q.strip(),)).fetchone();conn.close();return r[0] if r else None
+    except:return None
 def save_cache(q,a):
- try:
-  if len(q)<10 or len(q)>200:return
-  if len(a)>2000:return
-  conn=get_db();conn.execute("INSERT OR REPLACE INTO cache (question, answer, created) VALUES (?,?,?)",(q.strip(),a,datetime.now().isoformat()));conn.commit();conn.close()
- except:pass
+    try:
+        if len(q)<10 or len(q)>200:return
+        if len(a)>2000:return
+        conn=get_db();conn.execute("INSERT OR REPLACE INTO cache (question, answer, created) VALUES (?,?,?)",(q.strip(),a,datetime.now().isoformat()));conn.commit();conn.close()
+    except:pass
 def get_user_conversations(uid):
- conn=get_db();rows=conn.execute("SELECT conv_id,messages,timestamp,title FROM conversations WHERE user_id=? ORDER BY timestamp DESC",(uid,)).fetchall();conn.close();res=[]
- for r in rows:res.append({"id":r[0],"messages":json.loads(r[1]),"timestamp":r[2],"title":r[3]})
- return res
+    conn=get_db();rows=conn.execute("SELECT conv_id,messages,timestamp,title FROM conversations WHERE user_id=? ORDER BY timestamp DESC",(uid,)).fetchall();conn.close();res=[]
+    for r in rows:res.append({"id":r[0],"messages":json.loads(r[1]),"timestamp":r[2],"title":r[3]})
+    return res
 def save_user_conversation(uid,conv,cid=None):
- conn=get_db()
- if cid is None:
-  title=conv[0]["content"][:30]+"..." if len(conv[0]["content"])>30 else conv[0]["content"]
-  nid=hashlib.md5(f"{uid}{datetime.now().isoformat()}{secrets.token_hex(2)}".encode()).hexdigest()[:10]
-  conn.execute("INSERT INTO conversations (user_id,conv_id,messages,timestamp,title) VALUES (?,?,?,?,?)",(uid,nid,json.dumps(conv,ensure_ascii=False),datetime.now().isoformat(),title))
-  conn.commit();conn.close();return nid
- else:
-  conn.execute("UPDATE conversations SET messages=?,timestamp=? WHERE user_id=? AND conv_id=?",(json.dumps(conv,ensure_ascii=False),datetime.now().isoformat(),uid,cid))
-  conn.commit();conn.close();return cid
+    conn=get_db()
+    if cid is None:
+        title=conv[0]["content"][:30]+"..." if len(conv[0]["content"])>30 else conv[0]["content"]
+        nid=hashlib.md5(f"{uid}{datetime.now().isoformat()}{secrets.token_hex(2)}".encode()).hexdigest()[:10]
+        conn.execute("INSERT INTO conversations (user_id,conv_id,messages,timestamp,title) VALUES (?,?,?,?,?)",(uid,nid,json.dumps(conv,ensure_ascii=False),datetime.now().isoformat(),title))
+        conn.commit();conn.close();return nid
+    else:
+        conn.execute("UPDATE conversations SET messages=?,timestamp=? WHERE user_id=? AND conv_id=?",(json.dumps(conv,ensure_ascii=False),datetime.now().isoformat(),uid,cid))
+        conn.commit();conn.close();return cid
 def load_conversation_by_id(uid,cid):
- conn=get_db();r=conn.execute("SELECT messages FROM conversations WHERE user_id=? AND conv_id=?",(uid,cid)).fetchone();conn.close()
- return json.loads(r[0]) if r else None
+    conn=get_db();r=conn.execute("SELECT messages FROM conversations WHERE user_id=? AND conv_id=?",(uid,cid)).fetchone();conn.close()
+    return json.loads(r[0]) if r else None
 init_db()
 sm={}
 kc=""
 for fn in ["Knowledge.md","knowledge.md","معرفة.md","README.md","ملف_المعرفة.md"]:
- if os.path.exists(fn):
-  try:
-   with open(fn,"r",encoding="utf-8") as f:kc=f.read();break
-  except:pass
+    if os.path.exists(fn):
+        try:
+            with open(fn,"r",encoding="utf-8") as f:kc=f.read();break
+        except:pass
 if not kc:kc="أنت نبراس، مساعد ذكي."
 SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.\n\n**مصادر معرفتك:**\n\n1. **ملف المعرفة** (أدناه) هو مرجعك الأساسي.\n\n2. **معرفتك العامة**.\n\n3. **البحث بالويب** تستخدمه فقط عندما تكون أدمن ويسألك عن أي شيء حديث أو غير موجود في ملف المعرفة.\n\n**ملف المعرفة الخاص بك:**\n\n{kc}\n\n**⚠️ قاعدة التنسيق الذهبية (الأهم):**\n\n- اكتب ردودك في **فقرات نصية متصلة**. كل فقرة تحتوي على **2 إلى 4 جمل** فقط.\n\n- **ممنوع** وضع كل جملة في سطر منفصل. استخدم النقاط والفواصل وعلامات الترقيم داخل الفقرة نفسها.\n\n- **ممنوع** وضع فواصل أسطر (`Enter`) بين الجمل. الفاصل الوحيد المسموح به هو سطر فارغ بين الفقرة والأخرى.\n\n- اجعل الجملة الواحدة بطول معتدل (حوالي 10-20 كلمة)، بحيث تكون واضحة ومختصرة لكنها تحمل فكرة كاملة."""
 def remove_emoji(t):
- return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
+    return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
 def generate_image(prompt):
- try:
-  api_key=os.environ.get("PEXELS_API_KEY")
-  if not api_key:return "ERROR: PEXELS_API_KEY غير موجود في البيئة"
-  query=requests.utils.quote(prompt);url=f"https://api.pexels.com/v1/search?query={query}&per_page=1&orientation=landscape";headers={"Authorization":api_key};response=requests.get(url,headers=headers,timeout=10);data=response.json()
-  if response.status_code==200 and data.get("photos") and len(data["photos"])>0:return data["photos"][0]["src"]["large"]
-  else:return f"ERROR: {data.get('error','لم أجد صورة مناسبة')}"
- except Exception as e:return f"ERROR: {str(e)}"
+    try:
+        api_key=os.environ.get("PEXELS_API_KEY")
+        if not api_key:return "ERROR: PEXELS_API_KEY غير موجود في البيئة"
+        query=requests.utils.quote(prompt);url=f"https://api.pexels.com/v1/search?query={query}&per_page=1&orientation=landscape";headers={"Authorization":api_key};response=requests.get(url,headers=headers,timeout=10);data=response.json()
+        if response.status_code==200 and data.get("photos") and len(data["photos"])>0:return data["photos"][0]["src"]["large"]
+        else:return f"ERROR: {data.get('error','لم أجد صورة مناسبة')}"
+    except Exception as e:return f"ERROR: {str(e)}"
 def search_video(prompt):
- try:
-  api_key=os.environ.get("PEXELS_API_KEY")
-  if not api_key:return "ERROR: PEXELS_API_KEY غير موجود في البيئة"
-  query=requests.utils.quote(prompt);url=f"https://api.pexels.com/videos/search?query={query}&per_page=1";headers={"Authorization":api_key};response=requests.get(url,headers=headers,timeout=10);data=response.json()
-  if response.status_code==200 and data.get("videos") and len(data["videos"])>0:
-   video_files=data["videos"][0]["video_files"]
-   for vf in video_files:
-    if vf.get("quality")=="hd" and vf.get("link"):return vf["link"]
-   if video_files and video_files[0].get("link"):return video_files[0]["link"]
-   return "ERROR: ما لقيت رابط فيديو"
-  else:return f"ERROR: {data.get('error','لم أجد فيديو مناسباً')}"
- except Exception as e:return f"ERROR: {str(e)}"
+    try:
+        api_key=os.environ.get("PEXELS_API_KEY")
+        if not api_key:return "ERROR: PEXELS_API_KEY غير موجود في البيئة"
+        query=requests.utils.quote(prompt);url=f"https://api.pexels.com/videos/search?query={query}&per_page=1";headers={"Authorization":api_key};response=requests.get(url,headers=headers,timeout=10);data=response.json()
+        if response.status_code==200 and data.get("videos") and len(data["videos"])>0:
+            video_files=data["videos"][0]["video_files"]
+            for vf in video_files:
+                if vf.get("quality")=="hd" and vf.get("link"):return vf["link"]
+            if video_files and video_files[0].get("link"):return video_files[0]["link"]
+            return "ERROR: ما لقيت رابط فيديو"
+        else:return f"ERROR: {data.get('error','لم أجد فيديو مناسباً')}"
+    except Exception as e:return f"ERROR: {str(e)}"
 async def _generate_speech_async(text, voice):
- communicate=edge_tts.Communicate(text, voice);audio_data=b""
- async for chunk in communicate.stream():
-  if chunk["type"]=="audio":audio_data+=chunk["data"]
- return audio_data
+    communicate=edge_tts.Communicate(text, voice);audio_data=b""
+    async for chunk in communicate.stream():
+        if chunk["type"]=="audio":audio_data+=chunk["data"]
+    return audio_data
 def generate_speech(text, gender):
- try:
-  voice="ar-SA-HamedNeural" if gender=="male" else "ar-SA-ZariyahNeural"
-  audio=asyncio.run(_generate_speech_async(text, voice))
-  return base64.b64encode(audio).decode('utf-8')
- except Exception as e:print(f"❌ فشل الصوت (edge-tts): {e}");return None
+    try:
+        voice="ar-SA-HamedNeural" if gender=="male" else "ar-SA-ZariyahNeural"
+        audio=asyncio.run(_generate_speech_async(text, voice))
+        return base64.b64encode(audio).decode('utf-8')
+    except Exception as e:print(f"❌ فشل الصوت (edge-tts): {e}");return None
 SPH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>📄 محادثة نبراس</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;white-space:normal;word-wrap:break-word;overflow-wrap:break-word}.msg.user .content{background:#eaeef2}.msg.bot .content{background:#f5f7fa}.msg .content p{margin-bottom:8px}.msg .content p:last-child{margin-bottom:0}.msg .time{font-size:11px;color:#8b949e;margin-top:4px;display:block}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}@media(max-width:500px){.container{padding:15px}.msg .content{max-width:100%}}</style></head><body><div class="container"><div class="header"><h1>💬 {{ title or 'محادثة نبراس' }}</h1><a href="/">⬅ الرئيسية</a></div><div>{% for msg in messages %}<div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}"><div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div><div class="content">{{ msg.content|replace('\n','<br>')|safe }}<span class="time">{{ loop.index }}. {{ 'مستخدم' if msg.role == 'user' else 'نبراس' }}</span></div></div>{% endfor %}</div><div class="footer">تمت المشاركة من <a href="/">نبراس</a> - مساعد ذكي</div></div></body></html>"""
 TOOLS_HTML="""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>أدوات نبراس المجانية</title><style>body{font-family:'Segoe UI',Tahoma; background:#0f172a; color:#fff; margin:0; padding:20px}.container{max-width:900px; margin:auto}h1{text-align:center; color:#38bdf8}a{color:#38bdf8}.card{background:#1e293b; border-radius:15px; padding:20px; margin:20px 0; border:1px solid #334155}input,select,textarea{width:100%; padding:12px; margin:8px 0; border-radius:8px; border:none; background:#0f172a; color:#fff}button{background:#38bdf8; color:#000; padding:12px 20px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; width:100%}button:hover{background:#0ea5e9}.result{background:#0f172a; padding:15px; border-radius:8px; margin-top:10px; border:1px dashed #38bdf8}.grid{display:grid; grid-template-columns:1fr 1fr; gap:15px}@media(max-width:600px){.grid{grid-template-columns:1fr}}</style></head><body><div class="container"><h1>🧰 أدوات نبراس المجانية - 100% بدون استهلاك</h1><p style="text-align:center; color:#94a3b8">أدوات سريعة وذكية تخدمك بشكل فوري - مجانية للجميع</p><p style="text-align:center"><a href="/">⬅ ارجع لنبراس</a></p><div class="card"><h3>📚 1- حاسبة المعدل الجامعي GPA</h3><div class="grid"><input id="gpa1" placeholder="عدد الساعات - مادة 1" type="number"><select id="grade1"><option value="5">A+ (5)</option><option value="4.75">A (4.75)</option><option value="4.5">B+ (4.5)</option><option value="4">B (4)</option><option value="3.5">C+ (3.5)</option><option value="3">C (3)</option></select></div><div class="grid"><input id="gpa2" placeholder="عدد الساعات - مادة 2" type="number"><select id="grade2"><option value="5">A+ (5)</option><option value="4.75">A (4.75)</option><option value="4.5">B+ (4.5)</option><option value="4">B (4)</option><option value="3.5">C+ (3.5)</option><option value="3">C (3)</option></select></div><button onclick="calcGPA()">احسب معدلي</button><div id="gpaRes" class="result" style="display:none"></div></div><div class="card"><h3>📝 2- منشئ السيرة الذاتية ATS</h3><input id="cvName" placeholder="الاسم الكامل"><input id="cvSpec" placeholder="التخصص - مثلا: أمن سيبراني"><textarea id="cvExp" placeholder="خبراتك باختصار"></textarea><button onclick="makeCV()">أنشئ سيرتي</button><div id="cvRes" class="result" style="display:none"></div></div><div class="card"><h3>💰 3- حاسبة حساب المواطن التقريبية</h3><input id="family" type="number" placeholder="عدد أفراد الأسرة"><input id="income" type="number" placeholder="إجمالي الدخل الشهري"><button onclick="calcCitizen()">احسب الدعم التقريبي</button><div id="citRes" class="result" style="display:none"></div></div><div class="card"><h3>💡 4- مولد أفكار مشاريع لحفر الباطن 1448</h3><select id="budget"><option value="5000">رأس مال 5 آلاف</option><option value="10000">10 آلاف</option><option value="20000">20 ألف</option><option value="50000">50 ألف</option></select><button onclick="genIdea()">عطني فكرة مشروع</button><div id="ideaRes" class="result" style="display:none"></div></div></div><script>function calcGPA(){let h1=parseFloat(document.getElementById('gpa1').value)||0;let g1=parseFloat(document.getElementById('grade1').value)||0;let h2=parseFloat(document.getElementById('gpa2').value)||0;let g2=parseFloat(document.getElementById('grade2').value)||0;if(h1==0&&h2==0){alert('دخل ساعات');return;}let total=(h1*g1+h2*g2)/(h1+h2);document.getElementById('gpaRes').style.display='block';document.getElementById('gpaRes').innerHTML='معدلك التقريبي: <b style="color:#38bdf8; font-size:22px">'+total.toFixed(2)+'</b> / 5';}function makeCV(){let n=document.getElementById('cvName').value;let s=document.getElementById('cvSpec').value;let e=document.getElementById('cvExp').value;if(!n){alert('اكتب اسمك');return;}let cv=`السيرة الذاتية\nالاسم: ${n}\nالتخصص: ${s}\n\nالخبرات:\n${e}\n\nالمهارات:\n- العمل تحت الضغط\n- اللغة الإنجليزية\n- الحاسب الآلي\n\nالهدف: الحصول على وظيفة في مجال ${s} والمساهمة في رؤية 2030`;document.getElementById('cvRes').style.display='block';document.getElementById('cvRes').innerText=cv;}function calcCitizen(){let f=parseInt(document.getElementById('family').value)||1;let inc=parseInt(document.getElementById('income').value)||0;let support=0;if(inc<3000)support=f*400;else if(inc<6000)support=f*300;else support=f*150;if(support>3000)support=3000;document.getElementById('citRes').style.display='block';document.getElementById('citRes').innerHTML='الدعم التقريبي المتوقع: <b style="color:#22c55e">'+support+' ريال</b><br><small>هذا حساب تقريبي فقط، الرقم الرسمي من حساب المواطن</small>';}const ideas={'5000':['متجر إلكتروني منتجات حفر الباطن (عسل، سمن)','خدمة كتابة بحوث للطلاب','تصميم سير ذاتية'],'10000':['مغسلة ملابس متنقلة','عربة فود ترك قهوة مختصة','متجر تغليف هدايا'],'20000':['مشروع دروس خصوصية أونلاين','استوديو تصوير صغير','محل اكسسوارات جوالات'],'50000':['مقهى طلابي قرب الجامعة','شركة توصيل داخلي','مركز تدريب حاسب']};function genIdea(){let b=document.getElementById('budget').value;let list=ideas[b];let rnd=list[Math.floor(Math.random()*list.length)];document.getElementById('ideaRes').style.display='block';document.getElementById('ideaRes').innerHTML='💡 فكرة مقترحة برأس مال '+b+' ريال:<br><b style="color:#facc15; font-size:18px">'+rnd+'</b><br><br>اسأل نبراس: "سوي لي دراسة جدوى لـ '+rnd+'"';}</script></body></html>"""
 HT=r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0,user-scalable=yes"/><meta name="google-site-verification" content="PyOhY3ZXN4LTBbK55EbrmeI5A5kqddF3cJeI_s1FwVc"/><meta http-equiv="Content-Language" content="ar"/><title>نبراس GP | مساعد ذكي سعودي - أسئلة، صور، وصوت</title><meta name="description" content="نبراس GP هو مساعدك الذكي العربي الموثوق. يقدم إجابات فورية ودقيقة حول أي موضوع، يولّد لك صوراً إبداعية، ويحول النص إلى كلام مسموع. اختصر وقتك وزد إنتاجيتك مع أقوى ذكاء اصطناعي عربي." /><meta name="keywords" content="مساعد ذكي عربي, ذكاء اصطناعي بالعربي, نبراس, AI عربي, مساعد صوتي, توليد صور, روبوت دردشة, حلول فورية" /><meta property="og:title" content="نبراس GP | مساعد ذكي سعودي - أسئلة، صور، وصوت" /><meta property="og:description" content="احصل على إجابات فورية، صور إبداعية، وصوت بشري واضح. مساعدك الذكي العربي الشامل." /><meta property="og:url" content="https://nibras-al.onrender.com/" /><meta property="og:image" content="https://nibras-al.onrender.com/static/icon-512.png" /><link rel="manifest" href="/static/manifest.json"/><link rel="icon" type="image/png" href="/static/icon-512.png"/><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#6a7b8c;--welcome-bg:#fff;--border-input:#dce1e8;--btn-gold-bg:#f1c40f;--btn-gold-text:#1a2b3c;--mute-muted:#444;--mute-hover:#1a2b3c;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--mic-active-bg:#fde8e8;--mic-active-color:#c33;--remove-btn-hover:#fde8e8;--modal-bg:rgba(0,0,0,0.5)}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-bot-msg:transparent;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#8b949e;--welcome-bg:#161b22;--border-input:#30363d;--btn-gold-bg:#d29922;--btn-gold-text:#0d1117;--mute-muted:#484f58;--mute-hover:#c9d1d9;--send-bg:#238636;--send-hover:#2ea043;--mic-active-bg:#2d1b1b;--mic-active-color:#f85149;--remove-btn-hover:#2d1b1b;--modal-bg:rgba(0,0,0,0.7)}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body);transition:background .3s}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;transition:background .3s;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}@media(orientation:landscape) and (max-width:599px){.app{max-width:100%;border-radius:0;box-shadow:none;top:0;left:0;right:0;bottom:0;transform:none;height:100%;max-height:100%}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border-color);flex-shrink:0;background:var(--bg-header);transition:background .3s}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.menu-btn{background:0 0;border:none;font-size:20px;color:var(--text-secondary);cursor:pointer;padding:4px 8px}.mute-btn{background:0 0;border:none;font-size:20px;color:var(--text-secondary);cursor:pointer;padding:4px 8px;transition:color .2s}.mute-btn:hover{color:var(--mute-hover)}.mute-btn.muted{color:var(--mute-muted);opacity:.4;transform:scale(.9);transition:all .2s}.btn-group{display:flex;gap:8px}.btn{padding:6px 16px;border-radius:20px;font-size:14px;border:none;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}.btn-outline{background:0 0;border:1px solid var(--primary-color);color:var(--primary-color)}.btn-gold{background:var(--btn-gold-bg);color:var(--btn-gold-text);font-weight:700}.dropdown{position:absolute;top:64px;left:14px;right:14px;background:var(--bg-dropdown);border-radius:16px;box-shadow:0 8px 30px var(--shadow-color);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:60vh;overflow-y:auto}.dropdown.show{display:flex}.dropdown .item{display:flex;align-items:center;gap:12px;padding:14px 18px;font-size:15px;color:var(--text-primary);background:0 0;border:none;width:100%;text-align:right;cursor:pointer;border-bottom:1px solid var(--border-color)}.dropdown .item:last-child{border-bottom:none}.dropdown .item i{width:22px;font-size:18px;color:var(--text-secondary)}.dropdown .item:hover{background:var(--bg-hover)}.dropdown .conv-item{display:block;padding:12px 18px;border-bottom:1px solid var(--border-color);cursor:pointer;width:100%;background:0 0;border:none;text-align:right;font-size:16px;color:var(--text-primary);font-weight:500;transition:background .2s}.dropdown .conv-item:hover{background:var(--bg-hover)}.dropdown .conv-item:last-child{border-bottom:none}#chat{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px;background:var(--bg-app);font-size:16px;transition:background .3s;min-height:0}.msg{max-width:90%;padding:12px 20px;border-radius:20px;font-size:16px;font-weight:600;line-height:1.7;word-wrap:break-word;white-space:normal;color:var(--text-primary);transition:background .3s,color .3s;position:relative}.msg.user{align-self:flex-end;background:var(--bg-user-msg);border-bottom-left-radius:6px}.msg.bot{align-self:flex-start;background:var(--bg-bot-msg);border-bottom-right-radius:6px}.msg .time{font-size:10px;opacity:.35;display:block;margin-top:4px;color:var(--text-secondary)}.msg.error{background:var(--danger-bg);color:var(--danger-color);align-self:center;max-width:90%}.msg .image-upload{max-width:100%;max-height:200px;border-radius:12px;margin:4px 0;border:1px solid var(--border-color);display:block}.msg .generated-image{max-width:100%;border-radius:12px;margin:8px 0;border:1px solid var(--border-color);display:block}.msg .generated-video{max-width:100%;border-radius:12px;margin:8px 0;border:1px solid var(--border-color);display:block}.typing-indicator{align-self:flex-start;background:var(--bg-bot-msg);padding:12px 18px;border-radius:20px;border-bottom-right-radius:6px;font-size:16px;font-weight:600;color:var(--text-secondary)}.typing-dots{display:inline-block}.typing-dots::after{content:'...';animation:dotAnimation 1.2s steps(4,end) infinite}@keyframes dotAnimation{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}.welcome-overlay{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:9999;animation:fadeIn .5s ease;pointer-events:none}.welcome-overlay .welcome-box{background:var(--welcome-bg);padding:30px 40px;border-radius:20px;box-shadow:0 10px 40px var(--shadow-color);text-align:center;max-width:90%;pointer-events:auto;direction:rtl;border:1px solid var(--border-color)}.welcome-overlay .welcome-box h2{font-size:28px;color:var(--text-primary);margin-bottom:8px}.welcome-overlay .welcome-box p{font-size:18px;color:var(--text-secondary);margin:0}@keyframes fadeIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}.welcome-overlay.fade-out{animation:fadeOut .5s ease forwards}@keyframes fadeOut{from{opacity:1;transform:scale(.9)}to{opacity:0;transform:scale(.9)}}#imagePreviewContainer{display:none;padding:6px 18px;align-items:center;gap:10px;background:var(--bg-input);margin:0 14px;border-radius:20px 20px 0 0;border:1px solid var(--border-color);border-bottom:none;flex-wrap:wrap;flex-shrink:0}#imagePreviewContainer img{max-height:60px;border-radius:8px;border:1px solid var(--border-color)}#imagePreviewContainer .label{font-size:13px;color:var(--text-secondary)}#removeImageBtn{background:0 0;border:none;color:var(--danger-color);font-size:14px;cursor:pointer;padding:4px 8px;border-radius:12px}#removeImageBtn:hover{background:var(--remove-btn-hover)}.input-area{display:flex;align-items:flex-end;justify-content:center;gap:8px;padding:8px 14px;margin:8px 14px 16px;background:var(--bg-input);border-radius:40px;border:1px solid var(--border-color);flex-shrink:0;min-height:60px}.input-area textarea{flex:1;border:none;background:0 0;padding:12px 0;font-size:18px;font-weight:600;outline:0;color:var(--text-primary);direction:rtl;resize:none;overflow:hidden;min-height:20px;max-height:80px;font-family:'Segoe UI',Arial,sans-serif;line-height:1.4}.input-area textarea::placeholder{color:var(--placeholder-color)}.input-area .btn-icon{background:0 0;border:none;color:var(--icon-color);font-size:20px;cursor:pointer;padding:4px;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0}.input-area .btn-icon:hover{background:var(--bg-hover)}.input-area .mic-btn{color:var(--primary-color)}.input-area .mic-btn.listening{color:var(--mic-active-color);background:var(--mic-active-bg)}.input-area .send{background:var(--send-bg);color:#fff;border:none;width:44px;height:44px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px var(--send-shadow)}.input-area .send:hover{background:var(--send-hover)}.plus-btn{background:0 0;border:none;color:var(--primary-color);font-size:24px;cursor:pointer;padding:4px;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.3s}.plus-btn:hover{background:var(--bg-hover)}.plus-btn.rotate{transform:rotate(45deg)}.plus-options{display:none;position:absolute;bottom:70px;right:0;background:var(--bg-dropdown);border-radius:20px;box-shadow:0 8px 30px var(--shadow-color);padding:8px;gap:6px;flex-direction:row;border:1px solid var(--border-color);z-index:50}.plus-options.show{display:flex}.plus-options .option-btn{background:var(--bg-hover);border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-primary);cursor:pointer;transition:.2s}.plus-options .option-btn:hover{background:var(--border-color)}@media(max-width:420px){.header{padding:12px 14px}.btn{font-size:12px;padding:5px 12px}.dropdown{top:58px;left:10px;right:10px}#chat{padding:14px 16px}.input-area{margin:6px 10px 12px;padding:6px 10px;min-height:50px}.input-area textarea{font-size:14px}.input-area .send{width:38px;height:38px;font-size:14px}.input-area .btn-icon{width:32px;height:32px;font-size:16px}.plus-btn{width:32px;height:32px;font-size:18px}.msg .image-upload{max-height:150px}#imagePreviewContainer{padding:4px 14px}#imagePreviewContainer img{max-height:50px}.welcome-overlay .welcome-box{padding:20px 25px}.welcome-overlay .welcome-box h2{font-size:22px}.welcome-overlay .welcome-box p{font-size:16px}}.gender-option{flex:1;padding:8px 4px;border-radius:10px;border:1px solid var(--border-color);background:0 0;font-size:14px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:4px}.gender-option:hover{background:var(--bg-hover)}.gender-option.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}.share-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--modal-bg);z-index:9999;justify-content:center;align-items:center;padding:20px;backdrop-filter:blur(4px)}.share-modal.show{display:flex}.share-modal .box{background:var(--bg-app);padding:28px 24px;border-radius:24px;max-width:360px;width:100%;text-align:center;border:1px solid var(--border-color);box-shadow:0 20px 60px var(--shadow-color)}.share-modal .box h3{font-size:22px;color:var(--text-primary);margin-bottom:18px}.share-modal .box .share-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:18px}.share-modal .box .share-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:14px;text-decoration:none;font-size:15px;font-weight:600;border:none;cursor:pointer;transition:transform .15s;flex:1 0 auto;justify-content:center;min-width:70px}.share-modal .box .share-btn:hover{transform:scale(1.03)}.share-modal .box .share-btn.whatsapp{background:#25D366;color:#fff}.share-modal .box .share-btn.facebook{background:#1877F2;color:#fff}.share-modal .box .share-btn.twitter{background:#000;color:#fff}.share-modal .box .share-btn.snapchat{background:#FFFC00;color:#000}.share-modal .box .close-btn{background:var(--bg-hover);border:none;padding:10px 30px;border-radius:14px;font-size:16px;color:var(--text-primary);cursor:pointer;margin-top:4px;width:100%;font-weight:600}.share-modal .box .close-btn:hover{background:var(--border-color)}@media(max-width:400px){.share-modal .box .share-btn{font-size:13px;padding:8px 12px}}.bot-content{white-space:normal;word-wrap:break-word;overflow-wrap:break-word}.bot-content p{margin:0 0 10px}.bot-content p:last-child{margin-bottom:0}
@@ -146,21 +146,21 @@ def index():return render_template_string(HT)
 def tools_page():return render_template_string(TOOLS_HTML)
 @app.route('/share/<cid>')
 def shared_conversation(cid):
- conn=get_db();r=conn.execute("SELECT messages,title FROM conversations WHERE conv_id=?",(cid,)).fetchone();conn.close()
- if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
- return "⚠️ المحادثة غير موجودة أو تم حذفها.",404
+    conn=get_db();r=conn.execute("SELECT messages,title FROM conversations WHERE conv_id=?",(cid,)).fetchone();conn.close()
+    if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
+    return "⚠️ المحادثة غير موجودة أو تم حذفها.",404
 @app.route('/login',methods=['GET','POST'])
 @limiter.limit("3 per minute")
 def login():
- if request.method=='POST':
-  e=request.form.get('email');p=request.form.get('password');ae="abdullaha0569361@gmail.com";ap=os.environ.get("ADMIN_PASSWORD")
-  if e==ae:
-   if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
-   if secrets.compare_digest(p,ap):session.clear();session['admin_email']=ae;return redirect(url_for('index'))
-   else:return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
-  elif e and "@" in e:session.clear();session['user_email']=e;return redirect(url_for('index'))
-  else:return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
- return render_template_string(LH)
+    if request.method=='POST':
+        e=request.form.get('email');p=request.form.get('password');ae="abdullaha0569361@gmail.com";ap=os.environ.get("ADMIN_PASSWORD")
+        if e==ae:
+            if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
+            if secrets.compare_digest(p,ap):session.clear();session['admin_email']=ae;return redirect(url_for('index'))
+            else:return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
+        elif e and "@" in e:session.clear();session['user_email']=e;return redirect(url_for('index'))
+        else:return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
+    return render_template_string(LH)
 @app.route('/logout')
 def logout():session.clear();return redirect(url_for('index'))
 @app.route('/history')
@@ -169,133 +169,134 @@ def history():uid=get_user_id();cs=get_user_conversations(uid);return jsonify({"
 def load_conversation(cid):uid=get_user_id();ms=load_conversation_by_id(uid,cid);return jsonify({"messages":ms}) if ms else (jsonify({"messages":None}),404)
 @app.route('/delete_message',methods=['POST'])
 def delete_message():
- try:d=request.get_json();cid=d.get('conv_id');idx=d.get('index');uid=get_user_id()
-  if not cid or idx is None:return jsonify({"status":"error","message":"بيانات ناقصة"}),400
-  msgs=load_conversation_by_id(uid,cid)
-  if not msgs:return jsonify({"status":"error","message":"المحادثة غير موجودة"}),404
-  if idx<0 or idx>=len(msgs):return jsonify({"status":"error","message":"الرسالة غير موجودة"}),404
-  del msgs[idx];save_user_conversation(uid,msgs,cid);return jsonify({"status":"ok"})
- except Exception as e:return jsonify({"status":"error","message":str(e)}),500
+    try:
+        d=request.get_json();cid=d.get('conv_id');idx=d.get('index');uid=get_user_id()
+        if not cid or idx is None:return jsonify({"status":"error","message":"بيانات ناقصة"}),400
+        msgs=load_conversation_by_id(uid,cid)
+        if not msgs:return jsonify({"status":"error","message":"المحادثة غير موجودة"}),404
+        if idx<0 or idx>=len(msgs):return jsonify({"status":"error","message":"الرسالة غير موجودة"}),404
+        del msgs[idx];save_user_conversation(uid,msgs,cid);return jsonify({"status":"ok"})
+    except Exception as e:return jsonify({"status":"error","message":str(e)}),500
 @app.route('/delete_my_data',methods=['POST'])
 def delete_my_data():uid=get_user_id();conn=get_db();conn.execute("DELETE FROM conversations WHERE user_id=?",(uid,));conn.commit();conn.close();session.clear();return jsonify({"status":"success","message":"تم حذف جميع بياناتك ومحادثاتك بنجاح."})
 @app.route('/admin')
 def admin_dashboard():
- if not session.get('admin_email')=="abdullaha0569361@gmail.com":return "🚫 هذه الصفحة خاصة بالأدمن فقط.",403
- conn=get_db();users_count=conn.execute("SELECT COUNT(DISTINCT user_id) FROM conversations").fetchone()[0];total_convs=conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0];today=datetime.now().strftime("%Y-%m-%d");today_convs=conn.execute("SELECT COUNT(*) FROM conversations WHERE timestamp LIKE ?",(today+'%',)).fetchone()[0];recent=conn.execute("SELECT user_id, title, timestamp FROM conversations ORDER BY timestamp DESC LIMIT 10").fetchall();conn.close()
- recent_html=""
- for row in recent:
-  user=row[0][:15]+"..." if len(row[0])>15 else row[0];title=row[1] or "محادثة بدون عنوان";time=row[2][:16] if row[2] else "وقت غير معروف";recent_html+=f'<div class="conv-item"><b>{title}</b><small>👤 {user} | 🕒 {time}</small></div>'
- if not recent_html:recent_html="<p style='color:#8b949e;text-align:center;'>لا توجد محادثات بعد</p>"
- return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>body{{font-family:'Segoe UI',Tahoma;background:#0d1117;color:#c9d1d9;padding:20px;margin:0}}.container{{max-width:600px;margin:auto}}h1{{color:#58a6ff;text-align:center}}.card{{background:#161b22;border-radius:15px;padding:15px;margin:15px 0;border:1px solid #30363d}}.stat{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #21262d}}.stat:last-child{{border:none}}.num{{color:#58a6ff;font-weight:bold;font-size:18px}}.conv-item{{padding:10px 0;border-bottom:1px solid #21262d}}.conv-item small{{color:#8b949e;display:block;font-size:12px}}.back{{display:block;text-align:center;color:#58a6ff;text-decoration:none;margin-top:20px}}</style></head><body><div class="container"><h1>📊 لوحة تحكم نبراس</h1><div class="card"><div class="stat"><span>👥 إجمالي المستخدمين</span><span class="num">{users_count}</span></div><div class="stat"><span>💬 إجمالي المحادثات</span><span class="num">{total_convs}</span></div><div class="stat"><span>📅 محادثات اليوم</span><span class="num">{today_convs}</span></div></div><div class="card"><h3>🕒 آخر 10 محادثات</h3>{recent_html}</div><a href="/" class="back">⬅ العودة للرئيسية</a></div></body></html>"""
+    if not session.get('admin_email')=="abdullaha0569361@gmail.com":return "🚫 هذه الصفحة خاصة بالأدمن فقط.",403
+    conn=get_db();users_count=conn.execute("SELECT COUNT(DISTINCT user_id) FROM conversations").fetchone()[0];total_convs=conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0];today=datetime.now().strftime("%Y-%m-%d");today_convs=conn.execute("SELECT COUNT(*) FROM conversations WHERE timestamp LIKE ?",(today+'%',)).fetchone()[0];recent=conn.execute("SELECT user_id, title, timestamp FROM conversations ORDER BY timestamp DESC LIMIT 10").fetchall();conn.close()
+    recent_html=""
+    for row in recent:
+        user=row[0][:15]+"..." if len(row[0])>15 else row[0];title=row[1] or "محادثة بدون عنوان";time=row[2][:16] if row[2] else "وقت غير معروف";recent_html+=f'<div class="conv-item"><b>{title}</b><small>👤 {user} | 🕒 {time}</small></div>'
+    if not recent_html:recent_html="<p style='color:#8b949e;text-align:center;'>لا توجد محادثات بعد</p>"
+    return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>body{{font-family:'Segoe UI',Tahoma;background:#0d1117;color:#c9d1d9;padding:20px;margin:0}}.container{{max-width:600px;margin:auto}}h1{{color:#58a6ff;text-align:center}}.card{{background:#161b22;border-radius:15px;padding:15px;margin:15px 0;border:1px solid #30363d}}.stat{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #21262d}}.stat:last-child{{border:none}}.num{{color:#58a6ff;font-weight:bold;font-size:18px}}.conv-item{{padding:10px 0;border-bottom:1px solid #21262d}}.conv-item small{{color:#8b949e;display:block;font-size:12px}}.back{{display:block;text-align:center;color:#58a6ff;text-decoration:none;margin-top:20px}}</style></head><body><div class="container"><h1>📊 لوحة تحكم نبراس</h1><div class="card"><div class="stat"><span>👥 إجمالي المستخدمين</span><span class="num">{users_count}</span></div><div class="stat"><span>💬 إجمالي المحادثات</span><span class="num">{total_convs}</span></div><div class="stat"><span>📅 محادثات اليوم</span><span class="num">{today_convs}</span></div></div><div class="card"><h3>🕒 آخر 10 محادثات</h3>{recent_html}</div><a href="/" class="back">⬅ العودة للرئيسية</a></div></body></html>"""
 def get_user_id():
- if 'admin_email' in session:return "admin_"+session['admin_email']
- elif 'user_email' in session:return "user_"+session['user_email']
- else:
-  if 'guest_id' not in session:session['guest_id']="guest_"+secrets.token_hex(8)
-  return session['guest_id']
+    if 'admin_email' in session:return "admin_"+session['admin_email']
+    elif 'user_email' in session:return "user_"+session['user_email']
+    else:
+        if 'guest_id' not in session:session['guest_id']="guest_"+secrets.token_hex(8)
+        return session['guest_id']
 @app.route('/set_gender',methods=['POST'])
 def set_gender():d=request.get_json();session['voice_gender']=d.get('gender','male');return jsonify({"status":"ok"})
 @app.route('/chat',methods=['POST'])
 @limiter.limit("20 per minute")
 def chat():
- try:
-  d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
-  if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
-  is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com";uid=get_user_id()
-  if not is_admin:
-   if not check_guest_limit_safe(uid):
-    reply_limit="وصلت للحد المجاني اليوم (15 سؤال) 😊\n\n💡 عندك حلين بدون ما تدفع:\n\n1- جرب أدواتنا المجانية 100% (ما تستهلك رصيد):\nhttps://nibras-al.onrender.com/tools\n\n2- ارجع بكرة وتاخذ 15 سؤال جديدة مجاناً\n\nنظامنا مجاني للجميع لأنه بدون بوابة دفع."
-    if cid is None:sm[uid]=[]
-    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_limit});nid=save_user_conversation(uid,sm[uid],cid)
-    return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
-   cached=get_cached(um)
-   if cached:
-    if cid is None:sm[uid]=[]
-    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":cached});nid=save_user_conversation(uid,sm[uid],cid)
-    return jsonify({"reply":cached+"\n\n⚡ جواب سريع من الذاكرة","conv_id":nid,"audio":None})
-  draw_phrases=["ارسم لي","ابي صورة","ابي صوره","ابي صورت","صوره لي","ارسم","أنشئ","انشئ","انشى","صمم","ولّد","generate","draw","فيديو","ابي فيديو","عرض فيديو"]
-  def is_image_request(text):
-   text_lower=text.lower().strip()
-   if len(text_lower.split())<=1:return False
-   for phrase in draw_phrases:
-    if phrase in text_lower:return True
-   return False
-  has_image=d.get("image") is not None
-  if is_image_request(um) and not has_image:
-   print(f"🎨 طلب رسم/فيديو مجاني من {uid}")
-   video_keywords=["فيديو","ابي فيديو","عرض فيديو"]
-   is_video=any(kw in um for kw in video_keywords)
-   if is_video:
-    video_result=search_video(um)
-    if video_result and video_result.startswith("ERROR:"):
-     error_clear=video_result.replace("ERROR:","");reply=f"⚠️ عذراً، ما قدرت أجيب الفيديو. السبب: {error_clear}"
-     sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-     return jsonify({"reply":reply,"conv_id":nid})
-    elif video_result:
-     reply=f"🎬 إليك الفيديو الذي طلبتـه:";reply_with_url=reply+"\n"+video_result
-     sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_with_url});nid=save_user_conversation(uid,sm[uid],cid)
-     return jsonify({"reply":reply_with_url,"image_url":video_result,"conv_id":nid})
-    else:
-     reply="⚠️ عذراً، تعذر جلب الفيديو بسبب خطأ غير معروف."
-     sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-     return jsonify({"reply":reply,"conv_id":nid})
-   img_result=generate_image(um)
-   if img_result and img_result.startswith("ERROR:"):
-    error_clear=img_result.replace("ERROR:","");reply=f"⚠️ عذراً، ما قدرت أولد الصورة. السبب: {error_clear}"
-    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-    return jsonify({"reply":reply,"conv_id":nid})
-   elif img_result:
-    reply=f"🖼️ إليك الصورة التي طلبتها:";reply_with_url=reply+"\n"+img_result
-    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_with_url});nid=save_user_conversation(uid,sm[uid],cid)
-    return jsonify({"reply":reply_with_url,"image_url":img_result,"conv_id":nid})
-   else:
-    reply="⚠️ عذراً، تعذر توليد الصورة بسبب خطأ غير معروف."
-    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-    return jsonify({"reply":reply,"conv_id":nid})
-  if has_image and not is_admin:
-   reply="عذراً، ميزة تحليل الصور المرفوعة والبحث المباشر متاحة لحساب الأدمن فقط حالياً للحفاظ على رصيد OpenAI.\n\n💡 لكن تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو)."
-   if cid is None:sm[uid]=[]
-   sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-   return jsonify({"reply":reply,"conv_id":nid})
-  if cid is None:sm[uid]=[]
-  model=OPENAI_MODEL;use_web=True if is_admin else False;allow_img=True if is_admin else False
-  server_hist=load_conversation_by_id(uid,cid) if cid else []
-  if not server_hist:server_hist=sm.get(uid,[])
-  server_hist.append({"role":"user","content":um});sm[uid]=server_hist
-  ch=server_hist[-30:]
-  msgs=[{"role":"system","content":SP}]
-  for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
-  img_data=d.get("image",None)
-  if img_data and is_admin:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
-  if use_web:
-   try:
-    fc=""
-    for m in msgs:
-     if m["role"]=="user":fc+=m["content"]+"\n"
-     elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
-    sr=client.responses.create(model=model,instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",tools=[{"type":"web_search"}])
-    res=sr.output_text.strip()
-    if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
-   except Exception as e:print(f"⚠️ فشل البحث: {e}")
-  try:
-   reasoning_level="low" if not is_admin else "high"
-   # حذفنا temperature=0.8 لأن النموذج لا يدعمه
-   r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=8000,reasoning_effort=reasoning_level)
-   reply=r.choices[0].message.content.strip()
-   if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
-  except Exception as e:print(f"❌ خطأ عام: {e}");return jsonify({"error":str(e)}),500
-  lines=reply.split('\n');merged_paragraphs=[];current_paragraph=[]
-  for line in lines:
-   line=line.strip()
-   if not line:
-    if current_paragraph:merged_paragraphs.append(' '.join(current_paragraph));current_paragraph=[]
-   else:current_paragraph.append(line)
-  if current_paragraph:merged_paragraphs.append(' '.join(current_paragraph))
-  reply='\n\n'.join(merged_paragraphs)
-  sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
-  if not is_admin:save_cache(um,reply)
-  try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
-  except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
-  return jsonify({"reply":reply,"audio":audio,"conv_id":nid})
- except Exception as e:print(f"❌ خطأ عام: {e}");return jsonify({"error":str(e)}),500
+    try:
+        d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
+        if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
+        is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com";uid=get_user_id()
+        if not is_admin:
+            if not check_guest_limit_safe(uid):
+                reply_limit="وصلت للحد المجاني اليوم (15 سؤال) 😊\n\n💡 عندك حلين بدون ما تدفع:\n\n1- جرب أدواتنا المجانية 100% (ما تستهلك رصيد):\nhttps://nibras-al.onrender.com/tools\n\n2- ارجع بكرة وتاخذ 15 سؤال جديدة مجاناً\n\nنظامنا مجاني للجميع لأنه بدون بوابة دفع."
+                if cid is None:sm[uid]=[]
+                sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_limit});nid=save_user_conversation(uid,sm[uid],cid)
+                return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
+            cached=get_cached(um)
+            if cached:
+                if cid is None:sm[uid]=[]
+                sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":cached});nid=save_user_conversation(uid,sm[uid],cid)
+                return jsonify({"reply":cached+"\n\n⚡ جواب سريع من الذاكرة","conv_id":nid,"audio":None})
+        draw_phrases=["ارسم لي","ابي صورة","ابي صوره","ابي صورت","صوره لي","ارسم","أنشئ","انشئ","انشى","صمم","ولّد","generate","draw","فيديو","ابي فيديو","عرض فيديو"]
+        def is_image_request(text):
+            text_lower=text.lower().strip()
+            if len(text_lower.split())<=1:return False
+            for phrase in draw_phrases:
+                if phrase in text_lower:return True
+            return False
+        has_image=d.get("image") is not None
+        if is_image_request(um) and not has_image:
+            print(f"🎨 طلب رسم/فيديو مجاني من {uid}")
+            video_keywords=["فيديو","ابي فيديو","عرض فيديو"]
+            is_video=any(kw in um for kw in video_keywords)
+            if is_video:
+                video_result=search_video(um)
+                if video_result and video_result.startswith("ERROR:"):
+                    error_clear=video_result.replace("ERROR:","");reply=f"⚠️ عذراً، ما قدرت أجيب الفيديو. السبب: {error_clear}"
+                    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
+                    return jsonify({"reply":reply,"conv_id":nid})
+                elif video_result:
+                    reply=f"🎬 إليك الفيديو الذي طلبتـه:";reply_with_url=reply+"\n"+video_result
+                    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_with_url});nid=save_user_conversation(uid,sm[uid],cid)
+                    return jsonify({"reply":reply_with_url,"image_url":video_result,"conv_id":nid})
+                else:
+                    reply="⚠️ عذراً، تعذر جلب الفيديو بسبب خطأ غير معروف."
+                    sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
+                    return jsonify({"reply":reply,"conv_id":nid})
+            img_result=generate_image(um)
+            if img_result and img_result.startswith("ERROR:"):
+                error_clear=img_result.replace("ERROR:","");reply=f"⚠️ عذراً، ما قدرت أولد الصورة. السبب: {error_clear}"
+                sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
+                return jsonify({"reply":reply,"conv_id":nid})
+            elif img_result:
+                reply=f"🖼️ إليك الصورة التي طلبتها:";reply_with_url=reply+"\n"+img_result
+                sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_with_url});nid=save_user_conversation(uid,sm[uid],cid)
+                return jsonify({"reply":reply_with_url,"image_url":img_result,"conv_id":nid})
+            else:
+                reply="⚠️ عذراً، تعذر توليد الصورة بسبب خطأ غير معروف."
+                sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
+                return jsonify({"reply":reply,"conv_id":nid})
+        if has_image and not is_admin:
+            reply="عذراً، ميزة تحليل الصور المرفوعة والبحث المباشر متاحة لحساب الأدمن فقط حالياً للحفاظ على رصيد OpenAI.\n\n💡 لكن تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو)."
+            if cid is None:sm[uid]=[]
+            sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
+            return jsonify({"reply":reply,"conv_id":nid})
+        if cid is None:sm[uid]=[]
+        model=OPENAI_MODEL;use_web=True if is_admin else False;allow_img=True if is_admin else False
+        server_hist=load_conversation_by_id(uid,cid) if cid else []
+        if not server_hist:server_hist=sm.get(uid,[])
+        server_hist.append({"role":"user","content":um});sm[uid]=server_hist
+        ch=server_hist[-30:]
+        msgs=[{"role":"system","content":SP}]
+        for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
+        img_data=d.get("image",None)
+        if img_data and is_admin:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
+        if use_web:
+            try:
+                fc=""
+                for m in msgs:
+                    if m["role"]=="user":fc+=m["content"]+"\n"
+                    elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
+                sr=client.responses.create(model=model,instructions=f"{SP}\n\nسياق المحادثة السابقة:\n{fc}",input=f"ابحث في الويب عن أحدث المعلومات حول: {um}، وقدم لي ملخصاً مفيداً.",tools=[{"type":"web_search"}])
+                res=sr.output_text.strip()
+                if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
+            except Exception as e:print(f"⚠️ فشل البحث: {e}")
+        try:
+            reasoning_level="low" if not is_admin else "high"
+            # حذف temperature لأن النموذج لا يدعمه
+            r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=8000,reasoning_effort=reasoning_level)
+            reply=r.choices[0].message.content.strip()
+            if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
+        except Exception as e:print(f"❌ خطأ عام: {e}");return jsonify({"error":str(e)}),500
+        lines=reply.split('\n');merged_paragraphs=[];current_paragraph=[]
+        for line in lines:
+            line=line.strip()
+            if not line:
+                if current_paragraph:merged_paragraphs.append(' '.join(current_paragraph));current_paragraph=[]
+            else:current_paragraph.append(line)
+        if current_paragraph:merged_paragraphs.append(' '.join(current_paragraph))
+        reply='\n\n'.join(merged_paragraphs)
+        sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
+        if not is_admin:save_cache(um,reply)
+        try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
+        except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
+        return jsonify({"reply":reply,"audio":audio,"conv_id":nid})
+    except Exception as e:print(f"❌ خطأ عام: {e}");return jsonify({"error":str(e)}),500
 if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
