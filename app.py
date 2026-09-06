@@ -215,11 +215,11 @@ def search_tavily(query):
         url = "https://api.tavily.com/search"
         headers = {
             "Content-Type": "application/json",
-            "X-Tavily-Access-Mode": "keyless"  # هذا السطر يجعله مجاني
+            "X-Tavily-Access-Mode": "keyless"
         }
         payload = {
             "query": query,
-            "max_results": 3  # عدد النتائج (يُفضل 3-5 للسرعة)
+            "max_results": 3
         }
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         
@@ -254,7 +254,9 @@ HT=r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><me
 
 .code-block-wrapper{position:relative;margin:16px 0;border-radius:14px;border:1px solid var(--border-color);background:var(--bg-input);overflow:hidden;display:block;width:100%;overflow-x:auto;box-shadow:0 2px 8px rgba(0,0,0,0.05)}.code-block-wrapper pre{margin:0;padding:20px 60px 20px 24px;background:transparent;border:none;border-radius:0;white-space:pre;word-break:normal;font-size:15px;line-height:1.8;font-family:'Courier New',Consolas,monospace;direction:ltr;text-align:left}.code-block-wrapper .copy-code-btn{position:absolute;top:12px;left:14px;background:var(--bg-hover);border:1px solid var(--border-color);color:var(--text-secondary);border-radius:10px;padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;z-index:5;display:flex;align-items:center;gap:6px}.code-block-wrapper .copy-code-btn:hover{background:var(--primary-color);color:#fff;border-color:var(--primary-color);transform:scale(1.02)}.code-block-wrapper .copy-code-btn.copied{background:#28a745;color:#fff;border-color:#28a745}
 
-</style></head><body><div class="app"><div class="header"><div class="header-right"><button class="mute-btn" id="muteBtn"><i class="fas fa-volume-up"></i></button><button class="menu-btn" id="menuToggle"><i class="fas fa-ellipsis-v"></i></button></div><div class="header-left"><div class="btn-group">{% if session.get('admin_email') or session.get('user_email') %}<a href="/logout" class="btn btn-outline">تسجيل خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div><div class="dropdown" id="dropdown"><button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button><button class="item" onclick="window.location.href='/tools'"><i class="fas fa-tools"></i> 🧰 أدوات مجانية</button><button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button><button class="item" onclick="deleteMyData()" style="color: #ff4d4d;"><i class="fas fa-trash-alt"></i> حذف حسابي</button><button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button><div class="item" style="flex-direction:column;align-items:stretch;gap:6px;cursor:default;border-bottom:1px solid var(--border-color)"><div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-primary)"><i class="fas fa-microphone" style="font-size:18px;color:var(--text-secondary)"></i><span>صوت المساعد</span></div><div style="display:flex;gap:8px"><button class="gender-option active" data-gender="male">👨 ذكر</button><button class="gender-option" data-gender="female">👩 أنثى</button></div></div><div id="historyList"></div></div><div id="chat"></div><div id="imagePreviewContainer"><img id="imagePreview" src=""/><span class="label">📎 صورة معلقة</span><button id="removeImageBtn">✕ إزالة</button></div><div class="input-area"><button class="btn-icon mic-btn" id="micBtn"><i class="fas fa-microphone"></i></button><button class="plus-btn" id="plusBtn"><i class="fas fa-plus"></i></button><div class="plus-options" id="plusOptions"><button class="option-btn camera" id="cameraBtn"><i class="fas fa-camera"></i></button><button class="option-btn gallery" id="galleryBtn"><i class="fas fa-images"></i></button><button class="option-btn files" id="filesBtn"><i class="fas fa-folder"></i></button></div><textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea><button class="send" id="sendBtn"><i class="fas fa-arrow-left"></i></button></div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="fileInputGeneric" style="display:none"/></div><div class="share-modal" id="shareModal"><div class="box"><h3><i class="fas fa-share-alt" style="color:var(--primary-color)"></i> شارك المحادثة</h3><div class="share-grid"><a href="#" id="shareWhatsapp" target="_blank" class="share-btn whatsapp"><i class="fab fa-whatsapp"></i> واتساب</a><a href="#" id="shareFacebook" target="_blank" class="share-btn facebook"><i class="fab fa-facebook"></i> فيسبوك</a><a href="#" id="shareTwitter" target="_blank" class="share-btn twitter"><i class="fab fa-x-twitter"></i> X</a><button id="shareSnapchat" class="share-btn snapchat"><i class="fab fa-snapchat"></i> سناب شات</button></div><button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إلغاء</button></div></div><script>(function(){let ch=[],pid=null,iw=!1,cid=null,ca=null;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),fib=document.getElementById('filesBtn'),fig=document.getElementById('fileInputGeneric'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),sm=document.getElementById('shareModal');let im=!0;const mut=document.getElementById('muteBtn');mut.querySelector('i').className='fas fa-volume-mute';mut.classList.add('muted');mut.addEventListener('click',function(){im=!im;const ic=mut.querySelector('i');if(im){ic.className='fas fa-volume-mute';mut.classList.add('muted');if(ca){ca.pause();ca.currentTime=0}}else{ic.className='fas fa-volume-up';mut.classList.remove('muted')}});let isMale=!0;const gopts=document.querySelectorAll('.gender-option');mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();gopts.forEach(b=>b.classList.remove('active'));if(isMale)document.querySelector('.gender-option[data-gender="male"]').classList.add('active');else document.querySelector('.gender-option[data-gender="female"]').classList.add('active')}});gopts.forEach(b=>{b.addEventListener('click',function(e){e.stopPropagation();const g=this.dataset.gender;isMale=g==='male';gopts.forEach(x=>x.classList.remove('active'));this.classList.add('active');fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})});dd.classList.remove('show')})});async function loadHistory(){try{const r=await fetch('/history'),d=await r.json();hl.innerHTML='';if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const b=document.createElement('button');b.className='conv-item';b.textContent=c.title;b.onclick=()=>loadConversation(c.id);hl.appendChild(b)})}else{const e=document.createElement('div');e.className='item';e.textContent='📭 لا توجد محادثات سابقة';hl.appendChild(e)}}catch(e){console.error('خطأ في تحميل المحادثات:',e)}}async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){console.error('خطأ في تحميل المحادثة:',e)}}document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.style.display='none';ui.value=''});document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();if(!cid){alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');dd.classList.remove('show');return}const url=window.location.origin+'/share/'+cid,text=encodeURIComponent('اطلع على محادثتي مع نبراس:');document.getElementById('shareWhatsapp').href='https://api.whatsapp.com/send?text='+text+'%20'+encodeURIComponent(url);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(url)+'&text='+text;const snap=document.getElementById('shareSnapchat');snap.onclick=function(ev){ev.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.')).catch(()=>alert('❌ فشل النسخ، الرابط هو: '+url))}else alert('❌ فشل النسخ، الرابط هو: '+url);sm.classList.remove('show')};sm.classList.add('show');dd.classList.remove('show')});sm.addEventListener('click',function(e){if(e.target===sm)sm.classList.remove('show')});const ttb=document.querySelector('[data-action="theme-toggle"]'),tl=document.getElementById('themeLabel');function setTheme(t){const h=document.documentElement;if(t==='dark'){h.classList.add('dark-mode');tl.textContent='الوضع الليلي';ttb.querySelector('i').className='fas fa-moon';localStorage.setItem('nibras-theme','dark')}else{h.classList.remove('dark-mode');tl.textContent='الوضع النهاري';ttb.querySelector('i').className='fas fa-sun';localStorage.setItem('nibras-theme','light')}}const st=localStorage.getItem('nibras-theme')||'light';setTheme(st);if(ttb){ttb.addEventListener('click',function(e){e.stopPropagation();const cur=document.documentElement.classList.contains('dark-mode')?'dark':'light';const nw=cur==='dark'?'light':'dark';setTheme(nw);dd.classList.remove('show')})}}
+</style></head><body><div class="app"><div class="header"><div class="header-right"><button class="mute-btn" id="muteBtn"><i class="fas fa-volume-up"></i></button><button class="menu-btn" id="menuToggle"><i class="fas fa-ellipsis-v"></i></button></div><div class="header-left"><div class="btn-group">{% if session.get('admin_email') or session.get('user_email') %}<a href="/logout" class="btn btn-outline">تسجيل خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div><div class="dropdown" id="dropdown"><button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button><button class="item" onclick="window.location.href='/tools'"><i class="fas fa-tools"></i> 🧰 أدوات مجانية</button><button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button><button class="item" onclick="deleteMyData()" style="color: #ff4d4d;"><i class="fas fa-trash-alt"></i> حذف حسابي</button><button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button><div class="item" style="flex-direction:column;align-items:stretch;gap:6px;cursor:default;border-bottom:1px solid var(--border-color)"><div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-primary)"><i class="fas fa-microphone" style="font-size:18px;color:var(--text-secondary)"></i><span>صوت المساعد</span></div><div style="display:flex;gap:8px"><button class="gender-option active" data-gender="male">👨 ذكر</button><button class="gender-option" data-gender="female">👩 أنثى</button></div></div><div id="historyList"></div></div><div id="chat"></div><div id="imagePreviewContainer"><img id="imagePreview" src=""/><span class="label">📎 صورة معلقة</span><button id="removeImageBtn">✕ إزالة</button></div><div class="input-area"><button class="btn-icon mic-btn" id="micBtn"><i class="fas fa-microphone"></i></button><button class="plus-btn" id="plusBtn"><i class="fas fa-plus"></i></button><div class="plus-options" id="plusOptions"><button class="option-btn camera" id="cameraBtn"><i class="fas fa-camera"></i></button><button class="option-btn gallery" id="galleryBtn"><i class="fas fa-images"></i></button><button class="option-btn files" id="filesBtn"><i class="fas fa-folder"></i></button></div><textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea><button class="send" id="sendBtn"><i class="fas fa-arrow-left"></i></button></div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="fileInputGeneric" style="display:none"/></div><div class="share-modal" id="shareModal"><div class="box"><h3><i class="fas fa-share-alt" style="color:var(--primary-color)"></i> شارك المحادثة</h3><div class="share-grid"><a href="#" id="shareWhatsapp" target="_blank" class="share-btn whatsapp"><i class="fab fa-whatsapp"></i> واتساب</a><a href="#" id="shareFacebook" target="_blank" class="share-btn facebook"><i class="fab fa-facebook"></i> فيسبوك</a><a href="#" id="shareTwitter" target="_blank" class="share-btn twitter"><i class="fab fa-x-twitter"></i> X</a><button id="shareSnapchat" class="share-btn snapchat"><i class="fab fa-snapchat"></i> سناب شات</button></div><button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إلغاء</button></div></div><script>
+document.addEventListener('DOMContentLoaded', function() {
+(function(){let ch=[],pid=null,iw=!1,cid=null,ca=null;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),fib=document.getElementById('filesBtn'),fig=document.getElementById('fileInputGeneric'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),sm=document.getElementById('shareModal');let im=!0;const mut=document.getElementById('muteBtn');mut.querySelector('i').className='fas fa-volume-mute';mut.classList.add('muted');mut.addEventListener('click',function(){im=!im;const ic=mut.querySelector('i');if(im){ic.className='fas fa-volume-mute';mut.classList.add('muted');if(ca){ca.pause();ca.currentTime=0}}else{ic.className='fas fa-volume-up';mut.classList.remove('muted')}});let isMale=!0;const gopts=document.querySelectorAll('.gender-option');mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();gopts.forEach(b=>b.classList.remove('active'));if(isMale)document.querySelector('.gender-option[data-gender="male"]').classList.add('active');else document.querySelector('.gender-option[data-gender="female"]').classList.add('active')}});gopts.forEach(b=>{b.addEventListener('click',function(e){e.stopPropagation();const g=this.dataset.gender;isMale=g==='male';gopts.forEach(x=>x.classList.remove('active'));this.classList.add('active');fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})});dd.classList.remove('show')})});async function loadHistory(){try{const r=await fetch('/history'),d=await r.json();hl.innerHTML='';if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const b=document.createElement('button');b.className='conv-item';b.textContent=c.title;b.onclick=()=>loadConversation(c.id);hl.appendChild(b)})}else{const e=document.createElement('div');e.className='item';e.textContent='📭 لا توجد محادثات سابقة';hl.appendChild(e)}}catch(e){console.error('خطأ في تحميل المحادثات:',e)}}async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){console.error('خطأ في تحميل المحادثة:',e)}}document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.style.display='none';ui.value=''});document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();if(!cid){alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');dd.classList.remove('show');return}const url=window.location.origin+'/share/'+cid,text=encodeURIComponent('اطلع على محادثتي مع نبراس:');document.getElementById('shareWhatsapp').href='https://api.whatsapp.com/send?text='+text+'%20'+encodeURIComponent(url);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(url)+'&text='+text;const snap=document.getElementById('shareSnapchat');snap.onclick=function(ev){ev.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.')).catch(()=>alert('❌ فشل النسخ، الرابط هو: '+url))}else alert('❌ فشل النسخ، الرابط هو: '+url);sm.classList.remove('show')};sm.classList.add('show');dd.classList.remove('show')});sm.addEventListener('click',function(e){if(e.target===sm)sm.classList.remove('show')});const ttb=document.querySelector('[data-action="theme-toggle"]'),tl=document.getElementById('themeLabel');function setTheme(t){const h=document.documentElement;if(t==='dark'){h.classList.add('dark-mode');tl.textContent='الوضع الليلي';ttb.querySelector('i').className='fas fa-moon';localStorage.setItem('nibras-theme','dark')}else{h.classList.remove('dark-mode');tl.textContent='الوضع النهاري';ttb.querySelector('i').className='fas fa-sun';localStorage.setItem('nibras-theme','light')}}const st=localStorage.getItem('nibras-theme')||'light';setTheme(st);if(ttb){ttb.addEventListener('click',function(e){e.stopPropagation();const cur=document.documentElement.classList.contains('dark-mode')?'dark':'light';const nw=cur==='dark'?'light':'dark';setTheme(nw);dd.classList.remove('show')})}}
 
 function formatBotText(t){let s=String(t||'');let paragraphs=s.split(/\n\s*\n/);let result=paragraphs.map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');return result;}
 
@@ -310,7 +312,8 @@ let recog=null;
 
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage('المتصفح لا يدعم التعرف على الصوت.','bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='ar-SA';this.classList.add('listening');addMessage('جاري الاستماع...','bot',true);recog.onresult=function(e){const tr=e.results[0][0].transcript;ui.value=tr;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});showWelcome()
 
-window.deleteMyData=function(){if(!confirm('⚠️ هل أنت متأكد؟ سيتم حذف جميع محادثاتك وبياناتك نهائياً.'))return;fetch('/delete_my_data',{method:'POST',headers:{'Content-Type':'application/json'}}).then(response=>response.json()).then(data=>{if(data.status==='success'){alert('✅ تم حذف جميع بياناتك بنجاح.');window.location.href='/'}else{alert('❌ فشل الحذف: '+(data.message||'خطأ غير معروف'))}}).catch(err=>{alert('❌ حدث خطأ في الاتصال.');console.error(err)});};})();</script></body></html>"""
+window.deleteMyData=function(){if(!confirm('⚠️ هل أنت متأكد؟ سيتم حذف جميع محادثاتك وبياناتك نهائياً.'))return;fetch('/delete_my_data',{method:'POST',headers:{'Content-Type':'application/json'}}).then(response=>response.json()).then(data=>{if(data.status==='success'){alert('✅ تم حذف جميع بياناتك بنجاح.');window.location.href='/'}else{alert('❌ فشل الحذف: '+(data.message||'خطأ غير معروف'))}}).catch(err=>{alert('❌ حدث خطأ في الاتصال.');console.error(err)});};})();
+</script></body></html>"""
 
 LH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}body{background:#f0f2f5;display:flex;justify-content:center;align-items:center;height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:400px;text-align:center}h2{font-size:28px;color:#1a2b3c;margin-bottom:25px}input{width:100%;padding:14px 16px;margin:12px 0;border:1px solid #dce1e8;border-radius:12px;font-size:18px;background:#fafbfc;box-sizing:border-box}input:focus{outline:0;border-color:#4a6a8a;background:#fff}button{width:100%;padding:16px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer;margin-top:15px}button:hover{background:#3a5a7a}a{color:#4a6a8a;text-decoration:none;font-size:16px;display:inline-block;margin-top:20px}.error{color:#d9534f;margin-bottom:15px}</style></head><body><div class="box"><h2>🔐 تسجيل الدخول</h2>{% if error %}<div class="error">{{ error }}</div>{% endif %}<form method="POST"><input type="email" name="email" placeholder="البريد الإلكتروني" required><input type="password" name="password" placeholder="كلمة المرور" required><button type="submit">دخول</button></form><a href="/">⬅ العودة للرئيسية</a><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:inline-block; margin-top:5px; font-size:12px; text-decoration:underline;">سياسة الخصوصية</a></div></body></html>"""
 
@@ -442,16 +445,9 @@ def chat():
 
         uid=get_user_id()
 
-        # ==============================================
-        # 🔍 تحديد نوع المستخدم وصلاحياته
-        # ==============================================
-        # الأدمن: يستخدم البحث المدفوع (OpenAI) وتحليل الصور
-        # الضيف/المسجل: يستخدم البحث المجاني (Tavily) ولا يستخدم تحليل الصور
-        # ==============================================
-        use_paid_search = is_admin       # الأدمن فقط يستخدم البحث المدفوع
-        use_image_analysis = is_admin    # الأدمن فقط يحلل الصور
+        use_paid_search = is_admin
+        use_image_analysis = is_admin
 
-        # ---- حدود الضيوف ----
         if not is_admin:
             if not check_guest_limit_safe(uid):
                 reply_limit="وصلت للحد المجاني اليوم (15 سؤال) 😊\n\n💡 عندك حلين بدون ما تدفع:\n\n1- جرب أدواتنا المجانية 100% (ما تستهلك رصيد):\nhttps://nibras-al.onrender.com/tools\n\n2- ارجع بكرة وتاخذ 15 سؤال جديدة مجاناً\n\nنظامنا مجاني للجميع لأنه بدون بوابة دفع."
@@ -468,7 +464,6 @@ def chat():
                 sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":cached});nid=save_user_conversation(uid,sm[uid],cid)
                 return jsonify({"reply":cached+"\n\n⚡ جواب سريع من الذاكرة","conv_id":nid,"audio":None})
 
-        # ---- توليد الصور والفيديو (مجاني للجميع) ----
         draw_phrases=["ارسم لي","ابي صورة","ابي صوره","ابي صورت","صوره لي","ارسم","أنشئ","انشئ","انشى","صمم","ولّد","generate","draw","فيديو","ابي فيديو","عرض فيديو"]
 
         def is_image_request(text):
@@ -514,43 +509,31 @@ def chat():
                 sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
                 return jsonify({"reply":reply,"conv_id":nid})
 
-        # ---- تحليل الصور (للمسؤول فقط) ----
         if has_image and not use_image_analysis:
             reply="عذراً، ميزة تحليل الصور المرفقة متاحة لحساب الأدمن فقط حالياً للحفاظ على رصيد OpenAI.\n\n💡 لكن تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو)."
             if cid is None:sm[uid]=[]
             sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
             return jsonify({"reply":reply,"conv_id":nid})
 
-        # ==============================================
-        # 🔍 البحث في الويب
-        # ==============================================
-        # إذا كان المستخدم أدمن → يستخدم البحث المدفوع (OpenAI)
-        # إذا كان المستخدم ضيف أو مسجل → يستخدم البحث المجاني (Tavily)
-        # ==============================================
         if cid is None:sm[uid]=[]
 
         model=OPENAI_MODEL
 
-        # ---- جلب محفوظات المحادثة ----
         server_hist=load_conversation_by_id(uid,cid) if cid else []
         if not server_hist:server_hist=sm.get(uid,[])
         server_hist.append({"role":"user","content":um})
         sm[uid]=server_hist
         ch=server_hist[-30:]
 
-        # ---- بناء قائمة الرسائل ----
         msgs=[{"role":"system","content":SP}]
         for e in ch:
             msgs.append({"role":e["role"],"content":e["content"]})
 
-        # ---- تحليل الصورة (للمسؤول فقط) ----
         img_data=d.get("image",None)
         if img_data and use_image_analysis:
             msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
 
-        # ---- البحث في الويب ----
         if use_paid_search:
-            # 🔴 البحث المدفوع (لمسؤول فقط)
             try:
                 fc = ""
                 for m in msgs:
@@ -571,19 +554,15 @@ def chat():
             except Exception as e:
                 print(f"⚠️ فشل البحث المدفوع: {e}")
         else:
-            # 🟢 البحث المجاني (للضيوف والمسجلين)
             try:
-                # استخدم Tavily المجاني
                 search_result = search_tavily(um)
                 if search_result:
-                    # أضف النتيجة للسياق عشان نبراس يرد بناءً عليها
                     msgs.append({"role": "user", "content": f"معلومات من البحث (مجاني):\n{search_result}\n\nالآن جاوب المستخدم بناءً على هذه المعلومات."})
                 else:
                     print("ℹ️ ما حصلنا نتائج بحث مجانية، نكمل بدونها.")
             except Exception as e:
                 print(f"⚠️ فشل البحث المجاني: {e}")
 
-        # ---- استدعاء نموذج OpenAI ----
         try:
             reasoning_level = "high" if is_admin else "low"
 
@@ -600,7 +579,6 @@ def chat():
             print(f"❌ خطأ عام: {e}")
             return jsonify({"error": str(e)}), 500
 
-        # ---- تنظيف الرد من الأسطر الزائدة ----
         lines = reply.split('\n')
         merged_paragraphs = []
         current_paragraph = []
@@ -616,14 +594,12 @@ def chat():
             merged_paragraphs.append(' '.join(current_paragraph))
         reply = '\n\n'.join(merged_paragraphs)
 
-        # ---- حفظ المحادثة والتخزين المؤقت ----
         sm[uid].append({"role":"assistant","content":reply})
         nid = save_user_conversation(uid, sm[uid], cid)
 
         if not is_admin:
             save_cache(um, reply)
 
-        # ---- توليد الصوت ----
         try:
             gender = session.get('voice_gender', 'male')
             audio = generate_speech(reply, gender)
