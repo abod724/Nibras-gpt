@@ -1,6 +1,8 @@
 flask
-openai
-gTTS
+openai>=1.0.0
 requests
+gunicorn
+edge-tts
+uvicorn
 flask-limiter
-itsdangerous
+Pillow
