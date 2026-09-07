@@ -1,8 +1,7 @@
 flask
-openai>=1.0.0
+openai
 requests
 gunicorn
 edge-tts
 uvicorn
 flask-limiter
-Pillow
