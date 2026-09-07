@@ -6,3 +6,5 @@ itsdangerous
 openai
 edge-tts
 requests
+httpx
+aiosqlite
