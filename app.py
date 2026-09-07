@@ -545,7 +545,7 @@ async def chat_endpoint(request: Request, payload: ChatRequest, nibras_session: 
 
     # ---- معالجة الصور المرفقة (للأدمن فقط) ----
     if image_data and not is_admin:
-        reply = "عذراً، ميزة تحليل الصور المرفوعة والبحث المباشر متاحة لحساب الأدمن فقط حالياً للحفاظ على رصيد OpenAI.\n\n💡 لكن تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو)."
+        reply = "عذراً، ميزة تحليل الصور المرفوعة والبحث المباشر غير متاحة حالياً    .\n\n💡 لكن تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو)."
         if conv_id is None:
             conv_id = await save_user_conversation(user_id, [{"role": "user", "content": user_message}, {"role": "assistant", "content": reply}])
         else:
