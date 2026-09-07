@@ -1,8 +1,8 @@
-flask
-openai>=1.0.0
-requests
-gunicorn
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+itsdangerous
+openai
 edge-tts
-uvicorn
-flask-limiter
-Pillow
+requests
