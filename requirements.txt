@@ -1,10 +1,6 @@
-fastapi
-uvicorn[standard]
-jinja2
-python-multipart
-itsdangerous
+flask
 openai
-edge-tts
+gTTS
 requests
-httpx
-aiosqlite
+flask-limiter
+itsdangerous
