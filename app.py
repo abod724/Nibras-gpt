@@ -3,7 +3,7 @@ import openai,os,secrets,json,hashlib,asyncio,base64,re,sqlite3,requests,edge_tt
 from datetime import datetime, timedelta
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from werkzeug.security import generate_password_hash, check_password_hash # ✅ جديد: تشفير كلمات المرور
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
@@ -30,14 +30,13 @@ DB_FILE="conversations.db"
 
 def get_db():conn=sqlite3.connect(DB_FILE,check_same_thread=False,timeout=15);conn.row_factory=sqlite3.Row;return conn
 
-# ✅ تم تحديث init_db لإضافة عمود password_hash وتحديث الجدول القديم
+# ✅ init_db مع جداول المستخدمين والدعوات وكلمات المرور
 def init_db():
     conn=get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS conversations (user_id TEXT, conv_id TEXT PRIMARY KEY, messages TEXT, timestamp TEXT, title TEXT)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS cache (question TEXT PRIMARY KEY, answer TEXT, created TEXT)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS guest_usage (guest_id TEXT PRIMARY KEY, count INT DEFAULT 0, date TEXT)''')
     
-    # جدول المستخدمين
     conn.execute('''CREATE TABLE IF NOT EXISTS users (
         email TEXT PRIMARY KEY,
         role TEXT DEFAULT 'user',
@@ -46,13 +45,11 @@ def init_db():
         created_at TEXT
     )''')
     
-    # محاولة إضافة عمود password_hash إذا كان الجدول قديماً
     try:
         conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
     except:
         pass
     
-    # جدول الدعوات
     conn.execute('''CREATE TABLE IF NOT EXISTS invitations (
         code TEXT PRIMARY KEY,
         email TEXT,
@@ -62,14 +59,12 @@ def init_db():
         created_at TEXT
     )''')
     
-    # إضافة الأدمن كـ Admin
     admin_email="abdullaha0569361@gmail.com"
     conn.execute("INSERT OR IGNORE INTO users (email, role, voice_gender, created_at) VALUES (?, 'admin', 'male', ?)",(admin_email,datetime.now().isoformat()))
     
     conn.commit()
     conn.close()
 
-# ✅ دوال مساعدة
 def get_user_role(email):
     if not email: return 'guest'
     if email=="abdullaha0569361@gmail.com": return 'admin'
@@ -290,7 +285,6 @@ def shared_conversation(cid):
     if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
     return "⚠️ المحادثة غير موجودة أو تم حذفها.",404
 
-# ✅ تم تحديث دالة login لتدعم التحقق من كلمة المرور المشفرة
 @app.route('/login',methods=['GET','POST'])
 @limiter.limit("3 per minute")
 def login():
@@ -320,7 +314,6 @@ def login():
         user=conn.execute("SELECT password_hash FROM users WHERE email = ?",(e,)).fetchone()
         conn.close()
         
-        # ✅ إذا كان المستخدم مسجلاً مسبقاً ولديه كلمة مرور
         if user and user['password_hash']:
             if not check_password_hash(user['password_hash'],p):
                 return render_template_string(LH,error="❌ كلمة المرور غير صحيحة.")
@@ -329,7 +322,6 @@ def login():
             session['role']=get_user_role(e)
             return redirect(url_for('index'))
         
-        # ✅ مستخدم جديد: كود الدعوة إلزامي
         if not invite_code:
             return render_template_string(LH,error="عذراً، هذا البريد غير مسجل. للتسجيل الجديد يجب إدخال كود الدعوة.")
         
@@ -337,7 +329,6 @@ def login():
         if result!="تم التفعيل بنجاح":
             return render_template_string(LH,error=f"فشل التسجيل: {result}")
         
-        # ✅ حفظ كلمة المرور مشفرة
         conn=get_db()
         conn.execute("UPDATE users SET password_hash = ? WHERE email = ?",(generate_password_hash(p),e))
         conn.commit()
@@ -427,20 +418,29 @@ def chat():
         d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
         if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
         
-        is_admin=session.get('role')=='admin'
+        # ✅ تحديد الدور
+        current_role=session.get('role','guest')
+        is_admin=(current_role=='admin')
+        is_registered=(current_role in ('admin','user'))
+        is_guest=not is_registered
         uid=get_user_id()
         
-        if not is_admin:
+        # ✅ حد 15 سؤال: للضيوف فقط
+        if is_guest:
             if not check_guest_limit_safe(uid):
                 reply_limit="وصلت للحد المجاني اليوم (15 سؤال) 😊\n\n💡 عندك حلين بدون ما تدفع:\n\n1- جرب أدواتنا المجانية 100% (ما تستهلك رصيد):\nhttps://nibras-al.onrender.com/tools\n\n2- ارجع بكرة وتاخذ 15 سؤال جديدة مجاناً\n\nنظامنا مجاني للجميع لأنه بدون بوابة دفع."
                 if cid is None:sm[uid]=[]
                 sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_limit});nid=save_user_conversation(uid,sm[uid],cid)
                 return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
+        
+        # ✅ الكاش: للضيوف والمستخدمين المسجلين (وليس للأدمن)
+        if not is_admin:
             cached=get_cached(um)
             if cached:
                 if cid is None:sm[uid]=[]
                 sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":cached});nid=save_user_conversation(uid,sm[uid],cid)
                 return jsonify({"reply":cached+"\n\n⚡ جواب سريع من الذاكرة","conv_id":nid,"audio":None})
+        
         draw_phrases=["ارسم لي","ابي صورة","ابي صوره","ابي صورت","صوره لي","ارسم","أنشئ","انشئ","انشى","صمم","ولّد","generate","draw","فيديو","ابي فيديو","عرض فيديو"]
         def is_image_request(text):
             text_lower=text.lower().strip()
@@ -480,13 +480,20 @@ def chat():
                 reply="⚠️ عذراً، تعذر توليد الصورة بسبب خطأ غير معروف."
                 sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
                 return jsonify({"reply":reply,"conv_id":nid})
-        if has_image and not is_admin:
-            reply="عذراً، ميزة تحليل الصور المرفوعة والبحث المباشر متاحة لحساب الأدمن فقط حالياً للحفاظ على رصيد OpenAI.\n\n💡 لكن تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو)."
+        
+        # ✅ تحليل الصور: للأدمن والمستخدم المسجل فقط
+        if has_image and not is_registered:
+            reply="عذراً، ميزة تحليل الصور المرفوعة والبحث المباشر متاحة للأعضاء المسجلين والأدمن فقط.\n\n💡 تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو).\n\n🔐 للتسجيل اطلب كود دعوة من الأدمن."
             if cid is None:sm[uid]=[]
             sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
             return jsonify({"reply":reply,"conv_id":nid})
+        
         if cid is None:sm[uid]=[]
-        model=OPENAI_MODEL;use_web=True if is_admin else False;allow_img=True if is_admin else False
+        model=OPENAI_MODEL
+        # ✅ البحث والصور: للأدمن والمستخدم المسجل
+        use_web=is_registered
+        allow_img=is_registered
+        
         server_hist=load_conversation_by_id(uid,cid) if cid else []
         if not server_hist:server_hist=sm.get(uid,[])
         server_hist.append({"role":"user","content":um});sm[uid]=server_hist
@@ -494,7 +501,8 @@ def chat():
         msgs=[{"role":"system","content":SP}]
         for e in ch:msgs.append({"role":e["role"],"content":e["content"]})
         img_data=d.get("image",None)
-        if img_data and is_admin:msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
+        if img_data and is_registered:
+            msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل هذه الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
         if use_web:
             try:
                 fc=""
@@ -506,7 +514,7 @@ def chat():
                 if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}\n\nاستخدم هذه المعلومات."})
             except Exception as e:print(f"⚠️ فشل البحث: {e}")
         try:
-            reasoning_level="low" if not is_admin else "high"
+            reasoning_level="high" if is_registered else "low"
             r=client.chat.completions.create(model=model,messages=msgs,max_completion_tokens=8000,reasoning_effort=reasoning_level)
             reply=r.choices[0].message.content.strip()
             if not reply:reply="ما قدرت أجيب لك رد، حاول مرة أخرى."
@@ -520,7 +528,10 @@ def chat():
         if current_paragraph:merged_paragraphs.append(' '.join(current_paragraph))
         reply='\n\n'.join(merged_paragraphs)
         sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
+        
+        # ✅ حفظ الكاش: للضيوف والمستخدمين المسجلين (ليس للأدمن)
         if not is_admin:save_cache(um,reply)
+        
         try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
         except Exception as e:print(f"⚠️ فشل الصوت: {e}");audio=None
         return jsonify({"reply":reply,"audio":audio,"conv_id":nid})
