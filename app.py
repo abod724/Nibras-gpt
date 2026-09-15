@@ -1,8 +1,9 @@
 from flask import Flask,request,jsonify,render_template_string,session,redirect,url_for,send_from_directory
 import openai,os,secrets,json,hashlib,asyncio,base64,re,sqlite3,requests,edge_tts
-from datetime import datetime, timedelta # ✅ تمت إضافة timedelta
+from datetime import datetime, timedelta
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.security import generate_password_hash, check_password_hash # ✅ جديد: تشفير كلمات المرور
 
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(16))
@@ -29,22 +30,29 @@ DB_FILE="conversations.db"
 
 def get_db():conn=sqlite3.connect(DB_FILE,check_same_thread=False,timeout=15);conn.row_factory=sqlite3.Row;return conn
 
-# ✅ تم تعديل دالة init_db لإضافة جداول marma (المستخدمين والدعوات)
+# ✅ تم تحديث init_db لإضافة عمود password_hash وتحديث الجدول القديم
 def init_db():
     conn=get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS conversations (user_id TEXT, conv_id TEXT PRIMARY KEY, messages TEXT, timestamp TEXT, title TEXT)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS cache (question TEXT PRIMARY KEY, answer TEXT, created TEXT)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS guest_usage (guest_id TEXT PRIMARY KEY, count INT DEFAULT 0, date TEXT)''')
     
-    # --- إضافة جديدة من marma: جدول المستخدمين ---
+    # جدول المستخدمين
     conn.execute('''CREATE TABLE IF NOT EXISTS users (
         email TEXT PRIMARY KEY,
         role TEXT DEFAULT 'user',
         voice_gender TEXT DEFAULT 'male',
+        password_hash TEXT,
         created_at TEXT
     )''')
     
-    # --- إضافة جديدة من marma: جدول الدعوات ---
+    # محاولة إضافة عمود password_hash إذا كان الجدول قديماً
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    except:
+        pass
+    
+    # جدول الدعوات
     conn.execute('''CREATE TABLE IF NOT EXISTS invitations (
         code TEXT PRIMARY KEY,
         email TEXT,
@@ -54,14 +62,14 @@ def init_db():
         created_at TEXT
     )''')
     
-    # إضافة الأدمن الحالي كـ Admin بشكل تلقائي
+    # إضافة الأدمن كـ Admin
     admin_email="abdullaha0569361@gmail.com"
     conn.execute("INSERT OR IGNORE INTO users (email, role, voice_gender, created_at) VALUES (?, 'admin', 'male', ?)",(admin_email,datetime.now().isoformat()))
     
     conn.commit()
     conn.close()
 
-# ✅ دوال مساعدة جديدة مستوحاة من marma
+# ✅ دوال مساعدة
 def get_user_role(email):
     if not email: return 'guest'
     if email=="abdullaha0569361@gmail.com": return 'admin'
@@ -209,7 +217,6 @@ HT=r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><me
 .code-block-wrapper{position:relative;margin:16px 0;border-radius:14px;border:1px solid var(--border-color);background:var(--bg-input);overflow:hidden;display:block;width:100%;overflow-x:auto;box-shadow:0 2px 8px rgba(0,0,0,0.05)}.code-block-wrapper pre{margin:0;padding:20px 60px 20px 24px;background:transparent;border:none;border-radius:0;white-space:pre;word-break:normal;font-size:15px;line-height:1.8;font-family:'Courier New',Consolas,monospace;direction:ltr;text-align:left}.code-block-wrapper .copy-code-btn{position:absolute;top:12px;left:14px;background:var(--bg-hover);border:1px solid var(--border-color);color:var(--text-secondary);border-radius:10px;padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s ease;z-index:5;display:flex;align-items:center;gap:6px}.code-block-wrapper .copy-code-btn:hover{background:var(--primary-color);color:#fff;border-color:var(--primary-color);transform:scale(1.02)}.code-block-wrapper .copy-code-btn.copied{background:#28a745;color:#fff;border-color:#28a745}
 
 </style></head><body>
-<!-- --- تم التعديل: إضافة النص الثابت المخفي ليتعرف عليه جوجل --- -->
 <div style="display:none;">نبراس هو مساعد ذكي عربي يقدم حلولاً فورية، توليد صور، وتحويل النص إلى صوت. يقدم الموقع أيضاً أدوات مجانية مثل حاسبة المعدل التراكمي GPA ومنشئ السيرة الذاتية.</div>
 <div class="app"><div class="header"><div class="header-right"><button class="mute-btn" id="muteBtn"><i class="fas fa-volume-up"></i></button><button class="menu-btn" id="menuToggle"><i class="fas fa-ellipsis-v"></i></button></div><div class="header-left"><div class="btn-group">{% if session.get('admin_email') or session.get('user_email') %}<a href="/logout" class="btn btn-outline">تسجيل خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div><div class="dropdown" id="dropdown"><button class="item" data-action="new"><i class="fas fa-plus-circle"></i> محادثة جديدة</button><button class="item" onclick="window.location.href='/tools'"><i class="fas fa-tools"></i> 🧰 أدوات مجانية</button><button class="item" data-action="share"><i class="fas fa-share-alt"></i> مشاركة المحادثة</button><button class="item" onclick="deleteMyData()" style="color: #ff4d4d;"><i class="fas fa-trash-alt"></i> حذف حسابي</button><button class="item" data-action="theme-toggle"><i class="fas fa-moon"></i> <span id="themeLabel">الوضع الليلي</span></button><div class="item" style="flex-direction:column;align-items:stretch;gap:6px;cursor:default;border-bottom:1px solid var(--border-color)"><div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-primary)"><i class="fas fa-microphone" style="font-size:18px;color:var(--text-secondary)"></i><span>صوت المساعد</span></div><div style="display:flex;gap:8px"><button class="gender-option active" data-gender="male">👨 ذكر</button><button class="gender-option" data-gender="female">👩 أنثى</button></div></div><div id="historyList"></div></div><div id="chat"></div><div id="imagePreviewContainer"><img id="imagePreview" src=""/><span class="label">📎 صورة معلقة</span><button id="removeImageBtn">✕ إزالة</button></div><div class="input-area"><button class="btn-icon mic-btn" id="micBtn"><i class="fas fa-microphone"></i></button><button class="plus-btn" id="plusBtn"><i class="fas fa-plus"></i></button><div class="plus-options" id="plusOptions"><button class="option-btn camera" id="cameraBtn"><i class="fas fa-camera"></i></button><button class="option-btn gallery" id="galleryBtn"><i class="fas fa-images"></i></button><button class="option-btn files" id="filesBtn"><i class="fas fa-folder"></i></button></div><textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea><button class="send" id="sendBtn"><i class="fas fa-arrow-left"></i></button></div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="fileInputGeneric" style="display:none"/></div><div class="share-modal" id="shareModal"><div class="box"><h3><i class="fas fa-share-alt" style="color:var(--primary-color)"></i> شارك المحادثة</h3><div class="share-grid"><a href="#" id="shareWhatsapp" target="_blank" class="share-btn whatsapp"><i class="fab fa-whatsapp"></i> واتساب</a><a href="#" id="shareFacebook" target="_blank" class="share-btn facebook"><i class="fab fa-facebook"></i> فيسبوك</a><a href="#" id="shareTwitter" target="_blank" class="share-btn twitter"><i class="fab fa-x-twitter"></i> X</a><button id="shareSnapchat" class="share-btn snapchat"><i class="fab fa-snapchat"></i> سناب شات</button></div><button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إلغاء</button></div></div><script>(function(){let ch=[],pid=null,iw=!1,cid=null,ca=null;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),fib=document.getElementById('filesBtn'),fig=document.getElementById('fileInputGeneric'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),sm=document.getElementById('shareModal');let im=!0;const mut=document.getElementById('muteBtn');mut.querySelector('i').className='fas fa-volume-mute';mut.classList.add('muted');mut.addEventListener('click',function(){im=!im;const ic=mut.querySelector('i');if(im){ic.className='fas fa-volume-mute';mut.classList.add('muted');if(ca){ca.pause();ca.currentTime=0}}else{ic.className='fas fa-volume-up';mut.classList.remove('muted')}});let isMale=!0;const gopts=document.querySelectorAll('.gender-option');mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();gopts.forEach(b=>b.classList.remove('active'));if(isMale)document.querySelector('.gender-option[data-gender="male"]').classList.add('active');else document.querySelector('.gender-option[data-gender="female"]').classList.add('active')}});gopts.forEach(b=>{b.addEventListener('click',function(e){e.stopPropagation();const g=this.dataset.gender;isMale=g==='male';gopts.forEach(x=>x.classList.remove('active'));this.classList.add('active');fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})});dd.classList.remove('show')})});async function loadHistory(){try{const r=await fetch('/history'),d=await r.json();hl.innerHTML='';if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const b=document.createElement('button');b.className='conv-item';b.textContent=c.title;b.onclick=()=>loadConversation(c.id);hl.appendChild(b)})}else{const e=document.createElement('div');e.className='item';e.textContent='📭 لا توجد محادثات سابقة';hl.appendChild(e)}}catch(e){console.error('خطأ في تحميل المحادثات:',e)}}async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){console.error('خطأ في تحميل المحادثة:',e)}}document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.style.display='none';ui.value=''});document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();if(!cid){alert('⚠️ لا توجد محادثة حالية للمشاركة! ابدأ محادثة أولاً.');dd.classList.remove('show');return}const url=window.location.origin+'/share/'+cid,text=encodeURIComponent('اطلع على محادثتي مع نبراس:');document.getElementById('shareWhatsapp').href='https://api.whatsapp.com/send?text='+text+'%20'+encodeURIComponent(url);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(url)+'&text='+text;const snap=document.getElementById('shareSnapchat');snap.onclick=function(ev){ev.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>alert('✅ تم نسخ الرابط! افتح سناب شات والصقه.')).catch(()=>alert('❌ فشل النسخ، الرابط هو: '+url))}else alert('❌ فشل النسخ، الرابط هو: '+url);sm.classList.remove('show')};sm.classList.add('show');dd.classList.remove('show')});sm.addEventListener('click',function(e){if(e.target===sm)sm.classList.remove('show')});const ttb=document.querySelector('[data-action="theme-toggle"]'),tl=document.getElementById('themeLabel');function setTheme(t){const h=document.documentElement;if(t==='dark'){h.classList.add('dark-mode');tl.textContent='الوضع الليلي';ttb.querySelector('i').className='fas fa-moon';localStorage.setItem('nibras-theme','dark')}else{h.classList.remove('dark-mode');tl.textContent='الوضع النهاري';ttb.querySelector('i').className='fas fa-sun';localStorage.setItem('nibras-theme','light')}}const st=localStorage.getItem('nibras-theme')||'light';setTheme(st);if(ttb){ttb.addEventListener('click',function(e){e.stopPropagation();const cur=document.documentElement.classList.contains('dark-mode')?'dark':'light';const nw=cur==='dark'?'light':'dark';setTheme(nw);dd.classList.remove('show')})}
 
@@ -269,7 +276,7 @@ mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)
 
 window.deleteMyData=function(){if(!confirm('⚠️ هل أنت متأكد؟ سيتم حذف جميع محادثاتك وبياناتك نهائياً.'))return;fetch('/delete_my_data',{method:'POST',headers:{'Content-Type':'application/json'}}).then(response=>response.json()).then(data=>{if(data.status==='success'){alert('✅ تم حذف جميع بياناتك بنجاح.');window.location.href='/'}else{alert('❌ فشل الحذف: '+(data.message||'خطأ غير معروف'))}}).catch(err=>{alert('❌ حدث خطأ في الاتصال.');console.error(err)});};})();</script></body></html>"""
 
-LH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}body{background:#f0f2f5;display:flex;justify-content:center;align-items:center;height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:400px;text-align:center}h2{font-size:28px;color:#1a2b3c;margin-bottom:25px}input{width:100%;padding:14px 16px;margin:12px 0;border:1px solid #dce1e8;border-radius:12px;font-size:18px;background:#fafbfc;box-sizing:border-box}input:focus{outline:0;border-color:#4a6a8a;background:#fff}button{width:100%;padding:16px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer;margin-top:15px}button:hover{background:#3a5a7a}a{color:#4a6a8a;text-decoration:none;font-size:16px;display:inline-block;margin-top:20px}.error{color:#d9534f;margin-bottom:15px}</style></head><body><div class="box"><h2>🔐 تسجيل الدخول</h2>{% if error %}<div class="error">{{ error }}</div>{% endif %}<form method="POST"><input type="email" name="email" placeholder="البريد الإلكتروني" required><input type="password" name="password" placeholder="كلمة المرور" required><button type="submit">دخول</button></form><a href="/">⬅ العودة للرئيسية</a><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:inline-block; margin-top:5px; font-size:12px; text-decoration:underline;">سياسة الخصوصية</a></div></body></html>"""
+LH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}body{background:#f0f2f5;display:flex;justify-content:center;align-items:center;height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:400px;text-align:center}h2{font-size:28px;color:#1a2b3c;margin-bottom:25px}input{width:100%;padding:14px 16px;margin:12px 0;border:1px solid #dce1e8;border-radius:12px;font-size:18px;background:#fafbfc;box-sizing:border-box}input:focus{outline:0;border-color:#4a6a8a;background:#fff}button{width:100%;padding:16px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-size:20px;font-weight:700;cursor:pointer;margin-top:15px}button:hover{background:#3a5a7a}a{color:#4a6a8a;text-decoration:none;font-size:16px;display:inline-block;margin-top:20px}.error{color:#d9534f;margin-bottom:15px}</style></head><body><div class="box"><h2>🔐 تسجيل الدخول</h2>{% if error %}<div class="error">{{ error }}</div>{% endif %}<form method="POST"><input type="email" name="email" placeholder="البريد الإلكتروني" required><input type="password" name="password" placeholder="كلمة المرور" required><input type="text" name="invite_code" placeholder="كود الدعوة (للتسجيل الجديد فقط)"><p style="font-size:12px; color:#666; margin-top:-5px;">* التسجيل متاح فقط لأصحاب أكواد الدعوة، وبعدها تستطيع الدخول بكلمة المرور فقط.</p><button type="submit">دخول</button></form><a href="/">⬅ العودة للرئيسية</a><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:inline-block; margin-top:5px; font-size:12px; text-decoration:underline;">سياسة الخصوصية</a></div></body></html>"""
 
 @app.route('/')
 def index():return render_template_string(HT)
@@ -283,19 +290,21 @@ def shared_conversation(cid):
     if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
     return "⚠️ المحادثة غير موجودة أو تم حذفها.",404
 
-# ✅ تم تحديث دالة login لتدعم الصلاحيات الجديدة
+# ✅ تم تحديث دالة login لتدعم التحقق من كلمة المرور المشفرة
 @app.route('/login',methods=['GET','POST'])
 @limiter.limit("3 per minute")
 def login():
     if request.method=='POST':
         e=request.form.get('email')
         p=request.form.get('password')
+        invite_code=request.form.get('invite_code','').strip()
         ae="abdullaha0569361@gmail.com"
         ap=os.environ.get("ADMIN_PASSWORD")
         
         if not e or "@" not in e:
             return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
-            
+        
+        # 1. مسار الأدمن
         if e==ae:
             if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
             if secrets.compare_digest(p,ap):
@@ -305,14 +314,40 @@ def login():
                 return redirect(url_for('index'))
             else:
                 return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
-        else:
-            # للمستخدمين العاديين (نظام مبسط جداً للمستخدمين المسجلين بالدعوة)
-            # ملاحظة: هذا الجزء مبسط لأنه لا يوجد نظام تشفير لكلمات المرور للمستخدمين العاديين حالياً
-            role = get_user_role(e)
+        
+        # 2. مسار المستخدمين العاديين
+        conn=get_db()
+        user=conn.execute("SELECT password_hash FROM users WHERE email = ?",(e,)).fetchone()
+        conn.close()
+        
+        # ✅ إذا كان المستخدم مسجلاً مسبقاً ولديه كلمة مرور
+        if user and user['password_hash']:
+            if not check_password_hash(user['password_hash'],p):
+                return render_template_string(LH,error="❌ كلمة المرور غير صحيحة.")
             session.clear()
             session['user_email']=e
-            session['role']=role
+            session['role']=get_user_role(e)
             return redirect(url_for('index'))
+        
+        # ✅ مستخدم جديد: كود الدعوة إلزامي
+        if not invite_code:
+            return render_template_string(LH,error="عذراً، هذا البريد غير مسجل. للتسجيل الجديد يجب إدخال كود الدعوة.")
+        
+        result=use_invitation(invite_code,e)
+        if result!="تم التفعيل بنجاح":
+            return render_template_string(LH,error=f"فشل التسجيل: {result}")
+        
+        # ✅ حفظ كلمة المرور مشفرة
+        conn=get_db()
+        conn.execute("UPDATE users SET password_hash = ? WHERE email = ?",(generate_password_hash(p),e))
+        conn.commit()
+        conn.close()
+        
+        session.clear()
+        session['user_email']=e
+        session['role']='user'
+        return redirect(url_for('index'))
+    
     return render_template_string(LH)
 
 @app.route('/logout')
@@ -338,13 +373,12 @@ def delete_message():
 @app.route('/delete_my_data',methods=['POST'])
 def delete_my_data():uid=get_user_id();conn=get_db();conn.execute("DELETE FROM conversations WHERE user_id=?",(uid,));conn.commit();conn.close();session.clear();return jsonify({"status":"success","message":"تم حذف جميع بياناتك ومحادثاتك بنجاح."})
 
-# ✅ تحديث دالة admin_dashboard و إضافة مسار لتوليد الدعوات
 @app.route('/admin/invite/<email>')
 def admin_invite(email):
     if session.get('role') != 'admin':
         return "🚫 هذه الصفحة خاصة بالأدمن فقط.",403
-    code = create_invitation(email, 'user')
-    return f"<body style='font-family:sans-serif; text-align:center; padding:50px;'><h2>✅ تم إنشاء كود دعوة</h2><p>البريد: <b>{email}</b></p><p>الكود: <b style='font-size:24px; color:#4a6a8a;'>{code}</b></p><p>ينتهي بعد 7 أيام.</p><br><a href='/admin'>العودة للوحة التحكم</a></body>"
+    code=create_invitation(email,'user')
+    return f"<body style='font-family:sans-serif; text-align:center; padding:50px;'><h2>✅ تم إنشاء كود دعوة</h2><p>البريد: <b>{email}</b></p><p>الكود: <b style='font-size:24px; color:#4a6a8a;'>{code}</b></p><p>ينتهي بعد 7 أيام.</p><p style='color:#666; font-size:14px;'>أرسل هذا الكود للمستخدم، وعند تسجيله لأول مرة سيضع كلمة مرور خاصة به ويحفظها.</p><br><a href='/admin'>العودة للوحة التحكم</a></body>"
 
 @app.route('/admin')
 def admin_dashboard():
@@ -355,7 +389,6 @@ def admin_dashboard():
         user=row[0][:15]+"..." if len(row[0])>15 else row[0];title=row[1] or "محادثة بدون عنوان";time=row[2][:16] if row[2] else "وقت غير معروف";recent_html+=f'<div class="conv-item"><b>{title}</b><small>👤 {user} | 🕒 {time}</small></div>'
     if not recent_html:recent_html="<p style='color:#8b949e;text-align:center;'>لا توجد محادثات بعد</p>"
     
-    # إضافة نموذج بسيط لتوليد أكواد الدعوة
     invite_form = """
     <div class="card">
         <h3>✉️ توليد كود دعوة لمستخدم جديد</h3>
@@ -375,13 +408,11 @@ def get_user_id():
         if 'guest_id' not in session:session['guest_id']="guest_"+secrets.token_hex(8)
         return session['guest_id']
 
-# ✅ تحديث دالة set_gender لحفظ الصوت في قاعدة البيانات
 @app.route('/set_gender',methods=['POST'])
 def set_gender():
     d=request.get_json()
     gender=d.get('gender','male')
     session['voice_gender']=gender
-    # تحديث قاعدة البيانات إذا كان مسجلاً
     if 'user_email' in session:
         conn=get_db()
         conn.execute("UPDATE users SET voice_gender = ? WHERE email = ?",(gender,session['user_email']))
@@ -396,7 +427,6 @@ def chat():
         d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
         if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
         
-        # ✅ تحديث التحقق من الأدمن بناءً على الدور الجديد
         is_admin=session.get('role')=='admin'
         uid=get_user_id()
         
