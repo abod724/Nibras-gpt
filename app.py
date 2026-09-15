@@ -30,7 +30,6 @@ DB_FILE="conversations.db"
 
 def get_db():conn=sqlite3.connect(DB_FILE,check_same_thread=False,timeout=15);conn.row_factory=sqlite3.Row;return conn
 
-# ✅ init_db مع جداول المستخدمين والدعوات وكلمات المرور
 def init_db():
     conn=get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS conversations (user_id TEXT, conv_id TEXT PRIMARY KEY, messages TEXT, timestamp TEXT, title TEXT)''')
@@ -154,7 +153,43 @@ for fn in ["Knowledge.md","knowledge.md","معرفة.md","README.md","ملف_ا�
         except:pass
 if not kc:kc="أنت نبراس، مساعد ذكي."
 
-SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.\n\n**مصادر معرفتك:**\n\n1. **ملف المعرفة** (أدناه) هو مرجعك الأساسي.\n\n2. **معرفتك العامة**.\n\n3. **البحث بالويب** تستخدمه فقط عندما تكون أدمن ويسألك عن أي شيء حديث أو غير موجود في ملف المعرفة.\n\n**ملف المعرفة الخاص بك:**\n\n{kc}\n\n**⚠️ قاعدة التنسيق الذهبية (الأهم):**\n\n- اكتب ردودك في **فقرات نصية متصلة**. كل فقرة تحتوي على **2 إلى 4 جمل** فقط.\n\n- **ممنوع** وضع كل جملة في سطر منفصل. استخدم النقاط والفواصل وعلامات الترقيم داخل الفقرة نفسها.\n\n- **ممنوع** وضع فواصل أسطر (`Enter`) بين الجمل. الفاصل الوحيد المسموح به هو سطر فارغ بين الفقرة والأخرى.\n\n- اجعل الجملة الواحدة بطول معتدل (حوالي 10-20 كلمة)، بحيث تكون واضحة ومختصرة لكنها تحمل فكرة كاملة."""
+# ✅ تم تعديل SP لمنع البوت من الكلام عن حفظ المحادثات
+SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
+
+**مصادر معرفتك:**
+
+1. **ملف المعرفة** (أدناه) هو مرجعك الأساسي.
+
+2. **معرفتك العامة**.
+
+3. **البحث بالويب** تستخدمه فقط عندما تكون أدمن ويسألك عن أي شيء حديث أو غير موجود في ملف المعرفة.
+
+**ملف المعرفة الخاص بك:**
+
+{kc}
+
+**⚠️ قاعدة التنسيق الذهبية (الأهم):**
+
+- اكتب ردودك في **فقرات نصية متصلة**. كل فقرة تحتوي على **2 إلى 4 جمل** فقط.
+
+- **ممنوع** وضع كل جملة في سطر منفصل. استخدم النقاط والفواصل وعلامات الترقيم داخل الفقرة نفسها.
+
+- **ممنوع** وضع فواصل أسطر (`Enter`) بين الجمل. الفاصل الوحيد المسموح به هو سطر فارغ بين الفقرة والأخرى.
+
+- اجعل الجملة الواحدة بطول معتدل (حوالي 10-20 كلمة)، بحيث تكون واضحة ومختصرة لكنها تحمل فكرة كاملة.
+
+**⚠️ أسلوب الحديث:**
+
+- سولف مع المستخدم بشكل طبيعي وعفوي، كأنك صديق يرد في لحظته.
+
+- **لا تذكر أبداً** أي كلام عن حفظ المحادثات أو الذاكرة أو التسجيل. جمل مثل "سأحتفظ بمحادثتنا"، "سأتذكر ذلك"، "سجلت ملاحظاتي"، "سأحفظ هذا" **ممنوعة تماماً**.
+
+- لا تعتذر عن عدم معرفة اسم مطور معين أو معلومة غير موثقة بكلام مثل "سأحتفظ بها". قدم المعلومة المتاحة أو قل ببساطة "ما عندي معلومات موثوقة عن هذا" وخلاص.
+
+- لا تعلّق على نوع حساب المستخدم (ضيف / مسجل / أدمن) ولا تذكر ذلك في ردودك.
+
+- رد بشكل مباشر وطبيعي، بدون مقدمات فلسفية أو تعليقات على المحادثة نفسها.
+"""
 
 def remove_emoji(t):
     return re.compile("["+u"\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002500-\U00002BEF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001f926-\U0001f937\U00010000-\U0010ffff\u2640-\u2642\u2600-\u2B55\u200d\u23cf\u23e9\u231a\ufe0f\u3030"+"]+",flags=re.UNICODE).sub('',t)
@@ -298,7 +333,6 @@ def login():
         if not e or "@" not in e:
             return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
         
-        # 1. مسار الأدمن
         if e==ae:
             if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
             if secrets.compare_digest(p,ap):
@@ -309,7 +343,6 @@ def login():
             else:
                 return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
         
-        # 2. مسار المستخدمين العاديين
         conn=get_db()
         user=conn.execute("SELECT password_hash FROM users WHERE email = ?",(e,)).fetchone()
         conn.close()
@@ -418,14 +451,12 @@ def chat():
         d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
         if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
         
-        # ✅ تحديد الدور
         current_role=session.get('role','guest')
         is_admin=(current_role=='admin')
         is_registered=(current_role in ('admin','user'))
         is_guest=not is_registered
         uid=get_user_id()
         
-        # ✅ حد 15 سؤال: للضيوف فقط
         if is_guest:
             if not check_guest_limit_safe(uid):
                 reply_limit="وصلت للحد المجاني اليوم (15 سؤال) 😊\n\n💡 عندك حلين بدون ما تدفع:\n\n1- جرب أدواتنا المجانية 100% (ما تستهلك رصيد):\nhttps://nibras-al.onrender.com/tools\n\n2- ارجع بكرة وتاخذ 15 سؤال جديدة مجاناً\n\nنظامنا مجاني للجميع لأنه بدون بوابة دفع."
@@ -433,7 +464,6 @@ def chat():
                 sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply_limit});nid=save_user_conversation(uid,sm[uid],cid)
                 return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
         
-        # ✅ الكاش: للضيوف والمستخدمين المسجلين (وليس للأدمن)
         if not is_admin:
             cached=get_cached(um)
             if cached:
@@ -481,7 +511,6 @@ def chat():
                 sm[uid].append({"role":"user","content":um});sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
                 return jsonify({"reply":reply,"conv_id":nid})
         
-        # ✅ تحليل الصور: للأدمن والمستخدم المسجل فقط
         if has_image and not is_registered:
             reply="عذراً، ميزة تحليل الصور المرفوعة والبحث المباشر متاحة للأعضاء المسجلين والأدمن فقط.\n\n💡 تقدر تطلب صور وفيديوهات مجانية بكلمة (ارسم لي) أو (ابي فيديو).\n\n🔐 للتسجيل اطلب كود دعوة من الأدمن."
             if cid is None:sm[uid]=[]
@@ -490,7 +519,6 @@ def chat():
         
         if cid is None:sm[uid]=[]
         model=OPENAI_MODEL
-        # ✅ البحث والصور: للأدمن والمستخدم المسجل
         use_web=is_registered
         allow_img=is_registered
         
@@ -529,7 +557,6 @@ def chat():
         reply='\n\n'.join(merged_paragraphs)
         sm[uid].append({"role":"assistant","content":reply});nid=save_user_conversation(uid,sm[uid],cid)
         
-        # ✅ حفظ الكاش: للضيوف والمستخدمين المسجلين (ليس للأدمن)
         if not is_admin:save_cache(um,reply)
         
         try:gender=session.get('voice_gender','male');audio=generate_speech(reply,gender)
