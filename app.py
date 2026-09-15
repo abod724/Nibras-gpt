@@ -1,6 +1,6 @@
 from flask import Flask,request,jsonify,render_template_string,session,redirect,url_for,send_from_directory
 import openai,os,secrets,json,hashlib,asyncio,base64,re,sqlite3,requests,edge_tts
-from datetime import datetime
+from datetime import datetime, timedelta # ✅ تمت إضافة timedelta
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -13,7 +13,6 @@ OPENAI_MODEL=os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:raise Exception("OPENAI_MODEL غير موجود! أضفه في متغيرات البيئة.")
 
 client=openai.OpenAI(api_key=OPENAI_API_KEY)
-# --- تم التعديل: رفع الحد إلى 300 طلب في الساعة ---
 limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","300 per hour"])
 limiter.init_app(app)
 
@@ -30,12 +29,77 @@ DB_FILE="conversations.db"
 
 def get_db():conn=sqlite3.connect(DB_FILE,check_same_thread=False,timeout=15);conn.row_factory=sqlite3.Row;return conn
 
+# ✅ تم تعديل دالة init_db لإضافة جداول marma (المستخدمين والدعوات)
 def init_db():
     conn=get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS conversations (user_id TEXT, conv_id TEXT PRIMARY KEY, messages TEXT, timestamp TEXT, title TEXT)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS cache (question TEXT PRIMARY KEY, answer TEXT, created TEXT)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS guest_usage (guest_id TEXT PRIMARY KEY, count INT DEFAULT 0, date TEXT)''')
-    conn.commit();conn.close()
+    
+    # --- إضافة جديدة من marma: جدول المستخدمين ---
+    conn.execute('''CREATE TABLE IF NOT EXISTS users (
+        email TEXT PRIMARY KEY,
+        role TEXT DEFAULT 'user',
+        voice_gender TEXT DEFAULT 'male',
+        created_at TEXT
+    )''')
+    
+    # --- إضافة جديدة من marma: جدول الدعوات ---
+    conn.execute('''CREATE TABLE IF NOT EXISTS invitations (
+        code TEXT PRIMARY KEY,
+        email TEXT,
+        role TEXT DEFAULT 'user',
+        expires_at TEXT,
+        used INTEGER DEFAULT 0,
+        created_at TEXT
+    )''')
+    
+    # إضافة الأدمن الحالي كـ Admin بشكل تلقائي
+    admin_email="abdullaha0569361@gmail.com"
+    conn.execute("INSERT OR IGNORE INTO users (email, role, voice_gender, created_at) VALUES (?, 'admin', 'male', ?)",(admin_email,datetime.now().isoformat()))
+    
+    conn.commit()
+    conn.close()
+
+# ✅ دوال مساعدة جديدة مستوحاة من marma
+def get_user_role(email):
+    if not email: return 'guest'
+    if email=="abdullaha0569361@gmail.com": return 'admin'
+    conn=get_db()
+    row=conn.execute("SELECT role FROM users WHERE email = ?",(email,)).fetchone()
+    conn.close()
+    return row[0] if row else 'user'
+
+def create_invitation(email,role='user'):
+    code=secrets.token_hex(4)
+    expires=(datetime.now()+timedelta(days=7)).isoformat()
+    conn=get_db()
+    conn.execute("INSERT INTO invitations (code, email, role, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",(code,email,role,expires,datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    return code
+
+def use_invitation(code,email):
+    conn=get_db()
+    inv=conn.execute("SELECT email, role, expires_at, used FROM invitations WHERE code = ?",(code,)).fetchone()
+    if not inv:
+        conn.close()
+        return "الكود غير موجود"
+    if inv[3]==1:
+        conn.close()
+        return "هذا الكود مستخدم من قبل"
+    if datetime.fromisoformat(inv[2])<datetime.now():
+        conn.close()
+        return "هذا الكود منتهي الصلاحية"
+    if inv[0]!=email:
+        conn.close()
+        return "هذا الكود مخصص لبريد إلكتروني آخر"
+    
+    conn.execute("INSERT OR REPLACE INTO users (email, role, voice_gender, created_at) VALUES (?, ?, 'male', ?)",(email,inv[1],datetime.now().isoformat()))
+    conn.execute("UPDATE invitations SET used = 1 WHERE code = ?",(code,))
+    conn.commit()
+    conn.close()
+    return "تم التفعيل بنجاح"
 
 def check_guest_limit_safe(gid):
     try:
@@ -219,17 +283,36 @@ def shared_conversation(cid):
     if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
     return "⚠️ المحادثة غير موجودة أو تم حذفها.",404
 
+# ✅ تم تحديث دالة login لتدعم الصلاحيات الجديدة
 @app.route('/login',methods=['GET','POST'])
 @limiter.limit("3 per minute")
 def login():
     if request.method=='POST':
-        e=request.form.get('email');p=request.form.get('password');ae="abdullaha0569361@gmail.com";ap=os.environ.get("ADMIN_PASSWORD")
+        e=request.form.get('email')
+        p=request.form.get('password')
+        ae="abdullaha0569361@gmail.com"
+        ap=os.environ.get("ADMIN_PASSWORD")
+        
+        if not e or "@" not in e:
+            return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
+            
         if e==ae:
             if not ap:return render_template_string(LH,error="خطأ: لم يتم إعداد كلمة مرور الأدمن في الخادم.")
-            if secrets.compare_digest(p,ap):session.clear();session['admin_email']=ae;return redirect(url_for('index'))
-            else:return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
-        elif e and "@" in e:session.clear();session['user_email']=e;return redirect(url_for('index'))
-        else:return render_template_string(LH,error="يرجى إدخال بريد إلكتروني صحيح.")
+            if secrets.compare_digest(p,ap):
+                session.clear()
+                session['user_email']=e
+                session['role']='admin'
+                return redirect(url_for('index'))
+            else:
+                return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
+        else:
+            # للمستخدمين العاديين (نظام مبسط جداً للمستخدمين المسجلين بالدعوة)
+            # ملاحظة: هذا الجزء مبسط لأنه لا يوجد نظام تشفير لكلمات المرور للمستخدمين العاديين حالياً
+            role = get_user_role(e)
+            session.clear()
+            session['user_email']=e
+            session['role']=role
+            return redirect(url_for('index'))
     return render_template_string(LH)
 
 @app.route('/logout')
@@ -255,25 +338,56 @@ def delete_message():
 @app.route('/delete_my_data',methods=['POST'])
 def delete_my_data():uid=get_user_id();conn=get_db();conn.execute("DELETE FROM conversations WHERE user_id=?",(uid,));conn.commit();conn.close();session.clear();return jsonify({"status":"success","message":"تم حذف جميع بياناتك ومحادثاتك بنجاح."})
 
+# ✅ تحديث دالة admin_dashboard و إضافة مسار لتوليد الدعوات
+@app.route('/admin/invite/<email>')
+def admin_invite(email):
+    if session.get('role') != 'admin':
+        return "🚫 هذه الصفحة خاصة بالأدمن فقط.",403
+    code = create_invitation(email, 'user')
+    return f"<body style='font-family:sans-serif; text-align:center; padding:50px;'><h2>✅ تم إنشاء كود دعوة</h2><p>البريد: <b>{email}</b></p><p>الكود: <b style='font-size:24px; color:#4a6a8a;'>{code}</b></p><p>ينتهي بعد 7 أيام.</p><br><a href='/admin'>العودة للوحة التحكم</a></body>"
+
 @app.route('/admin')
 def admin_dashboard():
-    if not session.get('admin_email')=="abdullaha0569361@gmail.com":return "🚫 هذه الصفحة خاصة بالأدمن فقط.",403
+    if session.get('role') != 'admin':return "🚫 هذه الصفحة خاصة بالأدمن فقط.",403
     conn=get_db();users_count=conn.execute("SELECT COUNT(DISTINCT user_id) FROM conversations").fetchone()[0];total_convs=conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0];today=datetime.now().strftime("%Y-%m-%d");today_convs=conn.execute("SELECT COUNT(*) FROM conversations WHERE timestamp LIKE ?",(today+'%',)).fetchone()[0];recent=conn.execute("SELECT user_id, title, timestamp FROM conversations ORDER BY timestamp DESC LIMIT 10").fetchall();conn.close()
     recent_html=""
     for row in recent:
         user=row[0][:15]+"..." if len(row[0])>15 else row[0];title=row[1] or "محادثة بدون عنوان";time=row[2][:16] if row[2] else "وقت غير معروف";recent_html+=f'<div class="conv-item"><b>{title}</b><small>👤 {user} | 🕒 {time}</small></div>'
     if not recent_html:recent_html="<p style='color:#8b949e;text-align:center;'>لا توجد محادثات بعد</p>"
-    return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>body{{font-family:'Segoe UI',Tahoma;background:#0d1117;color:#c9d1d9;padding:20px;margin:0}}.container{{max-width:600px;margin:auto}}h1{{color:#58a6ff;text-align:center}}.card{{background:#161b22;border-radius:15px;padding:15px;margin:15px 0;border:1px solid #30363d}}.stat{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #21262d}}.stat:last-child{{border:none}}.num{{color:#58a6ff;font-weight:bold;font-size:18px}}.conv-item{{padding:10px 0;border-bottom:1px solid #21262d}}.conv-item small{{color:#8b949e;display:block;font-size:12px}}.back{{display:block;text-align:center;color:#58a6ff;text-decoration:none;margin-top:20px}}</style></head><body><div class="container"><h1>📊 لوحة تحكم نبراس</h1><div class="card"><div class="stat"><span>👥 إجمالي المستخدمين</span><span class="num">{users_count}</span></div><div class="stat"><span>💬 إجمالي المحادثات</span><span class="num">{total_convs}</span></div><div class="stat"><span>📅 محادثات اليوم</span><span class="num">{today_convs}</span></div></div><div class="card"><h3>🕒 آخر 10 محادثات</h3>{recent_html}</div><a href="/" class="back">⬅ العودة للرئيسية</a></div></body></html>"""
+    
+    # إضافة نموذج بسيط لتوليد أكواد الدعوة
+    invite_form = """
+    <div class="card">
+        <h3>✉️ توليد كود دعوة لمستخدم جديد</h3>
+        <form action="/admin/invite/" method="GET" onsubmit="event.preventDefault(); const email = document.getElementById('invite_email').value; if(email) window.location.href='/admin/invite/' + encodeURIComponent(email);">
+            <input type="email" id="invite_email" placeholder="البريد الإلكتروني للمستخدم" required style="width:100%; padding:10px; margin:10px 0; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:#c9d1d9;">
+            <button type="submit" style="background:#58a6ff; color:#fff; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; width:100%;">توليد الكود</button>
+        </form>
+    </div>
+    """
+    
+    return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>body{{font-family:'Segoe UI',Tahoma;background:#0d1117;color:#c9d1d9;padding:20px;margin:0}}.container{{max-width:600px;margin:auto}}h1{{color:#58a6ff;text-align:center}}.card{{background:#161b22;border-radius:15px;padding:15px;margin:15px 0;border:1px solid #30363d}}.stat{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #21262d}}.stat:last-child{{border:none}}.num{{color:#58a6ff;font-weight:bold;font-size:18px}}.conv-item{{padding:10px 0;border-bottom:1px solid #21262d}}.conv-item small{{color:#8b949e;display:block;font-size:12px}}.back{{display:block;text-align:center;color:#58a6ff;text-decoration:none;margin-top:20px}}</style></head><body><div class="container"><h1>📊 لوحة تحكم نبراس</h1><div class="card"><div class="stat"><span>👥 إجمالي المستخدمين</span><span class="num">{users_count}</span></div><div class="stat"><span>💬 إجمالي المحادثات</span><span class="num">{total_convs}</span></div><div class="stat"><span>📅 محادثات اليوم</span><span class="num">{today_convs}</span></div></div>{invite_form}<div class="card"><h3>🕒 آخر 10 محادثات</h3>{recent_html}</div><a href="/" class="back">⬅ العودة للرئيسية</a></div></body></html>"""
 
 def get_user_id():
-    if 'admin_email' in session:return "admin_"+session['admin_email']
-    elif 'user_email' in session:return "user_"+session['user_email']
+    if 'user_email' in session:return "user_"+session['user_email']
+    elif 'admin_email' in session:return "admin_"+session['admin_email']
     else:
         if 'guest_id' not in session:session['guest_id']="guest_"+secrets.token_hex(8)
         return session['guest_id']
 
+# ✅ تحديث دالة set_gender لحفظ الصوت في قاعدة البيانات
 @app.route('/set_gender',methods=['POST'])
-def set_gender():d=request.get_json();session['voice_gender']=d.get('gender','male');return jsonify({"status":"ok"})
+def set_gender():
+    d=request.get_json()
+    gender=d.get('gender','male')
+    session['voice_gender']=gender
+    # تحديث قاعدة البيانات إذا كان مسجلاً
+    if 'user_email' in session:
+        conn=get_db()
+        conn.execute("UPDATE users SET voice_gender = ? WHERE email = ?",(gender,session['user_email']))
+        conn.commit()
+        conn.close()
+    return jsonify({"status":"ok"})
 
 @app.route('/chat',methods=['POST'])
 @limiter.limit("20 per minute")
@@ -281,7 +395,11 @@ def chat():
     try:
         d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
         if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
-        is_admin='admin_email' in session and session['admin_email']=="abdullaha0569361@gmail.com";uid=get_user_id()
+        
+        # ✅ تحديث التحقق من الأدمن بناءً على الدور الجديد
+        is_admin=session.get('role')=='admin'
+        uid=get_user_id()
+        
         if not is_admin:
             if not check_guest_limit_safe(uid):
                 reply_limit="وصلت للحد المجاني اليوم (15 سؤال) 😊\n\n💡 عندك حلين بدون ما تدفع:\n\n1- جرب أدواتنا المجانية 100% (ما تستهلك رصيد):\nhttps://nibras-al.onrender.com/tools\n\n2- ارجع بكرة وتاخذ 15 سؤال جديدة مجاناً\n\nنظامنا مجاني للجميع لأنه بدون بوابة دفع."
