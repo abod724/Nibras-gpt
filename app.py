@@ -58,9 +58,7 @@ def init_db():
     conn.execute("INSERT OR IGNORE INTO users (email,role,voice_gender,created_at) VALUES (?, 'admin', 'male', ?)",("abdullaha0569361@gmail.com",datetime.now().isoformat()))
     conn.commit();conn.close()
 
-# ============ نظام الأكواد المؤمنة (HMAC + ربط بالإيميل) ============
 def generate_access_code(email, days):
-    """يولد كود مرتبط بإيميل محدد."""
     expiry=datetime.now()+timedelta(days=int(days))
     date_str=expiry.strftime("%Y%m%d")
     email_hash=hashlib.sha256(email.lower().strip().encode()).hexdigest()[:8]
@@ -69,7 +67,6 @@ def generate_access_code(email, days):
     return f"{date_str}-{email_hash}-{signature}",expiry.strftime("%Y-%m-%d")
 
 def verify_access_code(code, email):
-    """يتحقق من صحة الكود، تاريخه، وارتباطه بالإيميل."""
     try:
         parts=code.strip().split('-')
         if len(parts)!=3:return None
@@ -276,7 +273,6 @@ def shared_conversation(cid):
     if r:m=json.loads(r[0]);t=r[1] or "محادثة نبراس";return render_template_string(SPH,messages=m,title=t)
     return "⚠️ المحادثة غير موجودة.",404
 
-# ============ تسجيل الدخول (مع ربط الكود بالإيميل) ============
 @app.route('/login',methods=['GET','POST'])
 @limiter.limit("10 per minute")
 def login():
@@ -290,7 +286,6 @@ def login():
         if not e or "@" not in e:
             return render_template_string(LH,error="يرجى إدخال بريد صحيح.")
 
-        # 1. الأدمن
         if e==ae:
             if not ap:return render_template_string(LH,error="لم يتم إعداد كلمة مرور الأدمن.")
             if secrets.compare_digest(p,ap):
@@ -299,7 +294,6 @@ def login():
                 return redirect(url_for('index'))
             return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
 
-        # 2. مستخدم موجود
         conn=get_db()
         user=conn.execute("SELECT password_hash,code_expiry FROM users WHERE email=?",(e,)).fetchone()
 
@@ -332,7 +326,6 @@ def login():
             session['user_email']=e;session['is_admin']=False
             return redirect(url_for('index'))
 
-        # 3. مستخدم جديد
         if not code:
             conn.close()
             return render_template_string(LH,error="للتسجيل الجديد، أدخل كود الوصول المخصص لإيميلك.")
@@ -379,102 +372,6 @@ def delete_message():
 @app.route('/delete_my_data',methods=['POST'])
 def delete_my_data():uid=get_user_id();conn=get_db();conn.execute("DELETE FROM conversations WHERE user_id=?",(uid,));conn.commit();conn.close();return jsonify({"status":"success","message":"تم الحذف"})
 
-# ============ حذف الحساب عبر الويب (API) ============
-ALLOWED_ORIGINS = [
-    "https://abod724.github.io",
-    "http://localhost",
-    "http://127.0.0.1"
-]
-
-def cors_json(data, status=200):
-    resp = jsonify(data)
-    origin = request.headers.get('Origin', '')
-    if origin in ALLOWED_ORIGINS or origin.startswith('http://localhost') or origin.startswith('http://127.0.0.1'):
-        resp.headers['Access-Control-Allow-Origin'] = origin
-        resp.headers['Access-Control-Allow-Credentials'] = 'true'
-    resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-    resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-    return resp, status
-
-@app.route('/api/verify_credentials', methods=['POST', 'OPTIONS'])
-@limiter.limit("10 per hour")
-def api_verify_credentials():
-    if request.method == 'OPTIONS':
-        return cors_json({"status": "ok"})
-
-    try:
-        data = request.get_json() or {}
-        email = (data.get('email') or '').strip().lower()
-        password = data.get('password') or ''
-
-        if not email or not password:
-            return cors_json({"status": "error", "message": "بيانات ناقصة"}, 400)
-
-        if email == "abdullaha0569361@gmail.com":
-            return cors_json({"status": "error", "message": "لا يمكن حذف حساب الأدمن"}, 403)
-
-        conn = get_db()
-        user = conn.execute(
-            "SELECT password_hash FROM users WHERE email=?", (email,)
-        ).fetchone()
-        conn.close()
-
-        if not user or not user['password_hash']:
-            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
-
-        if not check_password_hash(user['password_hash'], password):
-            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
-
-        return cors_json({"status": "success"})
-
-    except Exception as e:
-        print(f"❌ خطأ في التحقق: {e}")
-        return cors_json({"status": "error", "message": "حدث خطأ داخلي"}, 500)
-
-@app.route('/api/delete_account', methods=['POST', 'OPTIONS'])
-@limiter.limit("5 per hour")
-def api_delete_account():
-    if request.method == 'OPTIONS':
-        return cors_json({"status": "ok"})
-
-    try:
-        data = request.get_json() or {}
-        email = (data.get('email') or '').strip().lower()
-        password = data.get('password') or ''
-
-        if not email or not password:
-            return cors_json({"status": "error", "message": "بيانات ناقصة"}, 400)
-
-        if email == "abdullaha0569361@gmail.com":
-            return cors_json({"status": "error", "message": "لا يمكن حذف حساب الأدمن"}, 403)
-
-        conn = get_db()
-        user = conn.execute(
-            "SELECT password_hash FROM users WHERE email=?", (email,)
-        ).fetchone()
-
-        if not user or not user['password_hash']:
-            conn.close()
-            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
-
-        if not check_password_hash(user['password_hash'], password):
-            conn.close()
-            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
-
-        # حذف كل بيانات المستخدم
-        uid = "user_" + email
-        conn.execute("DELETE FROM conversations WHERE user_id=?", (uid,))
-        conn.execute("DELETE FROM users WHERE email=?", (email,))
-        conn.commit()
-        conn.close()
-
-        return cors_json({"status": "success", "message": "تم حذف الحساب بنجاح"})
-
-    except Exception as e:
-        print(f"❌ خطأ في حذف الحساب: {e}")
-        return cors_json({"status": "error", "message": "حدث خطأ داخلي"}, 500)
-
-# ============ لوحة الأدمن ============
 @app.route('/admin/login',methods=['GET','POST'])
 def admin_login():
     if request.method=='POST':
@@ -540,7 +437,6 @@ def admin_generate_api():
         return jsonify({"code":code,"email":email,"expiry":expiry})
     except Exception as e:return jsonify({"error":str(e)}),500
 
-# ============ هوية المستخدم ============
 def get_user_id():
     if session.get('is_admin'):return "admin_page"
     if session.get('user_email'):return "user_"+session['user_email']
@@ -554,7 +450,6 @@ def set_gender():
         conn=get_db();conn.execute("UPDATE users SET voice_gender=? WHERE email=?",(g,session['user_email']));conn.commit();conn.close()
     return jsonify({"status":"ok"})
 
-# ============ المحادثة ============
 @app.route('/chat',methods=['POST'])
 @limiter.limit("20 per minute")
 def chat():
@@ -676,5 +571,70 @@ def chat():
         except Exception as e:print(f"⚠️ صوت: {e}");audio=None
         return jsonify({"reply":reply,"audio":audio,"conv_id":nid})
     except Exception as e:print(f"❌ {e}");return jsonify({"error":str(e)}),500
+
+# ============ [جديد] endpoints لحذف الحساب عبر الويب ============
+def cors_json(data, status=200):
+    resp = jsonify(data)
+    origin = request.headers.get('Origin', '')
+    allowed = ["https://abod724.github.io", "http://localhost", "http://127.0.0.1"]
+    if origin in allowed or origin.startswith('http://localhost') or origin.startswith('http://127.0.0.1'):
+        resp.headers['Access-Control-Allow-Origin'] = origin
+    resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+    resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return resp, status
+
+@app.route('/api/verify_credentials', methods=['POST', 'OPTIONS'])
+def api_verify_credentials():
+    if request.method == 'OPTIONS':
+        return cors_json({"status": "ok"})
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+        if not email or not password:
+            return cors_json({"status": "error", "message": "بيانات ناقصة"}, 400)
+        if email == "abdullaha0569361@gmail.com":
+            return cors_json({"status": "error", "message": "لا يمكن حذف حساب الأدمن"}, 403)
+        conn = get_db()
+        user = conn.execute("SELECT password_hash FROM users WHERE email=?", (email,)).fetchone()
+        conn.close()
+        if not user or not user['password_hash']:
+            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
+        if not check_password_hash(user['password_hash'], password):
+            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
+        return cors_json({"status": "success"})
+    except Exception as e:
+        print(f"❌ verify: {e}")
+        return cors_json({"status": "error", "message": "حدث خطأ داخلي"}, 500)
+
+@app.route('/api/delete_account', methods=['POST', 'OPTIONS'])
+def api_delete_account():
+    if request.method == 'OPTIONS':
+        return cors_json({"status": "ok"})
+    try:
+        data = request.get_json() or {}
+        email = (data.get('email') or '').strip().lower()
+        password = data.get('password') or ''
+        if not email or not password:
+            return cors_json({"status": "error", "message": "بيانات ناقصة"}, 400)
+        if email == "abdullaha0569361@gmail.com":
+            return cors_json({"status": "error", "message": "لا يمكن حذف حساب الأدمن"}, 403)
+        conn = get_db()
+        user = conn.execute("SELECT password_hash FROM users WHERE email=?", (email,)).fetchone()
+        if not user or not user['password_hash']:
+            conn.close()
+            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
+        if not check_password_hash(user['password_hash'], password):
+            conn.close()
+            return cors_json({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}, 401)
+        uid = "user_" + email
+        conn.execute("DELETE FROM conversations WHERE user_id=?", (uid,))
+        conn.execute("DELETE FROM users WHERE email=?", (email,))
+        conn.commit()
+        conn.close()
+        return cors_json({"status": "success", "message": "تم حذف الحساب بنجاح"})
+    except Exception as e:
+        print(f"❌ delete: {e}")
+        return cors_json({"status": "error", "message": "حدث خطأ داخلي"}, 500)
 
 if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
