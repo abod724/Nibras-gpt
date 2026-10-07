@@ -360,6 +360,9 @@ def login():
             return render_template_string(LH,error="تعذر الاتصال بخدمة الدخول.")
 
         if r.status_code!=200:
+            err_text = r.text.lower()
+            if "email not confirmed" in err_text or "not confirmed" in err_text:
+                return render_template_string(LH,error="⚠️ يجب تأكيد بريدك أولاً. افتح بريدك واضغط رابط التأكيد.")
             return render_template_string(LH,error="البريد الإلكتروني أو كلمة المرور غير صحيحة.")
 
         data=r.json()
@@ -398,7 +401,47 @@ def signup():
 
 @app.route('/verified')
 def verified():
-    return """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>تم التحقق - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f0f2f5;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:420px;text-align:center}.icon{font-size:60px;margin-bottom:20px}h2{font-size:24px;color:#1a2b3c;margin-bottom:15px}p{color:#5a6b7c;line-height:1.8;margin-bottom:20px}a{display:inline-block;background:#4a6a8a;color:#fff;padding:14px 32px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px}a:hover{background:#3a5a7a}</style></head><body><div class="box"><div class="icon">✅</div><h2>تم تأكيد حسابك!</h2><p>بريدك مؤكد. يمكنك تسجيل الدخول الآن.</p><a href="/login">تسجيل الدخول</a></div></body></html>"""
+    return """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>تم التحقق - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f0f2f5;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:40px 30px;border-radius:20px;box-shadow:0 4px 20px rgba(0,0,0,0.08);width:100%;max-width:420px;text-align:center}.icon{font-size:60px;margin-bottom:20px}h2{font-size:24px;color:#1a2b3c;margin-bottom:15px}p{color:#5a6b7c;line-height:1.8;margin-bottom:20px}a{display:inline-block;background:#4a6a8a;color:#fff;padding:14px 32px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px}a:hover{background:#3a5a7a}.loading{color:#4a6a8a;font-size:14px;margin-top:15px}</style></head><body><div class="box" id="box"><div class="icon">⏳</div><h2>جاري التحقق...</h2><p class="loading">يتم تأكيد حسابك الآن</p></div>
+<script>
+(async function(){
+    var box=document.getElementById('box');
+    var SUPABASE_URL="__SUPABASE_URL__";
+    var SUPABASE_KEY="__SUPABASE_KEY__";
+    try{
+        var accessToken=null,refreshToken=null,code=null;
+        if(window.location.hash){
+            var hp=new URLSearchParams(window.location.hash.substring(1));
+            accessToken=hp.get('access_token');
+            refreshToken=hp.get('refresh_token');
+        }
+        var urlParams=new URLSearchParams(window.location.search);
+        if(!accessToken){
+            code=urlParams.get('code');
+            accessToken=urlParams.get('access_token');
+            refreshToken=urlParams.get('refresh_token');
+        }
+        if(code){
+            var resp=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=pkce',{
+                method:'POST',
+                headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
+                body:JSON.stringify({auth_code:code})
+            });
+            if(resp.ok){
+                var d=await resp.json();
+                accessToken=d.access_token;
+            }
+        }
+        if(accessToken){
+            await fetch(SUPABASE_URL+'/auth/v1/user',{
+                headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+accessToken}
+            });
+        }
+        box.innerHTML='<div class="icon">✅</div><h2>تم تأكيد حسابك!</h2><p>بريدك مؤكد. يمكنك تسجيل الدخول الآن.</p><a href="/login">تسجيل الدخول</a>';
+    }catch(e){
+        box.innerHTML='<div class="icon">✅</div><h2>تم تأكيد حسابك!</h2><p>يمكنك تسجيل الدخول الآن.</p><a href="/login">تسجيل الدخول</a>';
+    }
+})();
+</script></div></body></html>""".replace("__SUPABASE_URL__",SUPABASE_URL or "").replace("__SUPABASE_KEY__",SUPABASE_KEY or "")
 
 @app.route('/recover',methods=['POST'])
 @limiter.limit("5 per hour")
