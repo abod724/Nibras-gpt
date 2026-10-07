@@ -5,3 +5,5 @@ gunicorn
 edge-tts
 uvicorn
 flask-limiter
+supabase
+gotrue
