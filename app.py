@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, date as _date
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from supabase import create_client
-from cryptography.fernet import Fernet
 
 app=Flask(__name__,static_folder='static')
 app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(32))
@@ -25,27 +24,6 @@ SUPABASE_KEY=os.environ.get("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("SUPABASE_URL و SUPABASE_KEY مطلوبان!")
 sb=create_client(SUPABASE_URL,SUPABASE_KEY)
-
-# ==================== التشفير ====================
-ENCRYPTION_KEY=os.environ.get("ENCRYPTION_KEY")
-if not ENCRYPTION_KEY:
-    raise Exception("ENCRYPTION_KEY مطلوب! ولّده من fernetkeygen.com")
-fernet=Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY,str) else ENCRYPTION_KEY)
-
-def encrypt_text(text):
-    if not text: return text
-    try:
-        return fernet.encrypt(text.encode('utf-8')).decode('utf-8')
-    except Exception as e:
-        print("encrypt error:",e)
-        return text
-
-def decrypt_text(cipher):
-    if not cipher: return cipher
-    try:
-        return fernet.decrypt(cipher.encode('utf-8')).decode('utf-8')
-    except Exception:
-        return cipher
 
 LIMITS={
     "guest":  {"chat":15,"search":0,   "image":0},
@@ -185,8 +163,8 @@ def save_message(uid,msg,resp,cid=None):
         sb.table("assistant_chats").insert({
             "user_id":uid,
             "conv_id":cid,
-            "message":encrypt_text(msg),
-            "response":encrypt_text(resp),
+            "message":msg,
+            "response":resp,
             "title":title,
         }).execute()
     except Exception as e:
@@ -204,19 +182,15 @@ def load_conversation(uid,cid):
     msgs=[]
     for row in rows:
         if row.get("message"):
-            msgs.append({"role":"user","content":decrypt_text(row["message"])})
+            msgs.append({"role":"user","content":row["message"]})
         if row.get("response"):
-            msgs.append({"role":"assistant","content":decrypt_text(row["response"])})
+            msgs.append({"role":"assistant","content":row["response"]})
     return msgs
 
 def load_conversation_public(cid):
     try:
         r=(sb.table("assistant_chats").select("message,response,title,created_at").eq("conv_id",cid).order("created_at").execute())
-        rows=r.data or []
-        for row in rows:
-            if row.get("message"):row["message"]=decrypt_text(row["message"])
-            if row.get("response"):row["response"]=decrypt_text(row["response"])
-        return rows
+        return r.data or []
     except Exception as e:
         print("load_conversation_public:",e)
         return []
