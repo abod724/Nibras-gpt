@@ -786,7 +786,26 @@ function requestNotifications(){if(!('Notification' in window)){showToast('ال�
 function saveVoice(){const g=document.getElementById('sp-voice-gender').value;const lvl=document.getElementById('sp-voice-level').value;fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})}).then(()=>{localStorage.setItem('nibras-voice-level',lvl);showToast('تم حفظ إعدادات الصوت');closeSubPage();});}
 function changePassword(){const oldp=document.getElementById('sp-old-pass').value;const newp=document.getElementById('sp-new-pass').value;if(!oldp||!newp||newp.length<8){showToast('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:oldp,new_password:newp})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');closeSubPage();}else showToast('فشل: '+(d.message||''));});}
 function logoutAll(){if(confirm('تسجيل الخروج من جميع الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
-function clearCache(){if(confirm('مسح الكاش المحلي؟')){localStorage.clear();showToast('تم المسح');}}
+function clearCache(){
+    if(!confirm('مسح كل الإعدادات المحلية؟\n(لن تُمسح محادثاتك أو صورك)')) return;
+    try{
+        localStorage.clear();
+        sessionStorage.clear();
+        document.documentElement.classList.remove('dark-mode');
+        document.documentElement.style.removeProperty('--primary-color');
+        document.documentElement.style.removeProperty('--accent-color');
+        if('caches' in window){
+            caches.keys().then(function(names){
+                names.forEach(function(name){ caches.delete(name); });
+            });
+        }
+        showToast('✅ تم المسح، جاري إعادة التحميل...');
+        setTimeout(function(){ location.reload(); }, 900);
+    } catch(e){
+        console.error('clearCache error:', e);
+        showToast('حدث خطأ أثناء المسح');
+    }
+}
 function exportData(){window.location.href='/export_data';}
 function saveAds(){showToast('تم حفظ تفضيلات الإعلانات');closeSubPage();}
 function sendReport(){const d=document.getElementById('sp-report-desc').value;if(!d||d.trim().length<3){showToast('الرجاء كتابة وصف للمشكلة');return;}fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(r=>r.json()).then(res=>{if(res.status==='ok'){showToast('✅ تم إرسال البلاغ، شكراً لك');document.getElementById('sp-report-desc').value='';setTimeout(()=>closeSubPage(),800);}else{showToast('فشل: '+(res.message||'خطأ'));}}).catch(()=>showToast('خطأ في الاتصال'));}
@@ -1137,20 +1156,20 @@ def report_bug():
         d = request.get_json()
         bug_type = d.get('type', 'غير محدد')
         description = (d.get('description') or '').strip()
-        
+
         if not description or len(description) < 3:
             return jsonify({"status": "error", "message": "الوصف قصير جداً"}), 400
-        
+
         user_email = session.get('user_email', 'ضيف')
         user_role = session.get('user_role', 'guest')
-        
+
         sb.table("bug_reports").insert({
             "user_email": user_email,
             "user_role": user_role,
             "type": bug_type,
             "description": description
         }).execute()
-        
+
         print(f"📩 بلاغ جديد [{bug_type}]: {description[:50]}... - من {user_email}")
         return jsonify({"status": "ok"})
     except Exception as e:
@@ -1321,19 +1340,18 @@ def admin_login():
 def admin_dashboard():
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
-    
-    # ===== جلب البيانات الأساسية =====
+
     try:
         recent_r = (sb.table("assistant_chats")
                     .select("user_id,title,created_at")
                     .order("created_at", desc=True).limit(10).execute())
         recent = recent_r.data or []
-        
+
         users_r = (sb.table("profiles")
                    .select("email,display_name,role,created_at,last_seen")
                    .order("created_at", desc=True).limit(30).execute())
         users_list = users_r.data or []
-        
+
         chats_r = (sb.table("assistant_chats").select("user_id").execute())
         total_convs = len(chats_r.data or [])
     except Exception as e:
@@ -1341,8 +1359,7 @@ def admin_dashboard():
         recent = []
         users_list = []
         total_convs = 0
-    
-    # ===== جلب البلاغات =====
+
     try:
         reports_r = (sb.table("bug_reports")
                      .select("*")
@@ -1352,8 +1369,7 @@ def admin_dashboard():
     except Exception as e:
         print("reports fetch:", e)
         reports_list = []
-    
-    # ===== عدّاد البلاغات الجديدة =====
+
     try:
         new_reports_r = (sb.table("bug_reports")
                          .select("id")
@@ -1362,12 +1378,10 @@ def admin_dashboard():
         new_reports_count = len(new_reports_r.data or [])
     except:
         new_reports_count = 0
-    
-    # ===== إحصائيات =====
+
     today = _date.today().isoformat()
     today_convs = sum(1 for r in recent if (r.get("created_at") or "").startswith(today))
-    
-    # ===== بناء HTML للمحادثات =====
+
     recent_html = ""
     for row in recent:
         user = row.get("user_id", "")[:20]
@@ -1376,8 +1390,7 @@ def admin_dashboard():
         recent_html += f'<div class="conv-item"><b>{title}</b><small>{user} | {time}</small></div>'
     if not recent_html:
         recent_html = "<p style='color:#8b949e;text-align:center;'>لا توجد محادثات</p>"
-    
-    # ===== بناء HTML للمستخدمين =====
+
     users_html = ""
     for u in users_list:
         name = u.get("display_name") or "بدون اسم"
@@ -1387,8 +1400,7 @@ def admin_dashboard():
         users_html += f'<div class="conv-item"><b>{role_badge} {name}</b><small>{email} | {role}</small></div>'
     if not users_html:
         users_html = "<p style='color:#8b949e;text-align:center;'>لا يوجد مستخدمون</p>"
-    
-    # ===== بناء HTML للبلاغات =====
+
     reports_html = ""
     for r in reports_list:
         status = r.get("status", "new")
@@ -1404,14 +1416,14 @@ def admin_dashboard():
             badge = "⚪"
             border_color = "#8b949e"
             bg_color = "#f5f7fa"
-        
+
         type_str = r.get("type") or "غير محدد"
         email_str = r.get("user_email") or "ضيف"
         time_str = (r.get("created_at") or "")[:16].replace("T", " ")
         desc_str = (r.get("description") or "").replace("<", "&lt;").replace(">", "&gt;")
         report_id = r.get("id")
         btn_text = "تم الحل ✓" if status == "done" else "علّم كتم"
-        
+
         reports_html += f'''
         <div class="report-item" style="border-right:4px solid {border_color};background:{bg_color};padding:12px 14px;border-radius:10px;margin-bottom:10px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -1422,11 +1434,10 @@ def admin_dashboard():
             <p style="color:#2c3e50;font-size:13px;line-height:1.7;margin:0;background:#fff;padding:10px;border-radius:8px;">{desc_str}</p>
         </div>
         '''
-    
+
     if not reports_html:
         reports_html = "<p style='color:#8b949e;text-align:center;padding:20px;'>لا توجد بلاغات 📭</p>"
-    
-    # ===== إرجاع الصفحة =====
+
     return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>
     *{{box-sizing:border-box}}
     body{{font-family:'Segoe UI',Tahoma;background:#f4f7fc;color:#1a2b3c;padding:16px;margin:0}}
@@ -1446,35 +1457,35 @@ def admin_dashboard():
     .back:hover{{background:#4a6a8a;color:#fff}}
     .badge-new{{display:inline-block;background:#e74c3c;color:#fff;font-size:11px;padding:2px 8px;border-radius:20px;margin-right:6px;}}
     </style></head><body><div class="container">
-    
+
     <h1>🎛️ لوحة تحكم نبراس</h1>
-    
+
     <div class="card">
         <div class="stat"><span>👥 المستخدمون</span><span class="num">{len(users_list)}</span></div>
         <div class="stat"><span>💬 إجمالي المحادثات</span><span class="num">{total_convs}</span></div>
         <div class="stat"><span>📅 آخر 10 (اليوم)</span><span class="num">{today_convs}</span></div>
         <div class="stat"><span>📩 بلاغات جديدة</span><span class="num {'alert' if new_reports_count > 0 else ''}">{new_reports_count}</span></div>
     </div>
-    
+
     <div class="card">
         <h3>📩 البلاغات الأخيرة {f'<span class="badge-new">{new_reports_count} جديد</span>' if new_reports_count > 0 else ''}</h3>
         {reports_html}
     </div>
-    
+
     <div class="card">
         <h3>👥 المستخدمون المسجلون</h3>
         {users_html}
     </div>
-    
+
     <div class="card">
         <h3>💬 آخر 10 محادثات</h3>
         {recent_html}
     </div>
-    
+
     <a href="/" class="back">← العودة للرئيسية</a>
-    
+
     </div>
-    
+
     <script>
     async function resolveReport(id){{
         if(!confirm('تعليم هذا البلاغ كمحلول؟')) return;
@@ -1491,7 +1502,7 @@ def admin_dashboard():
         }}
     }}
     </script>
-    
+
     </body></html>"""
 
 
