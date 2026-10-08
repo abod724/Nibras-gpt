@@ -35,9 +35,6 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود!")
 
-# موديل البحث (افتراضي: gpt-4o-search-preview)
-OPENAI_SEARCH_MODEL = os.environ.get("OPENAI_SEARCH_MODEL", "gpt-4o-search-preview")
-
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # ---- Supabase ----
@@ -1684,7 +1681,7 @@ def chat():
                 ]
             })
 
-        # ✅ التعديل: بحث تلقائي حسب الصلاحية فقط (بدون شرط كلمات مفتاحية)
+        # ✅ بحث تلقائي حسب الصلاحية فقط — يستخدم OPENAI_MODEL (يقبل gpt-5.6-Luna و gpt-4o)
         if is_registered and can_search:
             try:
                 fc = ""
@@ -1695,7 +1692,7 @@ def chat():
                         elif m["role"] == "assistant":
                             fc += "نبراس: " + m["content"] + "\n"
                 sr = client.responses.create(
-                    model=OPENAI_SEARCH_MODEL,
+                    model=OPENAI_MODEL,
                     instructions=f"{SP}\n\nسياق:\n{fc}",
                     input=f"ابحث عن أحدث المعلومات: {um}",
                     tools=[{"type": "web_search"}]
@@ -1717,7 +1714,7 @@ def chat():
             except Exception as e:
                 print(f"❌ فشل البحث ({type(e).__name__}): {e}")
 
-        # ✅ تم حذف reasoning_effort لأن بعض الموديلات لا تدعمه
+        # ✅ تم حذف reasoning_effort — عشان يشتغل مع gpt-4o و gpt-5.6-Luna معاً
         try:
             r = client.chat.completions.create(
                 model=OPENAI_MODEL,
