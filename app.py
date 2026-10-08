@@ -1,329 +1,467 @@
-from flask import Flask,request,jsonify,render_template_string,session,redirect,url_for,send_from_directory
-import openai,os,secrets,json,asyncio,base64,re,requests,edge_tts
+# ==========================================================
+#  نبراس GP - المساعد الذكي الشخصي
+# ==========================================================
+
+# ==================== الاستيرادات ====================
+from flask import (
+    Flask, request, jsonify, render_template_string,
+    session, redirect, url_for, send_from_directory
+)
+import openai, os, secrets, json, asyncio, base64, re, requests, edge_tts
 from datetime import datetime, timedelta, date as _date
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from supabase import create_client
 
-app=Flask(__name__,static_folder='static')
-app.secret_key=os.environ.get("SECRET_KEY",secrets.token_hex(32))
-app.permanent_session_lifetime=timedelta(days=30)
-app.config.update(SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Lax',SESSION_COOKIE_SECURE=True)
 
-ADMIN_EMAIL=os.environ.get("ADMIN_EMAIL","abdullaha0569361@gmail.com")
+# ==================== إعدادات التطبيق ====================
+app = Flask(__name__, static_folder='static')
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.permanent_session_lifetime = timedelta(days=30)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=True
+)
 
-OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
-if not OPENAI_API_KEY:raise Exception("OPENAI_API_KEY غير موجود!")
-OPENAI_MODEL=os.environ.get("OPENAI_MODEL")
-if not OPENAI_MODEL:raise Exception("OPENAI_MODEL غير موجود!")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "abdullaha0569361@gmail.com")
 
-client=openai.OpenAI(api_key=OPENAI_API_KEY)
+# ---- OpenAI ----
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise Exception("OPENAI_API_KEY غير موجود!")
 
-SUPABASE_URL=os.environ.get("SUPABASE_URL")
-SUPABASE_KEY=os.environ.get("SUPABASE_KEY")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
+if not OPENAI_MODEL:
+    raise Exception("OPENAI_MODEL غير موجود!")
+
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
+
+# ---- Supabase ----
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("SUPABASE_URL و SUPABASE_KEY مطلوبان!")
-sb=create_client(SUPABASE_URL,SUPABASE_KEY)
+sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-LIMITS={
-    "guest":  {"chat":15,  "search":0,   "image":0},
-    "user":   {"chat":15,  "search":2,   "image":1},
-    "admin":  {"chat":9999,"search":9999,"image":9999},
+# ---- حدود الاستخدام ----
+LIMITS = {
+    "guest": {"chat": 15,  "search": 0,   "image": 0},
+    "user":  {"chat": 15,  "search": 2,   "image": 1},
+    "admin": {"chat": 9999, "search": 9999, "image": 9999},
 }
 
-limiter=Limiter(key_func=get_remote_address,default_limits=["500 per day","300 per hour"])
+# ---- Rate Limiter ----
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["500 per day", "300 per hour"]
+)
 limiter.init_app(app)
 
+
+# ==================== CORS ====================
 @app.after_request
 def add_cors_headers(response):
-    origin=request.headers.get('Origin','')
-    allowed=['https://abod724.github.io','https://nibras-al.onrender.com','https://test-bot-001.onrender.com']
+    origin = request.headers.get('Origin', '')
+    allowed = [
+        'https://abod724.github.io',
+        'https://nibras-al.onrender.com',
+        'https://test-bot-001.onrender.com'
+    ]
     if origin in allowed:
-        response.headers['Access-Control-Allow-Origin']=origin
-        response.headers['Access-Control-Allow-Methods']='POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers']='Content-Type'
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return response
 
-@app.route('/robots.txt')
-def serve_robots():return send_from_directory('static','robots.txt')
-@app.route('/sitemap.xml')
-def serve_sitemap():return send_from_directory('static','sitemap.xml')
-@app.route('/.well-known/<path:filename>')
-def serve_well_known(filename):return send_from_directory('.well-known',filename)
 
-# ==================== دوال Supabase ====================
+# ==================== ملفات ثابتة ====================
+@app.route('/robots.txt')
+def serve_robots():
+    return send_from_directory('static', 'robots.txt')
+
+@app.route('/sitemap.xml')
+def serve_sitemap():
+    return send_from_directory('static', 'sitemap.xml')
+
+@app.route('/.well-known/<path:filename>')
+def serve_well_known(filename):
+    return send_from_directory('.well-known', filename)
+
+
+# ==========================================================
+#  دوال Supabase
+# ==========================================================
 
 def get_user_role(email):
-    if not email:return 'guest'
-    if email.lower()==ADMIN_EMAIL.lower():return 'admin'
+    if not email:
+        return 'guest'
+    if email.lower() == ADMIN_EMAIL.lower():
+        return 'admin'
     try:
-        r=(sb.table("profiles").select("role").eq("email",email.lower()).limit(1).execute())
+        r = (sb.table("profiles").select("role")
+             .eq("email", email.lower()).limit(1).execute())
         if r and r.data and r.data[0].get("role"):
             return r.data[0]["role"]
     except Exception as e:
-        print("get_user_role:",e)
+        print("get_user_role:", e)
     return 'user'
 
+
 def get_user_profile(email):
-    if not email: return None
+    if not email:
+        return None
     try:
-        r=(sb.table("profiles").select("*").eq("email",email.lower().strip()).limit(1).execute())
+        r = (sb.table("profiles").select("*")
+             .eq("email", email.lower().strip()).limit(1).execute())
         if r and r.data:
             return r.data[0]
     except Exception as e:
-        print("get_user_profile:",e)
+        print("get_user_profile:", e)
     return None
 
+
 def save_user_profile(email, name=None, avatar=None):
-    if not email: return
+    if not email:
+        return
     try:
-        data={"email":email.lower().strip()}
-        if name is not None: data["display_name"]=name
-        if avatar is not None: data["avatar_url"]=avatar
+        data = {"email": email.lower().strip()}
+        if name is not None:
+            data["display_name"] = name
+        if avatar is not None:
+            data["avatar_url"] = avatar
         sb.table("profiles").upsert(data, on_conflict="email").execute()
     except Exception as e:
-        print("save_user_profile:",e)
+        print("save_user_profile:", e)
+
 
 def touch_user(email):
-    if not email: return
+    if not email:
+        return
     try:
-        sb.table("profiles").update({"last_seen":datetime.utcnow().isoformat()}).eq("email",email.lower().strip()).execute()
+        sb.table("profiles").update(
+            {"last_seen": datetime.utcnow().isoformat()}
+        ).eq("email", email.lower().strip()).execute()
     except Exception as e:
-        print("touch_user:",e)
+        print("touch_user:", e)
+
 
 def get_user_memory(email):
-    if not email: return {}
+    if not email:
+        return {}
     try:
-        r=(sb.table("profiles").select("memory").eq("email",email.lower().strip()).limit(1).execute())
+        r = (sb.table("profiles").select("memory")
+             .eq("email", email.lower().strip()).limit(1).execute())
         if r and r.data and r.data[0].get("memory"):
             return r.data[0]["memory"] or {}
     except Exception as e:
-        print("get_user_memory:",e)
+        print("get_user_memory:", e)
     return {}
 
+
 def save_user_memory(email, memory_dict):
-    if not email: return
+    if not email:
+        return
     try:
-        sb.table("profiles").update({"memory":memory_dict}).eq("email",email.lower().strip()).execute()
+        sb.table("profiles").update(
+            {"memory": memory_dict}
+        ).eq("email", email.lower().strip()).execute()
     except Exception as e:
-        print("save_user_memory:",e)
+        print("save_user_memory:", e)
+
 
 def get_pinned_convs(email):
-    if not email: return []
+    if not email:
+        return []
     try:
-        r=(sb.table("profiles").select("pinned_convs").eq("email",email.lower().strip()).limit(1).execute())
+        r = (sb.table("profiles").select("pinned_convs")
+             .eq("email", email.lower().strip()).limit(1).execute())
         if r and r.data and r.data[0].get("pinned_convs"):
             return r.data[0]["pinned_convs"] or []
     except Exception as e:
-        print("get_pinned_convs:",e)
+        print("get_pinned_convs:", e)
     return []
 
+
 def save_pinned_convs(email, pinned_list):
-    if not email: return
+    if not email:
+        return
     try:
-        sb.table("profiles").update({"pinned_convs":pinned_list}).eq("email",email.lower().strip()).execute()
+        sb.table("profiles").update(
+            {"pinned_convs": pinned_list}
+        ).eq("email", email.lower().strip()).execute()
     except Exception as e:
-        print("save_pinned_convs:",e)
+        print("save_pinned_convs:", e)
+
 
 def get_recent_summaries(uid, limit=5):
     try:
-        r=(sb.table("assistant_chats")
+        r = (sb.table("assistant_chats")
              .select("conv_id,summary,title,created_at")
-             .eq("user_id",uid)
-             .not_.is_("summary","null")
-             .order("created_at",desc=True)
+             .eq("user_id", uid)
+             .not_.is_("summary", "null")
+             .order("created_at", desc=True)
              .limit(50)
              .execute())
-        rows=r.data or []
+        rows = r.data or []
     except Exception as e:
-        print("get_recent_summaries:",e)
+        print("get_recent_summaries:", e)
         return []
-    seen={}
+    seen = {}
     for row in rows:
-        cid=row.get("conv_id")
+        cid = row.get("conv_id")
         if cid and cid not in seen and row.get("summary"):
-            seen[cid]={"conv_id":cid,"summary":row["summary"],"title":row.get("title")}
-        if len(seen)>=limit:
+            seen[cid] = {
+                "conv_id": cid,
+                "summary": row["summary"],
+                "title": row.get("title")
+            }
+        if len(seen) >= limit:
             break
     return list(seen.values())
 
+
 def summarize_old_conversation(uid, cid):
-    if not cid: return
+    if not cid:
+        return
     try:
-        existing=(sb.table("assistant_chats").select("summary").eq("user_id",uid).eq("conv_id",cid).limit(1).execute())
+        existing = (sb.table("assistant_chats").select("summary")
+                    .eq("user_id", uid).eq("conv_id", cid).limit(1).execute())
         if existing and existing.data and existing.data[0].get("summary"):
             return
-        msgs=load_conversation(uid,cid)
-        if not msgs or len(msgs)<2: return
-        convo_text=""
+        msgs = load_conversation(uid, cid)
+        if not msgs or len(msgs) < 2:
+            return
+        convo_text = ""
         for m in msgs[:20]:
-            role="المستخدم" if m["role"]=="user" else "نبراس"
-            convo_text+=f"{role}: {m['content'][:300]}\n"
+            role = "المستخدم" if m["role"] == "user" else "نبراس"
+            convo_text += f"{role}: {m['content'][:300]}\n"
         try:
-            r=client.chat.completions.create(
+            r = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=[
-                    {"role":"system","content":"لخّص المحادثة التالية في 2-3 جمل قصيرة بالعربية."},
-                    {"role":"user","content":convo_text}
+                    {"role": "system", "content": "لخّص المحادثة التالية في 2-3 جمل قصيرة بالعربية."},
+                    {"role": "user", "content": convo_text}
                 ],
                 max_completion_tokens=300
             )
-            summary=r.choices[0].message.content.strip()
+            summary = r.choices[0].message.content.strip()
         except Exception as e:
-            print("summarize generation:",e)
+            print("summarize generation:", e)
             return
-        if not summary: return
-        sb.table("assistant_chats").update({"summary":summary}).eq("user_id",uid).eq("conv_id",cid).execute()
+        if not summary:
+            return
+        sb.table("assistant_chats").update({"summary": summary}) \
+            .eq("user_id", uid).eq("conv_id", cid).execute()
     except Exception as e:
-        print("summarize_old_conversation:",e)
+        print("summarize_old_conversation:", e)
+
 
 def get_user_id():
-    if session.get('is_admin'):return "admin_page"
-    if session.get('user_email'):return "user_"+session['user_email']
+    if session.get('is_admin'):
+        return "admin_page"
+    if session.get('user_email'):
+        return "user_" + session['user_email']
     if 'guest_id' not in session:
-        session['guest_id']="guest_"+secrets.token_hex(8)
+        session['guest_id'] = "guest_" + secrets.token_hex(8)
     return session['guest_id']
 
+
 def get_usage_today(uid):
-    today=_date.today().isoformat()
+    today = _date.today().isoformat()
     try:
-        r=(sb.table("assistant_usage").select("*").eq("user_id",uid).eq("date",today).limit(1).execute())
+        r = (sb.table("assistant_usage").select("*")
+             .eq("user_id", uid).eq("date", today).limit(1).execute())
         if r and r.data:
             return r.data[0]
     except Exception as e:
-        print("get_usage_today select:",e)
-    new_row={"user_id":uid,"date":today,"chat_count":0,"image_count":0,"search_count":0}
+        print("get_usage_today select:", e)
+    new_row = {"user_id": uid, "date": today, "chat_count": 0, "image_count": 0, "search_count": 0}
     try:
-        r=sb.table("assistant_usage").insert(new_row).execute()
+        r = sb.table("assistant_usage").insert(new_row).execute()
         if r and r.data:
             return r.data[0]
     except Exception as e:
-        print("get_usage_today insert:",e)
+        print("get_usage_today insert:", e)
     return new_row
 
-def inc_usage(uid,field):
-    today=_date.today().isoformat()
-    row=get_usage_today(uid)
-    current=int(row.get(field,0) or 0)+1
+
+def inc_usage(uid, field):
+    today = _date.today().isoformat()
+    row = get_usage_today(uid)
+    current = int(row.get(field, 0) or 0) + 1
     try:
-        sb.table("assistant_usage").update({field:current}).eq("user_id",uid).eq("date",today).execute()
+        sb.table("assistant_usage").update({field: current}) \
+            .eq("user_id", uid).eq("date", today).execute()
     except Exception as e:
-        print("inc_usage:",e)
+        print("inc_usage:", e)
     return current
 
-def check_limits(uid,role):
-    usage=get_usage_today(uid)
-    limits=LIMITS.get(role,LIMITS["guest"])
-    can_chat=int(usage.get("chat_count",0) or 0)<limits["chat"]
-    can_search=int(usage.get("search_count",0) or 0)<limits["search"]
-    can_image=int(usage.get("image_count",0) or 0)<limits["image"]
-    return usage,limits,can_chat,can_search,can_image
+
+def check_limits(uid, role):
+    usage = get_usage_today(uid)
+    limits = LIMITS.get(role, LIMITS["guest"])
+    can_chat = int(usage.get("chat_count", 0) or 0) < limits["chat"]
+    can_search = int(usage.get("search_count", 0) or 0) < limits["search"]
+    can_image = int(usage.get("image_count", 0) or 0) < limits["image"]
+    return usage, limits, can_chat, can_search, can_image
+
 
 def get_user_conversations(uid):
     try:
-        r=(sb.table("assistant_chats").select("conv_id,title,created_at").eq("user_id",uid).order("created_at",desc=True).limit(200).execute())
-        rows=r.data or []
+        r = (sb.table("assistant_chats")
+             .select("conv_id,title,created_at")
+             .eq("user_id", uid)
+             .order("created_at", desc=True)
+             .limit(200)
+             .execute())
+        rows = r.data or []
     except Exception as e:
-        print("get_user_conversations:",e)
+        print("get_user_conversations:", e)
         return []
-    seen={}
+    seen = {}
     for row in rows:
-        cid=row.get("conv_id")
+        cid = row.get("conv_id")
         if cid and cid not in seen:
-            title=(row.get("title") or "").strip() or "محادثة"
-            seen[cid]={"id":cid,"conv_id":cid,"title":title,"timestamp":row.get("created_at")}
+            title = (row.get("title") or "").strip() or "محادثة"
+            seen[cid] = {
+                "id": cid,
+                "conv_id": cid,
+                "title": title,
+                "timestamp": row.get("created_at")
+            }
     return list(seen.values())
 
-def save_message(uid,msg,resp,cid=None):
-    if not cid:cid=secrets.token_hex(5)
+
+def save_message(uid, msg, resp, cid=None):
+    if not cid:
+        cid = secrets.token_hex(5)
     try:
-        ex=(sb.table("assistant_chats").select("id").eq("user_id",uid).eq("conv_id",cid).limit(1).execute())
-        has_prev=bool(ex.data)
-        title=None
+        ex = (sb.table("assistant_chats").select("id")
+              .eq("user_id", uid).eq("conv_id", cid).limit(1).execute())
+        has_prev = bool(ex.data)
+        title = None
         if not has_prev:
-            clean_msg=(msg or "").strip()
-            clean_msg=re.sub(r'[^\w\s\u0600-\u06FF]','',clean_msg).strip()
+            clean_msg = (msg or "").strip()
+            clean_msg = re.sub(r'[^\w\s\u0600-\u06FF]', '', clean_msg).strip()
             if clean_msg:
-                title=clean_msg[:30]
-                if len(clean_msg)>30:title+="..."
+                title = clean_msg[:30]
+                if len(clean_msg) > 30:
+                    title += "..."
             else:
-                title="محادثة جديدة"
-        sb.table("assistant_chats").insert({"user_id":uid,"conv_id":cid,"message":msg,"response":resp,"title":title}).execute()
+                title = "محادثة جديدة"
+        sb.table("assistant_chats").insert({
+            "user_id": uid,
+            "conv_id": cid,
+            "message": msg,
+            "response": resp,
+            "title": title
+        }).execute()
     except Exception as e:
-        print("save_message:",e)
+        print("save_message:", e)
     return cid
 
-def load_conversation(uid,cid):
+
+def load_conversation(uid, cid):
     try:
-        r=(sb.table("assistant_chats").select("message,response,created_at").eq("user_id",uid).eq("conv_id",cid).order("created_at").execute())
-        rows=r.data or []
+        r = (sb.table("assistant_chats")
+             .select("message,response,created_at")
+             .eq("user_id", uid).eq("conv_id", cid)
+             .order("created_at").execute())
+        rows = r.data or []
     except Exception as e:
-        print("load_conversation:",e)
+        print("load_conversation:", e)
         return None
-    if not rows:return None
-    msgs=[]
+    if not rows:
+        return None
+    msgs = []
     for row in rows:
-        if row.get("message"):msgs.append({"role":"user","content":row["message"]})
-        if row.get("response"):msgs.append({"role":"assistant","content":row["response"]})
+        if row.get("message"):
+            msgs.append({"role": "user", "content": row["message"]})
+        if row.get("response"):
+            msgs.append({"role": "assistant", "content": row["response"]})
     return msgs
+
 
 def load_conversation_public(cid):
     try:
-        r=(sb.table("assistant_chats").select("message,response,title,created_at").eq("conv_id",cid).order("created_at").execute())
+        r = (sb.table("assistant_chats")
+             .select("message,response,title,created_at")
+             .eq("conv_id", cid).order("created_at").execute())
         return r.data or []
     except Exception as e:
-        print("load_conversation_public:",e)
+        print("load_conversation_public:", e)
         return []
 
-def delete_message_row(uid,cid,index):
+
+def delete_message_row(uid, cid, index):
     try:
-        r=(sb.table("assistant_chats").select("id,message,response").eq("user_id",uid).eq("conv_id",cid).order("created_at").execute())
-        rows=r.data or []
-        if index<0 or index>=len(rows):return False
-        row_idx=index//2
-        if row_idx>=len(rows):return False
-        sb.table("assistant_chats").delete().eq("id",rows[row_idx]["id"]).execute()
+        r = (sb.table("assistant_chats")
+             .select("id,message,response")
+             .eq("user_id", uid).eq("conv_id", cid)
+             .order("created_at").execute())
+        rows = r.data or []
+        if index < 0 or index >= len(rows):
+            return False
+        row_idx = index // 2
+        if row_idx >= len(rows):
+            return False
+        sb.table("assistant_chats").delete().eq("id", rows[row_idx]["id"]).execute()
         return True
     except Exception as e:
-        print("delete_message_row:",e)
+        print("delete_message_row:", e)
         return False
+
 
 def save_image_to_library(uid, image_url=None, image_data=None, title="", source="upload"):
     try:
-        row={"user_id":uid,"title":title or "صورة","source":source}
-        if image_url: row["image_url"]=image_url
-        if image_data: row["image_data"]=image_data
-        r=sb.table("image_library").insert(row).execute()
+        row = {"user_id": uid, "title": title or "صورة", "source": source}
+        if image_url:
+            row["image_url"] = image_url
+        if image_data:
+            row["image_data"] = image_data
+        r = sb.table("image_library").insert(row).execute()
         return r.data[0] if r and r.data else None
     except Exception as e:
-        print("save_image_to_library:",e)
+        print("save_image_to_library:", e)
         return None
+
 
 def get_user_images(uid):
     try:
-        r=(sb.table("image_library").select("*").eq("user_id",uid).order("created_at",desc=True).limit(200).execute())
+        r = (sb.table("image_library").select("*")
+             .eq("user_id", uid).order("created_at", desc=True).limit(200).execute())
         return r.data or []
     except Exception as e:
-        print("get_user_images:",e)
+        print("get_user_images:", e)
         return []
+
 
 def delete_user_image(uid, image_id):
     try:
-        sb.table("image_library").delete().eq("id",image_id).eq("user_id",uid).execute()
+        sb.table("image_library").delete().eq("id", image_id).eq("user_id", uid).execute()
         return True
     except Exception as e:
-        print("delete_user_image:",e)
+        print("delete_user_image:", e)
         return False
 
-kc=""
-for fn in ["Knowledge.md","knowledge.md","معرفة.md","README.md","ملف_المعرفة.md"]:
+
+# ==========================================================
+#  قاعدة المعرفة + System Prompt
+# ==========================================================
+kc = ""
+for fn in ["Knowledge.md", "knowledge.md", "معرفة.md", "README.md", "ملف_المعرفة.md"]:
     if os.path.exists(fn):
         try:
-            with open(fn,"r",encoding="utf-8") as f:kc=f.read();break
-        except:pass
-if not kc:kc="أنت نبراس، مساعد ذكي."
+            with open(fn, "r", encoding="utf-8") as f:
+                kc = f.read()
+                break
+        except:
+            pass
+if not kc:
+    kc = "أنت نبراس، مساعد ذكي."
 
-SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
+SP = f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
 **مصادر معرفتك:**
 1. **ملف المعرفة** (أدناه).
@@ -343,23 +481,39 @@ SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهج�
 - لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
 - رد بشكل مباشر بدون مقدمات فلسفية."""
 
+
+# ==========================================================
+#  توليد الصوت
+# ==========================================================
 async def _generate_speech_async(text, voice):
-    communicate=edge_tts.Communicate(text, voice);audio_data=b""
+    communicate = edge_tts.Communicate(text, voice)
+    audio_data = b""
     async for chunk in communicate.stream():
-        if chunk["type"]=="audio":audio_data+=chunk["data"]
+        if chunk["type"] == "audio":
+            audio_data += chunk["data"]
     return audio_data
+
 
 def generate_speech(text, gender):
     try:
-        voice="ar-SA-HamedNeural" if gender=="male" else "ar-SA-ZariyahNeural"
-        audio=asyncio.run(_generate_speech_async(text, voice))
+        voice = "ar-SA-HamedNeural" if gender == "male" else "ar-SA-ZariahNeural"
+        audio = asyncio.run(_generate_speech_async(text, voice))
         return base64.b64encode(audio).decode('utf-8')
-    except Exception as e:print(f"صوت: {e}");return None
-# ==================== قوالب HTML ====================
+    except Exception as e:
+        print(f"صوت: {e}")
+        return None
 
-SPH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}</style></head><body><div class="container"><div class="header"><h1>{{ title or 'محادثة نبراس' }}</h1><a href="/">الرئيسية</a></div><div>{% for msg in messages %}<div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}"><div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div><div class="content">{{ msg.content|replace('\n','<br>')|safe }}</div></div>{% endfor %}</div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div></body></html>"""
 
-LIBRARY_HTML="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>مكتبتي - نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;min-height:100dvh;color:#1a2b3c;padding:20px}.container{max-width:1000px;margin:0 auto}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}.topbar h1{font-size:24px;color:#1a2b3c;display:flex;align-items:center;gap:10px}.topbar a{color:#4a6a8a;text-decoration:none;font-weight:600;padding:10px 18px;border:1.5px solid #4a6a8a;border-radius:12px;transition:all .2s}.topbar a:hover{background:#4a6a8a;color:#fff}.upload-zone{background:#fff;border:2px dashed #dce1e8;border-radius:20px;padding:40px 20px;text-align:center;margin-bottom:24px;transition:all .25s;cursor:pointer}.upload-zone:hover,.upload-zone.dragover{border-color:#4a6a8a;background:#f5f9ff}.upload-zone svg{width:48px;height:48px;stroke:#4a6a8a;stroke-width:1.5;fill:none;margin-bottom:12px}.upload-zone h3{font-size:17px;color:#1a2b3c;margin-bottom:6px}.upload-zone p{color:#8b949e;font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}.img-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06);position:relative;transition:transform .2s,box-shadow .2s}.img-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.12)}.img-card .preview{width:100%;height:180px;object-fit:cover;display:block;background:#f5f7fa}.img-card .info{padding:10px 14px}.img-card .info .title{font-size:14px;font-weight:600;color:#1a2b3c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.img-card .info .source{font-size:11px;color:#8b949e;margin-top:2px}.img-card .delete-btn{position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.95);border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all .2s}.img-card .delete-btn:hover{background:#ff4757}.img-card .delete-btn:hover svg{stroke:#fff}.img-card .delete-btn svg{width:16px;height:16px;stroke:#ff4757;stroke-width:2;fill:none}.empty{text-align:center;padding:60px 20px;color:#8b949e}.empty svg{width:64px;height:64px;stroke:#dce1e8;stroke-width:1.5;fill:none;margin-bottom:16px}.empty h3{color:#5a6b7c;font-size:18px;margin-bottom:6px}.empty p{font-size:14px}.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:12px 24px;border-radius:30px;font-size:14px;z-index:9999}@media(max-width:520px){.topbar h1{font-size:20px}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.img-card .preview{height:150px}}</style></head><body><div class="container"><div class="topbar"><h1><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4a6a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> مكتبتي</h1><a href="/">الرئيسية</a></div><div class="upload-zone" id="uploadZone"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><h3>ارفع صورة جديدة</h3><p>اضغط أو اسحب الصورة هنا</p></div><input type="file" id="fileInput" accept="image/*" style="display:none" multiple><div id="grid" class="grid"><div style="text-align:center;padding:30px;color:#8b949e;grid-column:1/-1">جاري التحميل...</div></div></div><script>
+# ==========================================================
+#  قوالب HTML
+# ==========================================================
+
+# ---------- صفحة المحادثة المشتركة ----------
+SPH = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}</style></head><body><div class="container"><div class="header"><h1>{{ title or 'محادثة نبراس' }}</h1><a href="/">الرئيسية</a></div><div>{% for msg in messages %}<div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}"><div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div><div class="content">{{ msg.content|replace('\n','<br>')|safe }}</div></div>{% endfor %}</div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div></body></html>"""
+
+
+# ---------- صفحة المكتبة ----------
+LIBRARY_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>مكتبتي - نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;min-height:100dvh;color:#1a2b3c;padding:20px}.container{max-width:1000px;margin:0 auto}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}.topbar h1{font-size:24px;color:#1a2b3c;display:flex;align-items:center;gap:10px}.topbar a{color:#4a6a8a;text-decoration:none;font-weight:600;padding:10px 18px;border:1.5px solid #4a6a8a;border-radius:12px;transition:all .2s}.topbar a:hover{background:#4a6a8a;color:#fff}.upload-zone{background:#fff;border:2px dashed #dce1e8;border-radius:20px;padding:40px 20px;text-align:center;margin-bottom:24px;transition:all .25s;cursor:pointer}.upload-zone:hover,.upload-zone.dragover{border-color:#4a6a8a;background:#f5f9ff}.upload-zone svg{width:48px;height:48px;stroke:#4a6a8a;stroke-width:1.5;fill:none;margin-bottom:12px}.upload-zone h3{font-size:17px;color:#1a2b3c;margin-bottom:6px}.upload-zone p{color:#8b949e;font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}.img-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06);position:relative;transition:transform .2s,box-shadow .2s}.img-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.12)}.img-card .preview{width:100%;height:180px;object-fit:cover;display:block;background:#f5f7fa}.img-card .info{padding:10px 14px}.img-card .info .title{font-size:14px;font-weight:600;color:#1a2b3c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.img-card .info .source{font-size:11px;color:#8b949e;margin-top:2px}.img-card .delete-btn{position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.95);border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all .2s}.img-card .delete-btn:hover{background:#ff4757}.img-card .delete-btn:hover svg{stroke:#fff}.img-card .delete-btn svg{width:16px;height:16px;stroke:#ff4757;stroke-width:2;fill:none}.empty{text-align:center;padding:60px 20px;color:#8b949e}.empty svg{width:64px;height:64px;stroke:#dce1e8;stroke-width:1.5;fill:none;margin-bottom:16px}.empty h3{color:#5a6b7c;font-size:18px;margin-bottom:6px}.empty p{font-size:14px}.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:12px 24px;border-radius:30px;font-size:14px;z-index:9999}@media(max-width:520px){.topbar h1{font-size:20px}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.img-card .preview{height:150px}}</style></head><body><div class="container"><div class="topbar"><h1><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4a6a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> مكتبتي</h1><a href="/">الرئيسية</a></div><div class="upload-zone" id="uploadZone"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><h3>ارفع صورة جديدة</h3><p>اضغط أو اسحب الصورة هنا</p></div><input type="file" id="fileInput" accept="image/*" style="display:none" multiple><div id="grid" class="grid"><div style="text-align:center;padding:30px;color:#8b949e;grid-column:1/-1">جاري التحميل...</div></div></div><script>
 const zone=document.getElementById('uploadZone');const fi=document.getElementById('fileInput');const grid=document.getElementById('grid');
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
 function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
@@ -368,9 +522,13 @@ async function uploadFiles(files){for(const file of files){if(!file.type.startsW
 zone.onclick=()=>fi.click();fi.onchange=(e)=>{if(e.target.files.length>0)uploadFiles(e.target.files);fi.value='';};zone.ondragover=(e)=>{e.preventDefault();zone.classList.add('dragover');};zone.ondragleave=()=>zone.classList.remove('dragover');zone.ondrop=(e)=>{e.preventDefault();zone.classList.remove('dragover');uploadFiles(e.dataTransfer.files);};loadImages();
 </script></body></html>"""
 
-LH="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;padding:20px}.box{background:#fff;padding:44px 32px;border-radius:24px;box-shadow:0 4px 30px rgba(0,0,0,0.06);width:100%;max-width:420px;text-align:center}.logo{width:64px;height:64px;background:#4a6a8a;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:#fff;font-size:26px;font-weight:700}h2{font-size:24px;color:#1a2b3c;margin-bottom:8px;font-weight:700}.subtitle{color:#8b949e;font-size:14px;margin-bottom:28px}.tabs{display:flex;justify-content:center;gap:26px;border-bottom:1px solid #eaeef2;margin-bottom:26px}.tabs button{background:0 0;border:none;padding:12px 0;font-size:15px;font-weight:600;color:#8b949e;cursor:pointer;position:relative;font-family:inherit;transition:color .2s}.tabs button.active{color:#4a6a8a}.tabs button.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#4a6a8a;border-radius:2px}.section{display:none}.section.active{display:block}.field{margin:12px 0}.field input{width:100%;padding:15px 18px;border:1.5px solid #e5e9ef;border-radius:14px;font-size:15px;background:#fafbfc;box-sizing:border-box;font-family:inherit;transition:all .2s;color:#1a2b3c}.field input:focus{outline:0;border-color:#4a6a8a;background:#fff;box-shadow:0 0 0 4px rgba(74,106,138,0.1)}.field input::placeholder{color:#a5b0be}button.submit{width:100%;padding:15px;background:#4a6a8a;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;font-family:inherit;transition:all .2s}button.submit:hover{background:#3a5a7a}button.submit:active{transform:scale(0.98)}a{color:#4a6a8a;text-decoration:none;font-size:14px;display:inline-block;margin-top:18px;font-weight:600}a:hover{color:#3a5a7a}.error{color:#d63031;background:#ffe8e8;padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px;font-weight:600;text-align:right}.success{color:#00b894;background:#e6fff5;padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px;font-weight:600;text-align:right}.divider{margin:22px 0 0;padding-top:18px;border-top:1px solid #eef1f6}.privacy-link{font-size:12px;color:#a5b0be;margin-top:6px;text-decoration:underline;font-weight:500}@media(max-width:420px){.box{padding:34px 24px}h2{font-size:22px}}</style></head><body><div class="box"><div class="logo">🔐</div><h2>نبراس</h2><p class="subtitle">مساعدك الذكي الشخصي</p>{% if error %}<div class="error">{{ error }}</div>{% endif %}{% if success %}<div class="success">{{ success }}</div>{% endif %}<div class="tabs"><button type="button" class="tab-btn active" data-tab="login">دخول</button><button type="button" class="tab-btn" data-tab="signup">حساب جديد</button><button type="button" class="tab-btn" data-tab="recover">استعادة</button></div><div class="section active" id="tab-login"><form method="POST" action="/login"><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><div class="field"><input type="password" name="password" placeholder="كلمة المرور" required></div><button type="submit" class="submit">تسجيل الدخول</button></form></div><div class="section" id="tab-signup"><form method="POST" action="/signup"><div class="field"><input type="text" name="name" placeholder="الاسم الكامل" required minlength="2"></div><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><div class="field"><input type="password" name="password" placeholder="كلمة المرور (8 أحرف +)" minlength="8" required></div><button type="submit" class="submit">إنشاء حساب جديد</button></form></div><div class="section" id="tab-recover"><form method="POST" action="/recover"><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><button type="submit" class="submit">إرسال رابط الاستعادة</button></form></div><div class="divider"><a href="/">العودة للرئيسية</a><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="privacy-link">سياسة الخصوصية</a></div></div><script>document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));this.classList.add('active');document.getElementById('tab-'+this.dataset.tab).classList.add('active')})});</script></body></html>"""
 
-HT=r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><title>نبراس GP | مساعد ذكي</title><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border-color);flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--primary-color);opacity:0.85}.btn-group{display:flex;gap:8px;align-items:center}.btn{padding:7px 16px;border-radius:20px;font-size:14px;border:none;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;font-family:inherit;font-weight:600}.btn-outline{background:0 0;border:1.5px solid var(--primary-color);color:var(--primary-color);transition:all .2s}.btn-outline:hover{background:var(--primary-color);color:#fff}.user-badge{display:flex;align-items:center;gap:6px;background:var(--bg-hover);padding:6px 12px;border-radius:20px;font-size:13px;color:var(--text-primary);font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.user-badge svg{width:16px;height:16px;stroke:var(--primary-color);stroke-width:2;fill:none;flex-shrink:0}
+# ---------- صفحة الدخول ----------
+LH = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;padding:20px}.box{background:#fff;padding:44px 32px;border-radius:24px;box-shadow:0 4px 30px rgba(0,0,0,0.06);width:100%;max-width:420px;text-align:center}.logo{width:64px;height:64px;background:#4a6a8a;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:#fff;font-size:26px;font-weight:700}h2{font-size:24px;color:#1a2b3c;margin-bottom:8px;font-weight:700}.subtitle{color:#8b949e;font-size:14px;margin-bottom:28px}.tabs{display:flex;justify-content:center;gap:26px;border-bottom:1px solid #eaeef2;margin-bottom:26px}.tabs button{background:0 0;border:none;padding:12px 0;font-size:15px;font-weight:600;color:#8b949e;cursor:pointer;position:relative;font-family:inherit;transition:color .2s}.tabs button.active{color:#4a6a8a}.tabs button.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#4a6a8a;border-radius:2px}.section{display:none}.section.active{display:block}.field{margin:12px 0}.field input{width:100%;padding:15px 18px;border:1.5px solid #e5e9ef;border-radius:14px;font-size:15px;background:#fafbfc;box-sizing:border-box;font-family:inherit;transition:all .2s;color:#1a2b3c}.field input:focus{outline:0;border-color:#4a6a8a;background:#fff;box-shadow:0 0 0 4px rgba(74,106,138,0.1)}.field input::placeholder{color:#a5b0be}button.submit{width:100%;padding:15px;background:#4a6a8a;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;font-family:inherit;transition:all .2s}button.submit:hover{background:#3a5a7a}button.submit:active{transform:scale(0.98)}a{color:#4a6a8a;text-decoration:none;font-size:14px;display:inline-block;margin-top:18px;font-weight:600}a:hover{color:#3a5a7a}.error{color:#d63031;background:#ffe8e8;padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px;font-weight:600;text-align:right}.success{color:#00b894;background:#e6fff5;padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px;font-weight:600;text-align:right}.divider{margin:22px 0 0;padding-top:18px;border-top:1px solid #eef1f6}.privacy-link{font-size:12px;color:#a5b0be;margin-top:6px;text-decoration:underline;font-weight:500}@media(max-width:420px){.box{padding:34px 24px}h2{font-size:22px}}</style></head><body><div class="box"><div class="logo">🔐</div><h2>نبراس</h2><p class="subtitle">مساعدك الذكي الشخصي</p>{% if error %}<div class="error">{{ error }}</div>{% endif %}{% if success %}<div class="success">{{ success }}</div>{% endif %}<div class="tabs"><button type="button" class="tab-btn active" data-tab="login">دخول</button><button type="button" class="tab-btn" data-tab="signup">حساب جديد</button><button type="button" class="tab-btn" data-tab="recover">استعادة</button></div><div class="section active" id="tab-login"><form method="POST" action="/login"><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><div class="field"><input type="password" name="password" placeholder="كلمة المرور" required></div><button type="submit" class="submit">تسجيل الدخول</button></form></div><div class="section" id="tab-signup"><form method="POST" action="/signup"><div class="field"><input type="text" name="name" placeholder="الاسم الكامل" required minlength="2"></div><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><div class="field"><input type="password" name="password" placeholder="كلمة المرور (8 أحرف +)" minlength="8" required></div><button type="submit" class="submit">إنشاء حساب جديد</button></form></div><div class="section" id="tab-recover"><form method="POST" action="/recover"><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><button type="submit" class="submit">إرسال رابط الاستعادة</button></form></div><div class="divider"><a href="/">العودة للرئيسية</a><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="privacy-link">سياسة الخصوصية</a></div></div><script>document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));this.classList.add('active');document.getElementById('tab-'+this.dataset.tab).classList.add('active')})});</script></body></html>"""
+
+
+# ---------- الصفحة الرئيسية ----------
+HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><title>نبراس GP | مساعد ذكي</title><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border-color);flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--primary-color);opacity:0.85}.btn-group{display:flex;gap:8px;align-items:center}.btn{padding:7px 16px;border-radius:20px;font-size:14px;border:none;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;font-family:inherit;font-weight:600}.btn-outline{background:0 0;border:1.5px solid var(--primary-color);color:var(--primary-color);transition:all .2s}.btn-outline:hover{background:var(--primary-color);color:#fff}.user-badge{display:flex;align-items:center;gap:6px;background:var(--bg-hover);padding:6px 12px;border-radius:20px;font-size:13px;color:var(--text-primary);font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.user-badge svg{width:16px;height:16px;stroke:var(--primary-color);stroke-width:2;fill:none;flex-shrink:0}
 .dropdown{position:absolute;top:68px;left:12px;right:12px;background:var(--bg-dropdown);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15),0 4px 12px rgba(0,0,0,0.08);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:78vh;overflow-y:auto;padding:10px;opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}
 .dropdown.show{display:flex;opacity:1;transform:translateY(0)}
 .dropdown::-webkit-scrollbar{width:4px}
@@ -682,289 +840,365 @@ mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)
 window.deleteMyAccount=function(){if(!confirm('تحذير: سيتم حذف حسابك بالكامل. متأكد؟'))return;if(!confirm('تأكيد نهائي؟'))return;fetch('/delete_my_account',{method:'POST',headers:{'Content-Type':'application/json'}}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم حذف حسابك');window.location.href='/'}else alert('فشل: '+(d.message||''))}).catch(e=>alert('خطأ'))};
 })();</script></body></html>"""
 
-# ==================== Routes ====================
 
+# ==========================================================
+#  Routes
+# ==========================================================
+
+# ---------- الصفحات الرئيسية ----------
 @app.route('/')
 def index():
-    user_name=None
-    email=session.get('user_email')
+    user_name = None
+    email = session.get('user_email')
     if email and not session.get('is_admin'):
-        p=get_user_profile(email)
+        p = get_user_profile(email)
         if p:
-            user_name=p.get("display_name") or email.split("@")[0]
+            user_name = p.get("display_name") or email.split("@")[0]
         else:
-            user_name=email.split("@")[0]
-        mem=get_user_memory(email)
+            user_name = email.split("@")[0]
+        mem = get_user_memory(email)
         if mem.get('name'):
-            user_name=mem['name']
+            user_name = mem['name']
     elif session.get('is_admin'):
-        user_name="أدمن"
-    return render_template_string(HT,user_name=user_name)
+        user_name = "أدمن"
+    return render_template_string(HT, user_name=user_name)
 
+
+# ---------- المكتبة ----------
 @app.route('/library')
 def library_page():
     if not session.get('user_email') and not session.get('is_admin'):
         return redirect(url_for('login'))
     return render_template_string(LIBRARY_HTML)
 
+
 @app.route('/library/images')
 def library_images():
-    uid=get_user_id()
-    imgs=get_user_images(uid)
-    return jsonify({"images":imgs})
+    uid = get_user_id()
+    imgs = get_user_images(uid)
+    return jsonify({"images": imgs})
 
-@app.route('/library/upload',methods=['POST'])
+
+@app.route('/library/upload', methods=['POST'])
 def library_upload():
     try:
         if not session.get('user_email') and not session.get('is_admin'):
-            return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
-        d=request.get_json()
-        image_data=d.get('image_data')
-        title=d.get('title') or "صورة"
+            return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
+        d = request.get_json()
+        image_data = d.get('image_data')
+        title = d.get('title') or "صورة"
         if not image_data:
-            return jsonify({"status":"error","message":"لا توجد صورة"}),400
-        if len(image_data)>5000000:
-            return jsonify({"status":"error","message":"الصورة كبيرة جداً"}),413
-        uid=get_user_id()
-        save_image_to_library(uid,image_data=image_data,title=title,source="upload")
-        return jsonify({"status":"ok"})
+            return jsonify({"status": "error", "message": "لا توجد صورة"}), 400
+        if len(image_data) > 5000000:
+            return jsonify({"status": "error", "message": "الصورة كبيرة جداً"}), 413
+        uid = get_user_id()
+        save_image_to_library(uid, image_data=image_data, title=title, source="upload")
+        return jsonify({"status": "ok"})
     except Exception as e:
-        print("library_upload:",e)
-        return jsonify({"status":"error","message":str(e)}),500
+        print("library_upload:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/library/delete',methods=['POST'])
+
+@app.route('/library/delete', methods=['POST'])
 def library_delete():
     try:
         if not session.get('user_email') and not session.get('is_admin'):
-            return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
-        d=request.get_json()
-        image_id=d.get('id')
+            return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
+        d = request.get_json()
+        image_id = d.get('id')
         if not image_id:
-            return jsonify({"status":"error","message":"معرف مفقود"}),400
-        uid=get_user_id()
-        ok=delete_user_image(uid,image_id)
-        return jsonify({"status":"ok"}) if ok else jsonify({"status":"error"}),404
+            return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+        uid = get_user_id()
+        ok = delete_user_image(uid, image_id)
+        return jsonify({"status": "ok"}) if ok else jsonify({"status": "error"}), 404
     except Exception as e:
-        return jsonify({"status":"error","message":str(e)}),500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-# ====== التثبيت ======
+
+# ---------- التثبيت ----------
 @app.route('/pinned_conversations')
 def pinned_conversations():
-    email=session.get('user_email')
+    email = session.get('user_email')
     if not email:
-        return jsonify({"pinned":[]})
-    pinned_ids=get_pinned_convs(email)
+        return jsonify({"pinned": []})
+    pinned_ids = get_pinned_convs(email)
     if not pinned_ids:
-        return jsonify({"pinned":[]})
-    uid=get_user_id()
-    all_convs=get_user_conversations(uid)
-    pinned_list=[c for c in all_convs if c["id"] in pinned_ids]
-    return jsonify({"pinned":pinned_list})
+        return jsonify({"pinned": []})
+    uid = get_user_id()
+    all_convs = get_user_conversations(uid)
+    pinned_list = [c for c in all_convs if c["id"] in pinned_ids]
+    return jsonify({"pinned": pinned_list})
 
-@app.route('/pin_conversation',methods=['POST'])
+
+@app.route('/pin_conversation', methods=['POST'])
 def pin_conversation():
-    email=session.get('user_email')
+    email = session.get('user_email')
     if not email:
-        return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
-    d=request.get_json()
-    cid=d.get('conv_id')
+        return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
+    d = request.get_json()
+    cid = d.get('conv_id')
     if not cid:
-        return jsonify({"status":"error"}),400
-    pinned=get_pinned_convs(email)
+        return jsonify({"status": "error"}), 400
+    pinned = get_pinned_convs(email)
     if cid not in pinned:
         pinned.append(cid)
-        save_pinned_convs(email,pinned)
-    return jsonify({"status":"ok"})
+        save_pinned_convs(email, pinned)
+    return jsonify({"status": "ok"})
 
-@app.route('/unpin_conversation',methods=['POST'])
+
+@app.route('/unpin_conversation', methods=['POST'])
 def unpin_conversation():
-    email=session.get('user_email')
+    email = session.get('user_email')
     if not email:
-        return jsonify({"status":"error"}),401
-    d=request.get_json()
-    cid=d.get('conv_id')
-    pinned=get_pinned_convs(email)
+        return jsonify({"status": "error"}), 401
+    d = request.get_json()
+    cid = d.get('conv_id')
+    pinned = get_pinned_convs(email)
     if cid in pinned:
         pinned.remove(cid)
-        save_pinned_convs(email,pinned)
-    return jsonify({"status":"ok"})
+        save_pinned_convs(email, pinned)
+    return jsonify({"status": "ok"})
 
+
+# ---------- المحادثات ----------
 @app.route('/history')
 def history():
-    uid=get_user_id()
-    cs=get_user_conversations(uid)
-    email=session.get('user_email')
-    pinned_ids=get_pinned_convs(email) if email else []
-    result=[]
+    uid = get_user_id()
+    cs = get_user_conversations(uid)
+    email = session.get('user_email')
+    pinned_ids = get_pinned_convs(email) if email else []
+    result = []
     for c in cs:
-        result.append({"id":c["id"],"title":c["title"],"pinned":c["id"] in pinned_ids})
-    return jsonify({"conversations":result})
+        result.append({
+            "id": c["id"],
+            "title": c["title"],
+            "pinned": c["id"] in pinned_ids
+        })
+    return jsonify({"conversations": result})
+
 
 @app.route('/load_conversation/<cid>')
 def load_conversation_route(cid):
-    uid=get_user_id()
-    ms=load_conversation(uid,cid)
-    return jsonify({"messages":ms}) if ms else (jsonify({"messages":None}),404)
+    uid = get_user_id()
+    ms = load_conversation(uid, cid)
+    return jsonify({"messages": ms}) if ms else (jsonify({"messages": None}), 404)
 
-@app.route('/delete_message',methods=['POST'])
+
+@app.route('/delete_message', methods=['POST'])
 def delete_message():
     try:
-        d=request.get_json();cid=d.get('conv_id');idx=d.get('index');uid=get_user_id()
-        if not cid or idx is None:return jsonify({"status":"error","message":"بيانات ناقصة"}),400
-        ok=delete_message_row(uid,cid,idx)
-        if ok:return jsonify({"status":"ok"})
-        return jsonify({"status":"error","message":"غير موجودة"}),404
+        d = request.get_json()
+        cid = d.get('conv_id')
+        idx = d.get('index')
+        uid = get_user_id()
+        if not cid or idx is None:
+            return jsonify({"status": "error", "message": "بيانات ناقصة"}), 400
+        ok = delete_message_row(uid, cid, idx)
+        if ok:
+            return jsonify({"status": "ok"})
+        return jsonify({"status": "error", "message": "غير موجودة"}), 404
     except Exception as e:
-        return jsonify({"status":"error","message":str(e)}),500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/delete_my_account',methods=['POST'])
+
+@app.route('/delete_my_account', methods=['POST'])
 def delete_my_account():
-    email=session.get('user_email')
-    is_admin=session.get('is_admin')
+    email = session.get('user_email')
+    is_admin = session.get('is_admin')
     if not email or is_admin:
-        return jsonify({"status":"error","message":"لا يوجد حساب لحذفه"}),400
-    uid=get_user_id()
+        return jsonify({"status": "error", "message": "لا يوجد حساب لحذفه"}), 400
+    uid = get_user_id()
     try:
-        sb.table("assistant_chats").delete().eq("user_id",uid).execute()
-        sb.table("assistant_usage").delete().eq("user_id",uid).execute()
-        sb.table("image_library").delete().eq("user_id",uid).execute()
-        sb.table("profiles").delete().eq("email",email.lower()).execute()
+        sb.table("assistant_chats").delete().eq("user_id", uid).execute()
+        sb.table("assistant_usage").delete().eq("user_id", uid).execute()
+        sb.table("image_library").delete().eq("user_id", uid).execute()
+        sb.table("profiles").delete().eq("email", email.lower()).execute()
     except Exception as e:
-        print("delete_my_account:",e)
+        print("delete_my_account:", e)
     session.clear()
-    return jsonify({"status":"success","message":"تم حذف حسابك"})
+    return jsonify({"status": "success", "message": "تم حذف حسابك"})
 
-# ====== إعدادات إضافية ======
-@app.route('/update_profile',methods=['POST'])
+
+# ---------- إعدادات إضافية ----------
+@app.route('/update_profile', methods=['POST'])
 def update_profile():
-    email=session.get('user_email')
+    email = session.get('user_email')
     if not email:
-        return jsonify({"status":"error"}),401
-    d=request.get_json()
-    name=(d.get('name') or '').strip()
+        return jsonify({"status": "error"}), 401
+    d = request.get_json()
+    name = (d.get('name') or '').strip()
     if name:
-        save_user_profile(email,name=name)
-        save_user_memory(email,{"name":name})
-    return jsonify({"status":"ok"})
+        save_user_profile(email, name=name)
+        save_user_memory(email, {"name": name})
+    return jsonify({"status": "ok"})
 
-@app.route('/change_password',methods=['POST'])
+
+@app.route('/change_password', methods=['POST'])
 def change_password():
-    email=session.get('user_email')
+    email = session.get('user_email')
     if not email:
-        return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
-    d=request.get_json()
-    oldp=d.get('old_password','')
-    newp=d.get('new_password','')
-    if not oldp or not newp or len(newp)<8:
-        return jsonify({"status":"error","message":"بيانات غير صحيحة"}),400
+        return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
+    d = request.get_json()
+    oldp = d.get('old_password', '')
+    newp = d.get('new_password', '')
+    if not oldp or not newp or len(newp) < 8:
+        return jsonify({"status": "error", "message": "بيانات غير صحيحة"}), 400
     try:
-        r=requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",headers={"apikey":SUPABASE_KEY,"Content-Type":"application/json"},json={"email":email,"password":oldp},timeout=15)
-        if r.status_code!=200:
-            return jsonify({"status":"error","message":"كلمة المرور الحالية خاطئة"}),400
-        access_token=r.json().get('access_token')
-        r2=requests.put(f"{SUPABASE_URL}/auth/v1/user",headers={"apikey":SUPABASE_KEY,"Authorization":f"Bearer {access_token}","Content-Type":"application/json"},json={"password":newp},timeout=15)
-        if r2.status_code==200:
-            return jsonify({"status":"ok"})
-        return jsonify({"status":"error","message":"فشل تغيير كلمة المرور"}),400
+        r = requests.post(
+            f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+            json={"email": email, "password": oldp},
+            timeout=15
+        )
+        if r.status_code != 200:
+            return jsonify({"status": "error", "message": "كلمة المرور الحالية خاطئة"}), 400
+        access_token = r.json().get('access_token')
+        r2 = requests.put(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            },
+            json={"password": newp},
+            timeout=15
+        )
+        if r2.status_code == 200:
+            return jsonify({"status": "ok"})
+        return jsonify({"status": "error", "message": "فشل تغيير كلمة المرور"}), 400
     except Exception as e:
-        return jsonify({"status":"error","message":str(e)}),500
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/export_data')
 def export_data():
-    email=session.get('user_email')
+    email = session.get('user_email')
     if not email:
-        return "يجب تسجيل الدخول",401
-    uid=get_user_id()
-    convs=get_user_conversations(uid)
-    imgs=get_user_images(uid)
-    data={"user_email":email,"conversations":convs,"images_count":len(imgs),"pinned":get_pinned_convs(email)}
-    resp=jsonify(data)
-    resp.headers['Content-Disposition']=f'attachment; filename=nibras_data_{email}.json'
+        return "يجب تسجيل الدخول", 401
+    uid = get_user_id()
+    convs = get_user_conversations(uid)
+    imgs = get_user_images(uid)
+    data = {
+        "user_email": email,
+        "conversations": convs,
+        "images_count": len(imgs),
+        "pinned": get_pinned_convs(email)
+    }
+    resp = jsonify(data)
+    resp.headers['Content-Disposition'] = f'attachment; filename=nibras_data_{email}.json'
     return resp
 
-@app.route('/report_bug',methods=['POST'])
-def report_bug():
-    d=request.get_json()
-    print(f"📩 بلاغ جديد: {d.get('type')} - {d.get('description')} - من {session.get('user_email','ضيف')}")
-    return jsonify({"status":"ok"})
 
-@app.route('/logout_all',methods=['POST'])
+@app.route('/report_bug', methods=['POST'])
+def report_bug():
+    d = request.get_json()
+    print(f"📩 بلاغ جديد: {d.get('type')} - {d.get('description')} - من {session.get('user_email', 'ضيف')}")
+    return jsonify({"status": "ok"})
+
+
+@app.route('/logout_all', methods=['POST'])
 def logout_all():
     session.clear()
-    return jsonify({"status":"ok"})
+    return jsonify({"status": "ok"})
 
+
+# ---------- مشاركة محادثة ----------
 @app.route('/share/<cid>')
 def shared_conversation(cid):
-    rows=load_conversation_public(cid)
-    if not rows:return "المحادثة غير موجودة.",404
-    msgs=[]
-    title="محادثة نبراس"
-    for i,row in enumerate(rows):
-        if i==0 and row.get("title"):title=row["title"]
-        if row.get("message"):msgs.append({"role":"user","content":row["message"]})
-        if row.get("response"):msgs.append({"role":"assistant","content":row["response"]})
-    return render_template_string(SPH,messages=msgs,title=title)
+    rows = load_conversation_public(cid)
+    if not rows:
+        return "المحادثة غير موجودة.", 404
+    msgs = []
+    title = "محادثة نبراس"
+    for i, row in enumerate(rows):
+        if i == 0 and row.get("title"):
+            title = row["title"]
+        if row.get("message"):
+            msgs.append({"role": "user", "content": row["message"]})
+        if row.get("response"):
+            msgs.append({"role": "assistant", "content": row["response"]})
+    return render_template_string(SPH, messages=msgs, title=title)
 
-@app.route('/login',methods=['GET','POST'])
+
+# ---------- تسجيل الدخول / التسجيل / الاستعادة ----------
+@app.route('/login', methods=['GET', 'POST'])
 @limiter.limit("10 per minute")
 def login():
-    if request.method=='POST':
-        e=request.form.get('email','').strip().lower()
-        p=request.form.get('password','')
-        ap=os.environ.get("ADMIN_PASSWORD")
+    if request.method == 'POST':
+        e = request.form.get('email', '').strip().lower()
+        p = request.form.get('password', '')
+        ap = os.environ.get("ADMIN_PASSWORD")
         if not e or "@" not in e:
-            return render_template_string(LH,error="يرجى إدخال بريد صحيح.")
-        if e==ADMIN_EMAIL.lower():
-            if not ap:return render_template_string(LH,error="لم يتم إعداد كلمة مرور الأدمن.")
-            if secrets.compare_digest(p,ap):
-                session.clear();session.permanent=True
-                session['user_email']=e;session['is_admin']=True
-                session['user_role']='admin'
+            return render_template_string(LH, error="يرجى إدخال بريد صحيح.")
+        if e == ADMIN_EMAIL.lower():
+            if not ap:
+                return render_template_string(LH, error="لم يتم إعداد كلمة مرور الأدمن.")
+            if secrets.compare_digest(p, ap):
+                session.clear()
+                session.permanent = True
+                session['user_email'] = e
+                session['is_admin'] = True
+                session['user_role'] = 'admin'
                 return redirect(url_for('index'))
-            return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
+            return render_template_string(LH, error="كلمة مرور الأدمن غير صحيحة.")
         try:
-            r=requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",headers={"apikey":SUPABASE_KEY,"Content-Type":"application/json"},json={"email":e,"password":p},timeout=15)
+            r = requests.post(
+                f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+                headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+                json={"email": e, "password": p},
+                timeout=15
+            )
         except Exception as ex:
-            return render_template_string(LH,error="تعذر الاتصال بخدمة الدخول.")
-        if r.status_code!=200:
+            return render_template_string(LH, error="تعذر الاتصال بخدمة الدخول.")
+        if r.status_code != 200:
             err_text = r.text.lower()
             if "email not confirmed" in err_text or "not confirmed" in err_text:
-                return render_template_string(LH,error="يجب تأكيد بريدك أولاً.")
-            return render_template_string(LH,error="البريد الإلكتروني أو كلمة المرور غير صحيحة.")
-        data=r.json()
-        session.clear();session.permanent=True
-        session['user_email']=e
-        session['is_admin']=False
-        session['access_token']=data.get('access_token')
-        session['refresh_token']=data.get('refresh_token')
-        session['user_role']=get_user_role(e)
+                return render_template_string(LH, error="يجب تأكيد بريدك أولاً.")
+            return render_template_string(LH, error="البريد الإلكتروني أو كلمة المرور غير صحيحة.")
+        data = r.json()
+        session.clear()
+        session.permanent = True
+        session['user_email'] = e
+        session['is_admin'] = False
+        session['access_token'] = data.get('access_token')
+        session['refresh_token'] = data.get('refresh_token')
+        session['user_role'] = get_user_role(e)
         touch_user(e)
         return redirect(url_for('index'))
     return render_template_string(LH)
 
-@app.route('/signup',methods=['POST'])
+
+@app.route('/signup', methods=['POST'])
 @limiter.limit("5 per hour")
 def signup():
-    e=request.form.get('email','').strip().lower()
-    p=request.form.get('password','')
-    name=request.form.get('name','').strip()
-    if not e or "@" not in e or len(p)<8:
-        return render_template_string(LH,error="بريد صحيح وكلمة مرور 8 أحرف على الأقل مطلوبة.")
-    if not name or len(name)<2:
-        return render_template_string(LH,error="الاسم الكامل مطلوب.")
+    e = request.form.get('email', '').strip().lower()
+    p = request.form.get('password', '')
+    name = request.form.get('name', '').strip()
+    if not e or "@" not in e or len(p) < 8:
+        return render_template_string(LH, error="بريد صحيح وكلمة مرور 8 أحرف على الأقل مطلوبة.")
+    if not name or len(name) < 2:
+        return render_template_string(LH, error="الاسم الكامل مطلوب.")
     try:
         redirect_url = f"{request.host_url.rstrip('/')}/verified"
-        sb.auth.sign_up({"email": e,"password": p,"options": {"email_redirect_to": redirect_url,"data": {"display_name": name}}})
+        sb.auth.sign_up({
+            "email": e,
+            "password": p,
+            "options": {
+                "email_redirect_to": redirect_url,
+                "data": {"display_name": name}
+            }
+        })
         save_user_profile(e, name=name)
         save_user_memory(e, {"name": name})
-        return render_template_string(LH,success="تم إنشاء حسابك! افتح بريدك واضغط رابط التأكيد.")
+        return render_template_string(LH, success="تم إنشاء حسابك! افتح بريدك واضغط رابط التأكيد.")
     except Exception as ex:
         err_msg = str(ex)
         if "39 seconds" in err_msg or "rate limit" in err_msg.lower():
-            return render_template_string(LH,error="انتظر 60 ثانية ثم حاول مرة أخرى.")
+            return render_template_string(LH, error="انتظر 60 ثانية ثم حاول مرة أخرى.")
         if "already" in err_msg.lower():
-            return render_template_string(LH,error="هذا البريد مسجل مسبقاً.")
-        return render_template_string(LH,error=f"فشل: {ex}")
+            return render_template_string(LH, error="هذا البريد مسجل مسبقاً.")
+        return render_template_string(LH, error=f"فشل: {ex}")
+
 
 @app.route('/verified')
 def verified():
@@ -980,230 +1214,307 @@ def verified():
         if(accessToken){try{await fetch("__SUPABASE_URL__"+'/auth/v1/user',{headers:{'apikey':"__SUPABASE_KEY__",'Authorization':'Bearer '+accessToken}});}catch(e){}}
     }catch(e){}
 })();
-</script></div></body></html>""".replace("__SUPABASE_URL__",SUPABASE_URL or "").replace("__SUPABASE_KEY__",SUPABASE_KEY or "")
+</script></div></body></html>""".replace("__SUPABASE_URL__", SUPABASE_URL or "").replace("__SUPABASE_KEY__", SUPABASE_KEY or "")
 
-@app.route('/recover',methods=['POST'])
+
+@app.route('/recover', methods=['POST'])
 @limiter.limit("5 per hour")
 def recover():
-    e=request.form.get('email','').strip().lower()
+    e = request.form.get('email', '').strip().lower()
     if not e or "@" not in e:
-        return render_template_string(LH,error="أدخل بريداً صحيحاً.")
+        return render_template_string(LH, error="أدخل بريداً صحيحاً.")
     try:
-        requests.post(f"{SUPABASE_URL}/auth/v1/recover",headers={"apikey":SUPABASE_KEY,"Content-Type":"application/json"},json={"email":e},timeout=15)
-        return render_template_string(LH,success="تم إرسال رابط استعادة كلمة المرور إلى بريدك.")
+        requests.post(
+            f"{SUPABASE_URL}/auth/v1/recover",
+            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+            json={"email": e},
+            timeout=15
+        )
+        return render_template_string(LH, success="تم إرسال رابط استعادة كلمة المرور إلى بريدك.")
     except Exception as ex:
-        return render_template_string(LH,error=f"تعذر إرسال الرابط: {ex}")
+        return render_template_string(LH, error=f"تعذر إرسال الرابط: {ex}")
+
 
 @app.route('/logout')
-def logout():session.clear();return redirect(url_for('index'))
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
 
-@app.route('/admin/login',methods=['GET','POST'])
+
+# ---------- لوحة الأدمن ----------
+@app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    if request.method=='POST':
-        p=request.form.get('password','')
-        ap=os.environ.get("ADMIN_PASSWORD")
-        if ap and secrets.compare_digest(p,ap):
-            session['is_admin']=True;session.permanent=True
+    if request.method == 'POST':
+        p = request.form.get('password', '')
+        ap = os.environ.get("ADMIN_PASSWORD")
+        if ap and secrets.compare_digest(p, ap):
+            session['is_admin'] = True
+            session.permanent = True
             return redirect(url_for('admin_dashboard'))
         return """<body style='background:#f4f7fc;color:#1a2b3c;font-family:sans-serif;text-align:center;padding:50px;'><h2>كلمة مرور خاطئة</h2><a href='/admin/login' style='color:#4a6a8a;'>حاول مرة أخرى</a></body>"""
     return """<body style='background:#f4f7fc;color:#1a2b3c;font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;'><form method='POST' style='background:#fff;padding:30px;border-radius:20px;box-shadow:0 4px 30px rgba(0,0,0,0.06);text-align:center;'><h2 style='color:#4a6a8a;'>دخول الأدمن</h2><input type='password' name='password' placeholder='كلمة المرور' required style='padding:14px;border-radius:12px;border:1.5px solid #dce1e8;background:#fafbfc;color:#1a2b3c;font-size:16px;width:250px;font-family:inherit;'><br><br><button type='submit' style='background:#4a6a8a;color:#fff;border:none;padding:12px 30px;border-radius:12px;cursor:pointer;font-size:16px;font-weight:bold;font-family:inherit;'>دخول</button></form></body>"""
 
+
 @app.route('/admin')
 def admin_dashboard():
-    if not session.get('is_admin'):return redirect(url_for('admin_login'))
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
     try:
-        recent_r=(sb.table("assistant_chats").select("user_id,title,created_at").order("created_at",desc=True).limit(10).execute())
-        recent=recent_r.data or []
-        users_r=(sb.table("profiles").select("email,display_name,role,created_at,last_seen").order("created_at",desc=True).limit(30).execute())
-        users_list=users_r.data or []
-        chats_r=(sb.table("assistant_chats").select("user_id").execute())
-        total_convs=len(chats_r.data or [])
+        recent_r = (sb.table("assistant_chats")
+                    .select("user_id,title,created_at")
+                    .order("created_at", desc=True).limit(10).execute())
+        recent = recent_r.data or []
+        users_r = (sb.table("profiles")
+                   .select("email,display_name,role,created_at,last_seen")
+                   .order("created_at", desc=True).limit(30).execute())
+        users_list = users_r.data or []
+        chats_r = (sb.table("assistant_chats").select("user_id").execute())
+        total_convs = len(chats_r.data or [])
     except Exception as e:
-        print("admin_dashboard:",e);recent=[];users_list=[];total_convs=0
-    today=_date.today().isoformat()
-    today_convs=sum(1 for r in recent if (r.get("created_at") or "").startswith(today))
-    recent_html=""
+        print("admin_dashboard:", e)
+        recent = []
+        users_list = []
+        total_convs = 0
+    today = _date.today().isoformat()
+    today_convs = sum(1 for r in recent if (r.get("created_at") or "").startswith(today))
+    recent_html = ""
     for row in recent:
-        user=row.get("user_id","")[:20]
-        title=row.get("title") or "بدون عنوان"
-        time=(row.get("created_at") or "")[:16].replace("T"," ")
-        recent_html+=f'<div class="conv-item"><b>{title}</b><small>{user} | {time}</small></div>'
-    if not recent_html:recent_html="<p style='color:#8b949e;text-align:center;'>لا توجد محادثات</p>"
-    users_html=""
+        user = row.get("user_id", "")[:20]
+        title = row.get("title") or "بدون عنوان"
+        time = (row.get("created_at") or "")[:16].replace("T", " ")
+        recent_html += f'<div class="conv-item"><b>{title}</b><small>{user} | {time}</small></div>'
+    if not recent_html:
+        recent_html = "<p style='color:#8b949e;text-align:center;'>لا توجد محادثات</p>"
+    users_html = ""
     for u in users_list:
-        name=u.get("display_name") or "بدون اسم"
-        email=u.get("email","")
-        role=u.get("role","user")
-        role_badge="👑" if role=="admin" else "👤"
-        users_html+=f'<div class="conv-item"><b>{role_badge} {name}</b><small>{email} | {role}</small></div>'
-    if not users_html:users_html="<p style='color:#8b949e;text-align:center;'>لا يوجد مستخدمون</p>"
+        name = u.get("display_name") or "بدون اسم"
+        email = u.get("email", "")
+        role = u.get("role", "user")
+        role_badge = "👑" if role == "admin" else "👤"
+        users_html += f'<div class="conv-item"><b>{role_badge} {name}</b><small>{email} | {role}</small></div>'
+    if not users_html:
+        users_html = "<p style='color:#8b949e;text-align:center;'>لا يوجد مستخدمون</p>"
     return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>body{{font-family:'Segoe UI',Tahoma;background:#f4f7fc;color:#1a2b3c;padding:20px;margin:0}}.container{{max-width:600px;margin:auto}}h1{{color:#4a6a8a;text-align:center}}.card{{background:#fff;border-radius:15px;padding:15px;margin:15px 0;box-shadow:0 4px 16px rgba(0,0,0,0.04)}}.stat{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eef1f6}}.stat:last-child{{border:none}}.num{{color:#4a6a8a;font-weight:bold;font-size:18px}}.conv-item{{padding:10px 0;border-bottom:1px solid #eef1f6}}.conv-item small{{color:#8b949e;display:block;font-size:12px}}.back{{display:block;text-align:center;color:#4a6a8a;text-decoration:none;margin-top:20px;font-weight:600}}</style></head><body><div class="container"><h1>لوحة تحكم نبراس</h1><div class="card"><div class="stat"><span>المستخدمون</span><span class="num">{len(users_list)}</span></div><div class="stat"><span>إجمالي المحادثات</span><span class="num">{total_convs}</span></div><div class="stat"><span>آخر 10 (اليوم)</span><span class="num">{today_convs}</span></div></div><div class="card"><h3>المستخدمون المسجلون</h3>{users_html}</div><div class="card"><h3>آخر 10 محادثات</h3>{recent_html}</div><a href="/" class="back">الرئيسية</a></div></body></html>"""
 
-@app.route('/set_gender',methods=['POST'])
-def set_gender():
-    d=request.get_json();g=d.get('gender','male');session['voice_gender']=g
-    return jsonify({"status":"ok"})
 
-@app.route('/voice',methods=['POST'])
+# ---------- إعدادات الصوت ----------
+@app.route('/set_gender', methods=['POST'])
+def set_gender():
+    d = request.get_json()
+    g = d.get('gender', 'male')
+    session['voice_gender'] = g
+    return jsonify({"status": "ok"})
+
+
+@app.route('/voice', methods=['POST'])
 @limiter.limit("30 per minute")
 def voice():
     try:
-        d=request.get_json()
-        text=(d.get('text') or "").strip()
-        if not text or len(text)>3000:
-            return jsonify({"audio":None})
-        g=session.get('voice_gender','male')
-        audio=generate_speech(text,g)
-        return jsonify({"audio":audio})
+        d = request.get_json()
+        text = (d.get('text') or "").strip()
+        if not text or len(text) > 3000:
+            return jsonify({"audio": None})
+        g = session.get('voice_gender', 'male')
+        audio = generate_speech(text, g)
+        return jsonify({"audio": audio})
     except Exception as e:
         print(f"voice: {e}")
-        return jsonify({"audio":None})
+        return jsonify({"audio": None})
 
-@app.route('/chat',methods=['POST'])
+
+# ---------- المحادثة الرئيسية ----------
+@app.route('/chat', methods=['POST'])
 @limiter.limit("20 per minute")
 def chat():
     try:
-        d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
-        if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
-        is_admin=bool(session.get('is_admin'))
-        user_email=session.get('user_email','')
-        user_role=get_user_role(user_email) if user_email else 'guest'
-        is_registered=is_admin or (bool(user_email) and user_role in ('user','admin'))
-        uid=get_user_id()
-        
-        usage,limits,can_chat,can_search,can_image=check_limits(uid,user_role if not is_admin else 'admin')
-        
+        d = request.get_json()
+        um = d.get("message", "").strip()
+        hist = d.get("history", [])
+        cid = d.get("conv_id", None)
+        if not um:
+            return jsonify({"reply": "اكتب شيء أساعدك فيه"})
+
+        is_admin = bool(session.get('is_admin'))
+        user_email = session.get('user_email', '')
+        user_role = get_user_role(user_email) if user_email else 'guest'
+        is_registered = is_admin or (bool(user_email) and user_role in ('user', 'admin'))
+        uid = get_user_id()
+
+        usage, limits, can_chat, can_search, can_image = check_limits(
+            uid, user_role if not is_admin else 'admin'
+        )
+
         if not can_chat:
-            reply_limit="وصلت للحد اليومي للمحادثات (15). تقدر ترجع بكرة إن شاء الله."
+            reply_limit = "وصلت للحد اليومي للمحادثات (15). تقدر ترجع بكرة إن شاء الله."
             if is_registered:
-                nid=save_message(uid,um,reply_limit,cid)
+                nid = save_message(uid, um, reply_limit, cid)
             else:
-                nid=cid
-            return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
-        
+                nid = cid
+            return jsonify({"reply": reply_limit, "conv_id": nid, "audio": None})
+
         if is_registered and user_email:
-            try: touch_user(user_email)
-            except: pass
+            try:
+                touch_user(user_email)
+            except:
+                pass
             if not cid:
                 try:
-                    recent=(sb.table("assistant_chats").select("conv_id")
-                            .eq("user_id",uid).order("created_at",desc=True).limit(1).execute())
+                    recent = (sb.table("assistant_chats").select("conv_id")
+                              .eq("user_id", uid).order("created_at", desc=True)
+                              .limit(1).execute())
                     if recent and recent.data:
-                        last_cid=recent.data[0].get("conv_id")
-                        if last_cid: summarize_old_conversation(uid, last_cid)
+                        last_cid = recent.data[0].get("conv_id")
+                        if last_cid:
+                            summarize_old_conversation(uid, last_cid)
                 except Exception as e:
-                    print("auto-summarize:",e)
-        
-        has_image=d.get("image") is not None
+                    print("auto-summarize:", e)
+
+        has_image = d.get("image") is not None
         if has_image:
             if not is_registered:
-                reply="تحليل الصور متاح للمسجلين فقط. سجّل دخولك عشان تستفيد."
-                nid=cid
-                return jsonify({"reply":reply,"conv_id":nid})
+                reply = "تحليل الصور متاح للمسجلين فقط. سجّل دخولك عشان تستفيد."
+                nid = cid
+                return jsonify({"reply": reply, "conv_id": nid})
             if not can_image:
-                reply="وصلت للحد اليومي لتحليل الصور (صورة واحدة). تقدر ترجع بكرة."
-                nid=save_message(uid,um,reply,cid)
-                inc_usage(uid,"chat_count")
-                return jsonify({"reply":reply,"conv_id":nid})
-        
-        search_keywords=["أحدث","اليوم","الآن","2025","2026","جديد","خبر","أخبار","سعر","أسعار","مباراة","نتيجة","طقس","متى"]
-        need_search=any(kw in um for kw in search_keywords)
-        
-        user_memory={}
-        memory_context=""
+                reply = "وصلت للحد اليومي لتحليل الصور (صورة واحدة). تقدر ترجع بكرة."
+                nid = save_message(uid, um, reply, cid)
+                inc_usage(uid, "chat_count")
+                return jsonify({"reply": reply, "conv_id": nid})
+
+        search_keywords = ["أحدث", "اليوم", "الآن", "2025", "2026", "جديد",
+                           "خبر", "أخبار", "سعر", "أسعار", "مباراة", "نتيجة",
+                           "طقس", "متى"]
+        need_search = any(kw in um for kw in search_keywords)
+
+        user_memory = {}
+        memory_context = ""
         if is_registered:
-            user_memory=get_user_memory(user_email) if user_email else {}
-            name_patterns=[
+            user_memory = get_user_memory(user_email) if user_email else {}
+            name_patterns = [
                 r'(?:اسمي|انا|أنا|إسمي)\s+([\u0600-\u06FF]{2,20})',
                 r'(?:اسمي|انا|أنا|إسمي)\s+([A-Za-z]{2,20})',
                 r'(?:نادني|سميني|لقبي)\s+([\u0600-\u06FF]{2,20})',
             ]
             for pattern in name_patterns:
-                match=re.search(pattern,um)
+                match = re.search(pattern, um)
                 if match:
-                    candidate=match.group(1).strip()
-                    stopwords=['وش','ايش','مين','هو','هي','من','في','على','ما','لا','واحد','شي']
-                    if candidate not in stopwords and len(candidate)>=2:
-                        user_memory['name']=candidate
-                        if user_email: save_user_memory(user_email,user_memory)
+                    candidate = match.group(1).strip()
+                    stopwords = ['وش', 'ايش', 'مين', 'هو', 'هي', 'من', 'في', 'على', 'ما', 'لا', 'واحد', 'شي']
+                    if candidate not in stopwords and len(candidate) >= 2:
+                        user_memory['name'] = candidate
+                        if user_email:
+                            save_user_memory(user_email, user_memory)
                         break
-            
-            memory_parts=[]
+
+            memory_parts = []
             if user_memory.get('name'):
                 memory_parts.append(f"اسم المستخدم: {user_memory['name']}")
             elif user_email:
-                profile=get_user_profile(user_email)
+                profile = get_user_profile(user_email)
                 if profile and profile.get('display_name'):
                     memory_parts.append(f"اسم المستخدم: {profile['display_name']}")
-            
-            summaries=get_recent_summaries(uid, limit=5)
+
+            summaries = get_recent_summaries(uid, limit=5)
             if summaries:
-                summary_lines=[]
+                summary_lines = []
                 for s in summaries:
-                    title=s.get('title','محادثة')
-                    summary=s['summary']
+                    title = s.get('title', 'محادثة')
+                    summary = s['summary']
                     summary_lines.append(f"• عن [{title}]: {summary}")
-                memory_parts.append("مواضيع سابقة تحدثنا فيها:\n"+"\n".join(summary_lines))
-            
+                memory_parts.append("مواضيع سابقة تحدثنا فيها:\n" + "\n".join(summary_lines))
+
             if memory_parts:
-                memory_context="\n\n**معلومات عن المستخدم:**\n"+"\n".join(memory_parts)
-        
-        server_hist=load_conversation(uid,cid) if (cid and is_registered) else []
-        if not server_hist:server_hist=[]
-        server_hist.append({"role":"user","content":um})
-        ch=server_hist[-15:]
-        msgs=[{"role":"system","content":SP+memory_context}]
+                memory_context = "\n\n**معلومات عن المستخدم:**\n" + "\n".join(memory_parts)
+
+        server_hist = load_conversation(uid, cid) if (cid and is_registered) else []
+        if not server_hist:
+            server_hist = []
+        server_hist.append({"role": "user", "content": um})
+        ch = server_hist[-15:]
+        msgs = [{"role": "system", "content": SP + memory_context}]
         for e in ch:
-            if isinstance(e.get("content"),str):
-                msgs.append({"role":e["role"],"content":e["content"]})
-        
-        img_data=d.get("image",None)
+            if isinstance(e.get("content"), str):
+                msgs.append({"role": e["role"], "content": e["content"]})
+
+        img_data = d.get("image", None)
         if img_data and is_registered and can_image:
-            msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
-        
+            msgs.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": um or "حلل الصورة"},
+                    {"type": "image_url", "image_url": {"url": img_data}}
+                ]
+            })
+
         if is_registered and need_search and can_search:
             try:
-                fc=""
+                fc = ""
                 for m in msgs[-6:]:
-                    if isinstance(m.get("content"),str):
-                        if m["role"]=="user":fc+=m["content"]+"\n"
-                        elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
-                sr=client.responses.create(model=OPENAI_MODEL,instructions=f"{SP}\n\nسياق:\n{fc}",input=f"ابحث عن أحدث المعلومات: {um}",tools=[{"type":"web_search"}])
-                res=sr.output_text.strip()
-                if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}"})
-                inc_usage(uid,"search_count")
-            except Exception as e:print(f"بحث: {e}")
-        
+                    if isinstance(m.get("content"), str):
+                        if m["role"] == "user":
+                            fc += m["content"] + "\n"
+                        elif m["role"] == "assistant":
+                            fc += "نبراس: " + m["content"] + "\n"
+                sr = client.responses.create(
+                    model=OPENAI_MODEL,
+                    instructions=f"{SP}\n\nسياق:\n{fc}",
+                    input=f"ابحث عن أحدث المعلومات: {um}",
+                    tools=[{"type": "web_search"}]
+                )
+                res = sr.output_text.strip()
+                if res:
+                    msgs.append({"role": "user", "content": f"نتيجة البحث:\n{res}"})
+                inc_usage(uid, "search_count")
+            except Exception as e:
+                print(f"بحث: {e}")
+
         try:
-            r=client.chat.completions.create(model=OPENAI_MODEL,messages=msgs,max_completion_tokens=8000,reasoning_effort="low")
-            reply=r.choices[0].message.content.strip()
-            if not reply:reply="ما قدرت أجيب رد."
+            r = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=msgs,
+                max_completion_tokens=8000,
+                reasoning_effort="low"
+            )
+            reply = r.choices[0].message.content.strip()
+            if not reply:
+                reply = "ما قدرت أجيب رد."
         except Exception as e:
             print(f"{e}")
-            return jsonify({"error":str(e)}),500
-        
-        lines=reply.split('\n');merged=[];cur=[]
+            return jsonify({"error": str(e)}), 500
+
+        lines = reply.split('\n')
+        merged = []
+        cur = []
         for line in lines:
-            line=line.strip()
+            line = line.strip()
             if not line:
-                if cur:merged.append(' '.join(cur));cur=[]
-            else:cur.append(line)
-        if cur:merged.append(' '.join(cur))
-        reply='\n\n'.join(merged)
-        
-        nid=cid
+                if cur:
+                    merged.append(' '.join(cur))
+                    cur = []
+            else:
+                cur.append(line)
+        if cur:
+            merged.append(' '.join(cur))
+        reply = '\n\n'.join(merged)
+
+        nid = cid
         if is_registered:
-            nid=save_message(uid,um,reply,cid)
-            inc_usage(uid,"chat_count")
+            nid = save_message(uid, um, reply, cid)
+            inc_usage(uid, "chat_count")
             if has_image and can_image:
-                inc_usage(uid,"image_count")
+                inc_usage(uid, "image_count")
         else:
             if not nid:
-                nid="guest_conv_"+secrets.token_hex(5)
-        
-        return jsonify({"reply":reply,"audio":None,"conv_id":nid})
+                nid = "guest_conv_" + secrets.token_hex(5)
+
+        return jsonify({"reply": reply, "audio": None, "conv_id": nid})
     except Exception as e:
         print(f"{e}")
-        return jsonify({"status":"error","message":str(e)}),500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
+
+# ==========================================================
+#  تشغيل التطبيق
+# ==========================================================
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
