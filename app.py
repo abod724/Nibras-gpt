@@ -28,7 +28,7 @@ sb=create_client(SUPABASE_URL,SUPABASE_KEY)
 # ✅ الحدود: الضيف والمسجل كلاهما 15 محادثة، لكن المسجل عنده بحث وصور وذاكرة
 LIMITS={
     "guest":  {"chat":15,  "search":0,   "image":0},
-    "user":   {"chat":15,  "search":2,   "image":1},   # ← نفس الضيف + بحثين + صورة
+    "user":   {"chat":15,  "search":2,   "image":1},
     "admin":  {"chat":9999,"search":9999,"image":9999},
 }
 
@@ -163,7 +163,6 @@ def summarize_old_conversation(uid, cid):
         print("summarize_old_conversation:",e)
 
 def get_user_id():
-    """✅ يرجع UID ثابت لكل مستخدم مسجل، و UID مؤقت للضيف (محفوظ في الجلسة)"""
     if session.get('is_admin'):return "admin_page"
     if session.get('user_email'):return "user_"+session['user_email']
     if 'guest_id' not in session:
@@ -624,6 +623,50 @@ def delete_my_account():
     session.clear()
     return jsonify({"status":"success","message":"تم حذف حسابك"})
 
+# ✅ مسار حذف الحساب عبر الويب (من صفحة GitHub Pages)
+@app.route('/web_delete_request', methods=['POST', 'OPTIONS'])
+def web_delete_request():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        d = request.get_json()
+        email = (d.get('email') or '').strip().lower()
+        password = d.get('password') or ''
+        
+        if not email or not password:
+            return jsonify({"status": "error", "message": "البريد وكلمة المرور مطلوبان"}), 400
+        
+        # التحقق من البريد وكلمة المرور عبر Supabase Auth
+        try:
+            r = requests.post(
+                f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+                headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+                json={"email": email, "password": password},
+                timeout=15
+            )
+            if r.status_code != 200:
+                return jsonify({"status": "error", "message": "البريد أو كلمة المرور غير صحيحة"}), 401
+        except Exception as e:
+            print("web_delete auth:", e)
+            return jsonify({"status": "error", "message": "تعذر التحقق من البيانات"}), 500
+        
+        # حذف البيانات
+        uid = "user_" + email
+        try:
+            sb.table("assistant_chats").delete().eq("user_id", uid).execute()
+            sb.table("assistant_usage").delete().eq("user_id", uid).execute()
+            sb.table("image_library").delete().eq("user_id", uid).execute()
+            sb.table("profiles").delete().eq("email", email).execute()
+        except Exception as e:
+            print("web_delete:", e)
+            return jsonify({"status": "error", "message": "تعذر حذف البيانات"}), 500
+        
+        return jsonify({"status": "success", "message": "تم حذف حسابك بنجاح"})
+    except Exception as e:
+        print("web_delete_request:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/admin/login',methods=['GET','POST'])
 def admin_login():
     if request.method=='POST':
@@ -698,20 +741,16 @@ def chat():
         is_registered=is_admin or (bool(user_email) and user_role in ('user','admin'))
         uid=get_user_id()
         
-        # ✅ الحصول على الحدود والحالات
         usage,limits,can_chat,can_search,can_image=check_limits(uid,user_role if not is_admin else 'admin')
         
-        # ✅ إذا وصل لحد المحادثات، يوقف
         if not can_chat:
             reply_limit="وصلت للحد اليومي للمحادثات (15). تقدر ترجع بكرة إن شاء الله."
-            # فقط نحفظ لو مسجل
             if is_registered:
                 nid=save_message(uid,um,reply_limit,cid)
             else:
                 nid=cid
             return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
         
-        # ✅ تحديث last_seen و حفظ المحادثة السابقة (فقط للمسجل)
         if is_registered and user_email:
             try: touch_user(user_email)
             except: pass
@@ -725,29 +764,24 @@ def chat():
                 except Exception as e:
                     print("auto-summarize:",e)
         
-        # ✅ إذا فيه صورة مرفقة (يحتاج مسجل + can_image)
         has_image=d.get("image") is not None
         if has_image:
             if not is_registered:
                 reply="تحليل الصور متاح للمسجلين فقط. سجّل دخولك عشان تستفيد."
-                nid=cid
-                return jsonify({"reply":reply,"conv_id":nid})
+                return jsonify({"reply":reply,"conv_id":cid})
             if not can_image:
                 reply="وصلت للحد اليومي لتحليل الصور (صورة واحدة). تقدر ترجع بكرة."
                 nid=save_message(uid,um,reply,cid)
                 inc_usage(uid,"chat_count")
                 return jsonify({"reply":reply,"conv_id":nid})
         
-        # ✅ إذا فيه بحث بالويب
         search_keywords=["أحدث","اليوم","الآن","2025","2026","جديد","خبر","أخبار","سعر","أسعار","مباراة","نتيجة","طقس","متى"]
         need_search=any(kw in um for kw in search_keywords)
         
-        # ✅ الذاكرة طويلة المدى (فقط للمسجل)
         user_memory={}
         memory_context=""
         if is_registered:
             user_memory=get_user_memory(user_email) if user_email else {}
-            # استخراج الاسم
             name_patterns=[
                 r'(?:اسمي|انا|أنا|إسمي)\s+([\u0600-\u06FF]{2,20})',
                 r'(?:اسمي|انا|أنا|إسمي)\s+([A-Za-z]{2,20})',
@@ -783,7 +817,6 @@ def chat():
             if memory_parts:
                 memory_context="\n\n**معلومات عن المستخدم:**\n"+"\n".join(memory_parts)
         
-        # ✅ بناء السياق
         server_hist=load_conversation(uid,cid) if (cid and is_registered) else []
         if not server_hist:server_hist=[]
         server_hist.append({"role":"user","content":um})
@@ -797,7 +830,6 @@ def chat():
         if img_data and is_registered and can_image:
             msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
         
-        # ✅ البحث بالويب (فقط للمسجل + can_search)
         if is_registered and need_search and can_search:
             try:
                 fc=""
@@ -811,7 +843,6 @@ def chat():
                 inc_usage(uid,"search_count")
             except Exception as e:print(f"بحث: {e}")
         
-        # ✅ توليد الرد
         try:
             r=client.chat.completions.create(model=OPENAI_MODEL,messages=msgs,max_completion_tokens=8000,reasoning_effort="low")
             reply=r.choices[0].message.content.strip()
@@ -820,7 +851,6 @@ def chat():
             print(f"{e}")
             return jsonify({"error":str(e)}),500
         
-        # ✅ تنسيق الفقرات
         lines=reply.split('\n');merged=[];cur=[]
         for line in lines:
             line=line.strip()
@@ -830,7 +860,6 @@ def chat():
         if cur:merged.append(' '.join(cur))
         reply='\n\n'.join(merged)
         
-        # ✅ الحفظ (فقط للمسجل)
         nid=cid
         if is_registered:
             nid=save_message(uid,um,reply,cid)
@@ -838,7 +867,6 @@ def chat():
             if has_image and can_image:
                 inc_usage(uid,"image_count")
         else:
-            # الضيف: نستخدم cid مؤقت في الجلسة فقط
             if not nid:
                 nid="guest_conv_"+secrets.token_hex(5)
         
