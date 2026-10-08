@@ -1698,9 +1698,8 @@ def chat():
                     model=OPENAI_SEARCH_MODEL,
                     instructions=f"{SP}\n\nسياق:\n{fc}",
                     input=f"ابحث عن أحدث المعلومات: {um}",
-                    tools=[{"type": "web_search_preview"}]
+                    tools=[{"type": "web_search"}]
                 )
-                # دعم شكلين محتملين للرد
                 res = ""
                 if hasattr(sr, "output_text") and sr.output_text:
                     res = sr.output_text.strip()
@@ -1718,12 +1717,12 @@ def chat():
             except Exception as e:
                 print(f"❌ فشل البحث ({type(e).__name__}): {e}")
 
+        # ✅ تم حذف reasoning_effort لأن بعض الموديلات لا تدعمه
         try:
             r = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=msgs,
-                max_completion_tokens=8000,
-                reasoning_effort="low"
+                max_completion_tokens=8000
             )
             reply = r.choices[0].message.content.strip()
             if not reply:
