@@ -555,3 +555,655 @@ HT=r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><me
 </div>
 
 <div id="chat"></div><div id="imagePreviewContainer"><img id="imagePreview" src=""/><span class="label">صورة معلقة</span><button id="removeImageBtn">إزالة</button></div><div class="input-area"><button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button><button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button><div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button></div><textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea><button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/></div>
+<script>(function(){let ch=[],pid=null,iw=!1,cid=null,ca=null,voiceOn=false;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
+const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+vt.addEventListener('click',function(){voiceOn=!voiceOn;if(voiceOn){vt.classList.remove('voice-off');vt.classList.add('voice-on');vt.innerHTML=SVG_SPK_ON;showToast('الصوت مفعّل');}else{vt.classList.remove('voice-on');vt.classList.add('voice-off');vt.innerHTML=SVG_SPK_OFF;if(ca){ca.pause();ca.currentTime=0;ca=null;}showToast('الصوت مغلق');}});
+function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
+let isMale=!0;const gopts=document.querySelectorAll('.gender-option');
+mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();loadPinned();gopts.forEach(b=>b.classList.remove('active'));if(isMale)document.querySelector('.gender-option[data-gender="male"]').classList.add('active');else document.querySelector('.gender-option[data-gender="female"]').classList.add('active')}});
+gopts.forEach(b=>{b.addEventListener('click',function(e){e.stopPropagation();const g=this.dataset.gender;isMale=g==='male';gopts.forEach(x=>x.classList.remove('active'));this.classList.add('active');fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})});dd.classList.remove('show')})});
+
+// ====== دوال الإعدادات ======
+function openSettings(){document.getElementById('settingsModal').classList.add('show');document.getElementById('dropdown').classList.remove('show');}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
+function toggleThemeAccordion(){const acc=document.getElementById('themeAccordion');acc.style.display=acc.style.display==='none'?'flex':'none';}
+function toggleColorAccordion(){const acc=document.getElementById('colorAccordion');acc.style.display=acc.style.display==='none'?'flex':'none';}
+function setTheme(t){const h=document.documentElement;if(t==='dark'){h.classList.add('dark-mode');localStorage.setItem('nibras-theme','dark')}else{h.classList.remove('dark-mode');localStorage.setItem('nibras-theme','light')}}
+function setAccentColor(color,name){document.documentElement.style.setProperty('--primary-color',color);document.documentElement.style.setProperty('--accent-color',color);document.getElementById('currentColorLabel').textContent=name;document.getElementById('currentColorDot').style.background=color;localStorage.setItem('nibras-accent',color);localStorage.setItem('nibras-accent-name',name);}
+setTheme(localStorage.getItem('nibras-theme')||'light');
+const savedAccent=localStorage.getItem('nibras-accent');const savedAccentName=localStorage.getItem('nibras-accent-name');
+if(savedAccent){setAccentColor(savedAccent,savedAccentName||'مخصص');}
+
+// ====== الصفحات الفرعية ======
+const subPagesContent={
+    general:`<div class="field"><label>الاسم الكامل</label><input type="text" id="sp-name" value="{{ user_name or '' }}" placeholder="اكتب اسمك"></div>
+    <div class="field"><label>اللغة</label><select id="sp-lang"><option value="ar">العربية</option><option value="en">English</option></select></div>
+    <button class="save-btn" onclick="saveGeneral()">حفظ</button>`,
+    notifications:`<div class="info-box">الإشعارات تسمح لك بتلقي تنبيهات فورية عند وصول ردود جديدة من نبراس.</div>
+    <button class="save-btn" onclick="requestNotifications()">تفعيل الإشعارات</button>`,
+    voice:`<div class="field"><label>جنس الصوت</label><select id="sp-voice-gender"><option value="male">ذكر (حامد)</option><option value="female">أنثى (زارية)</option></select></div>
+    <div class="field"><label>مستوى الصوت</label><input type="range" id="sp-voice-level" min="0" max="100" value="100" oninput="document.getElementById('sp-voice-val').textContent=this.value+'%'"><span id="sp-voice-val">100%</span></div>
+    <button class="save-btn" onclick="saveVoice()">حفظ</button>`,
+    safety:`<div class="info-box"><b>إرشادات السلامة:</b><br>• لا تشارك معلوماتك الشخصية الحساسة.<br>• نبراس مساعد ذكي، وليس بديلاً عن الاستشارة المتخصصة.<br>• أبلغ عن أي محتوى غير لائق.</div>`,
+    security:`<div class="field"><label>البريد الإلكتروني</label><input type="email" value="{{ session.get('user_email','') }}" disabled></div>
+    <div class="field"><label>كلمة المرور الحالية</label><input type="password" id="sp-old-pass" placeholder="••••••••"></div>
+    <div class="field"><label>كلمة المرور الجديدة</label><input type="password" id="sp-new-pass" placeholder="••••••••"></div>
+    <button class="save-btn" onclick="changePassword()">تغيير كلمة المرور</button>`,
+    remote:`<div class="info-box"><b>الأجهزة المتصلة:</b><br>هذا الجهاز (المتصفح الحالي) - الآن<br><br>لتسجيل الخروج من جميع الأجهزة، اضغط الزر أدناه.</div>
+    <button class="save-btn" onclick="logoutAll()">تسجيل الخروج من كل الأجهزة</button>`,
+    storage:`<div class="info-box"><b>التخزين المستخدم:</b><br>المحادثات: <span id="sp-conv-count">0</span><br>الصور: <span id="sp-img-count">0</span><br><br>لتفريغ الكاش المحلي:</div>
+    <button class="save-btn" onclick="clearCache()">مسح الكاش</button>`,
+    privacy:`<div class="info-box"><b>سياسة الخصوصية:</b><br>• نحتفظ بمحادثاتك لتقديم خدمة أفضل.<br>• لا نشارك بياناتك مع أطراف ثالثة.<br>• يمكنك حذف بياناتك في أي وقت من "التحكم في البيانات".</div>`,
+    data:`<div class="info-box">يمكنك تصدير جميع بياناتك أو حذفها نهائياً.</div>
+    <button class="save-btn" onclick="exportData()">تصدير البيانات (JSON)</button>
+    <button class="save-btn" style="background:#d32f2f;" onclick="deleteMyAccount()">حذف كل البيانات</button>`,
+    ads:`<div class="field"><label>تخصيص الإعلانات</label><select id="sp-ads"><option value="personalized">مخصصة</option><option value="non-personalized">غير مخصصة</option></select></div>
+    <button class="save-btn" onclick="saveAds()">حفظ</button>`,
+    report:`<div class="field"><label>نوع المشكلة</label><select id="sp-report-type"><option>خطأ تقني</option><option>محتوى غير لائق</option><option>اقتراح</option><option>أخرى</option></select></div>
+    <div class="field"><label>الوصف</label><input type="text" id="sp-report-desc" placeholder="اشرح المشكلة..."></div>
+    <button class="save-btn" onclick="sendReport()">إرسال البلاغ</button>`,
+    about:`<div class="info-box"><b>نبراس GP</b><br>الإصدار 1.0<br><br>مساعد ذكي شخصي باللهجة العربية العامية.<br><br>© 2025 جميع الحقوق محفوظة.</div>`
+};
+function openSubPage(key){const titleMap={general:'عام',notifications:'الإشعارات',voice:'الصوت',safety:'السلامة',security:'الأمان وتسجيل الدخول',remote:'التحكم عن بُعد',storage:'التخزين',privacy:'مركز الخصوصية',data:'التحكم في البيانات',ads:'التحكم في الإعلانات',report:'الإبلاغ عن خطأ',about:'حول'};document.getElementById('subPageTitle').textContent=titleMap[key]||'إعدادات';document.getElementById('subPageBody').innerHTML=subPagesContent[key]||'<div class="info-box">قريباً</div>';document.getElementById('subPage').classList.add('show');if(key==='storage')loadStorageInfo();}
+function closeSubPage(){document.getElementById('subPage').classList.remove('show');}
+async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
+function saveGeneral(){const n=document.getElementById('sp-name').value;fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم الحفظ');closeSubPage();}});}
+function requestNotifications(){if(!('Notification' in window)){showToast('المتصفح لا يدعم الإشعارات');return;}Notification.requestPermission().then(p=>{showToast(p==='granted'?'تم تفعيل الإشعارات':'تم رفض الإشعارات');});}
+function saveVoice(){const g=document.getElementById('sp-voice-gender').value;const lvl=document.getElementById('sp-voice-level').value;fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})}).then(()=>{localStorage.setItem('nibras-voice-level',lvl);showToast('تم حفظ إعدادات الصوت');closeSubPage();});}
+function changePassword(){const oldp=document.getElementById('sp-old-pass').value;const newp=document.getElementById('sp-new-pass').value;if(!oldp||!newp||newp.length<8){showToast('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:oldp,new_password:newp})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');closeSubPage();}else showToast('فشل: '+(d.message||''));});}
+function logoutAll(){if(confirm('تسجيل الخروج من جميع الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
+function clearCache(){if(confirm('مسح الكاش المحلي؟')){localStorage.clear();showToast('تم المسح');}}
+function exportData(){window.location.href='/export_data';}
+function saveAds(){showToast('تم حفظ تفضيلات الإعلانات');closeSubPage();}
+function sendReport(){const d=document.getElementById('sp-report-desc').value;fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(()=>{showToast('تم إرسال البلاغ');closeSubPage();});}
+
+// ====== التثبيت ======
+async function loadPinned(){try{const r=await fetch('/pinned_conversations');const d=await r.json();pl.innerHTML='';if(!d.pinned||d.pinned.length===0){pl.innerHTML='<div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;font-weight:500;">لا توجد محادثات مثبتة</div>';return;}d.pinned.forEach(c=>{const btn=document.createElement('button');btn.className='conv-item pinned-item';btn.innerHTML='<span class="conv-title">'+c.title+'</span><button class="pin-btn pinned" onclick="event.stopPropagation();unpinConv(\''+c.id+'\')"><svg viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></button>';btn.onclick=()=>loadConversation(c.id);pl.appendChild(btn);});}catch(e){console.error(e);}}
+async function unpinConv(id){await fetch('/unpin_conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:id})});loadPinned();loadHistory();}
+async function pinConv(id){await fetch('/pin_conversation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:id})});loadPinned();loadHistory();}
+
+async function loadHistory(){
+    try{
+        const r = await fetch('/history');
+        const d = await r.json();
+        hl.innerHTML = '';
+        if(d.conversations && d.conversations.length > 0){
+            d.conversations.forEach(c => {
+                const b = document.createElement('button');
+                b.className = 'conv-item';
+                b.innerHTML = '<span class="conv-title">'+((c.title && c.title.trim()) ? c.title : 'محادثة')+'</span><button class="pin-btn'+(c.pinned?' pinned':'')+'" onclick="event.stopPropagation();'+(c.pinned?'unpinConv':'pinConv')+'(\''+c.id+'\')"><svg viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></button>';
+                b.onclick = () => loadConversation(c.id);
+                hl.appendChild(b);
+            });
+        } else {
+            const e = document.createElement('div');
+            e.className = 'item';
+            e.style.color = 'var(--text-secondary)';
+            e.style.fontSize = '13px';
+            e.style.cursor = 'default';
+            e.style.justifyContent = 'center';
+            e.textContent = 'لا توجد محادثات';
+            hl.appendChild(e);
+        }
+    } catch(e){ console.error('loadHistory:', e); }
+}
+async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.slice(-50).forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){}}
+document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.style.display='none';ui.value=''});
+document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();if(!cid){alert('لا توجد محادثة!');dd.classList.remove('show');return}const url=window.location.origin+'/share/'+cid,text=encodeURIComponent('اطلع على محادثتي:');document.getElementById('shareWhatsapp').href='https://api.whatsapp.com/send?text='+text+'%20'+encodeURIComponent(url);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(url)+'&text='+text;document.getElementById('shareSnapchat').onclick=function(ev){ev.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>alert('تم نسخ الرابط!')).catch(()=>alert('الرابط: '+url))}else alert('الرابط: '+url);sm.classList.remove('show')};sm.classList.add('show');dd.classList.remove('show')});
+sm.addEventListener('click',function(e){if(e.target===sm)sm.classList.remove('show')});
+
+function formatBotText(t){let s=String(t||'');let paragraphs=s.split(/\n\s*\n/);return paragraphs.map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');}
+function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1500);}
+const SVG_COPY='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const SVG_CHECK='<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+const SVG_SHARE='<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+const SVG_TRASH='<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+function buildActions(dt,el){const actions=document.createElement('div');actions.className='actions';const copyBtn=document.createElement('button');copyBtn.className='copy-btn';copyBtn.innerHTML=SVG_COPY;copyBtn.addEventListener('click',function(e){e.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(dt).then(()=>{copyBtn.innerHTML=SVG_CHECK;copyBtn.classList.add('copied');showToast('تم النسخ');setTimeout(()=>{copyBtn.innerHTML=SVG_COPY;copyBtn.classList.remove('copied')},2000)})}});const shareBtn=document.createElement('button');shareBtn.className='copy-btn';shareBtn.innerHTML=SVG_SHARE;shareBtn.addEventListener('click',function(e){e.stopPropagation();window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(dt),'_blank');});const delBtn=document.createElement('button');delBtn.className='del-msg-btn';delBtn.innerHTML=SVG_TRASH;delBtn.addEventListener('click',function(e){e.stopPropagation();deleteMessage(el)});actions.appendChild(copyBtn);actions.appendChild(shareBtn);actions.appendChild(delBtn);return actions;}
+function addMessage(t,s,isSys,img,imageUrl){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(s==='error')el.classList.add('error');const now=new Date(),tm=isSys?'':now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});if(img){el.innerHTML='<img src="'+img+'" class="image-upload" />';cb.appendChild(el);cb.scrollTop=cb.scrollHeight;return el}const imatch=t.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);let dt=t,genUrl=null;if(imatch){genUrl=imatch[0];dt=t.replace(imatch[0],'').trim();if(!dt)dt='الصورة المولدة'}if(s==='bot'&&!isSys&&!genUrl&&!imageUrl){const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML='<span class="typing-text"></span>';const actions=buildActions(dt,el);wrapper.appendChild(textDiv);wrapper.appendChild(actions);el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;const ts=textDiv.querySelector('.typing-text');let idx=0,interacted=false;const onInteract=function(){interacted=true;cb.removeEventListener('touchstart',onInteract);cb.removeEventListener('scroll',onInteract)};cb.addEventListener('touchstart',onInteract);cb.addEventListener('scroll',onInteract);function typeChar(){if(idx<dt.length){ts.textContent+=dt.charAt(idx);idx++;if(!interacted)cb.scrollTop=cb.scrollHeight;setTimeout(typeChar,20)}else{ts.innerHTML=formatBotText(dt);cb.scrollTop=cb.scrollHeight}}typeChar();return el}let content=dt;if(s==='bot')content=formatBotText(dt);if(genUrl)content+='<br/><img src="'+genUrl+'" class="generated-image" />';if(imageUrl){if(imageUrl.match(/\.(mp4|webm|mov)$/i)||imageUrl.includes('video')){content+='<br><video controls class="generated-video" src="'+imageUrl+'"></video>';}else{content+='<br><img src="'+imageUrl+'" class="generated-image" />';}}const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML=content;wrapper.appendChild(textDiv);if(s==='bot'&&!isSys){wrapper.appendChild(buildActions(dt,el))}el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;return el}
+async function deleteMessage(el){if(!cid){showToast('لا توجد محادثة');return}if(!confirm('حذف هذه الرسالة؟'))return;try{const idx=Array.from(cb.children).indexOf(el);const r=await fetch('/delete_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid,index:idx})});const d=await r.json();if(d.status==='ok'){ch.splice(idx,1);el.remove();showToast('تم الحذف');}else{showToast('فشل الحذف')}}catch(e){showToast('خطأ في الاتصال')}}
+function showImagePreview(d){ip.src=d;ipc.style.display='flex'}
+function clearPending(){pid=null;ipc.style.display='none';ip.src=''}
+rib.addEventListener('click',clearPending);
+ui.addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'});
+let poOpen=false;
+pb.addEventListener('click',function(){poOpen=!poOpen;po.classList.toggle('show',poOpen);this.classList.toggle('rotate',poOpen)});
+document.addEventListener('click',function(e){if(!pb.contains(e.target)&&!po.contains(e.target)){po.classList.remove('show');poOpen=false;pb.classList.remove('rotate')}});
+gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
+fi.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];fi.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
+cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
+ci.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];ci.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
+async function sendMessage(){if(iw)return;const t=ui.value.trim(),img=pid;if(!t&&!img)return;if(t)addMessage(t,'user');if(img){addMessage('صورة مرفقة','user',false,img);clearPending()}ui.value='';ui.style.height='auto';iw=true;const td=document.createElement('div');td.className='msg bot typing-indicator';td.innerHTML='<span class="typing-dots">جاري التفكير</span>';cb.appendChild(td);cb.scrollTop=cb.scrollHeight;const payload={message:t||"مرفق",image:img||null,history:ch,conv_id:cid};try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),d=await r.json();if(td.parentNode)td.remove();if(r.ok){addMessage(d.reply,'bot',false,null,d.image_url);if(d.conv_id)cid=d.conv_id;if(voiceOn&&d.reply&&!d.image_url&&d.reply.length<1500){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:d.reply})}).then(r=>r.json()).then(v=>{if(v.audio){if(ca){ca.pause();ca.currentTime=0;}const src='data:audio/mp3;base64,'+v.audio;ca=new Audio(src);ca.onended=function(){ca=null;};const savedLvl=localStorage.getItem('nibras-voice-level');if(savedLvl)ca.volume=savedLvl/100;ca.play();}}).catch(()=>{});}}else addMessage('خطأ: '+(d.error||'مشكلة'),'error')}catch(e){if(td.parentNode)td.remove();addMessage('تعذر الاتصال بالسيرفر.','error')}finally{iw=false}}
+sb.addEventListener('click',sendMessage);
+ui.addEventListener('keypress',function(e){if(e.key==='Enter'){e.preventDefault();sendMessage()}});
+document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
+let recog=null;
+mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage('المتصفح لا يدعم التعرف على الصوت.','bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='ar-SA';this.classList.add('listening');addMessage('جاري الاستماع...','bot',true);recog.onresult=function(e){const tr=e.results[0][0].transcript;ui.value=tr;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
+window.deleteMyAccount=function(){if(!confirm('تحذير: سيتم حذف حسابك بالكامل. متأكد؟'))return;if(!confirm('تأكيد نهائي؟'))return;fetch('/delete_my_account',{method:'POST',headers:{'Content-Type':'application/json'}}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم حذف حسابك');window.location.href='/'}else alert('فشل: '+(d.message||''))}).catch(e=>alert('خطأ'))};
+})();</script></body></html>"""
+
+# ==================== Routes ====================
+
+@app.route('/')
+def index():
+    user_name=None
+    email=session.get('user_email')
+    if email and not session.get('is_admin'):
+        p=get_user_profile(email)
+        if p:
+            user_name=p.get("display_name") or email.split("@")[0]
+        else:
+            user_name=email.split("@")[0]
+        mem=get_user_memory(email)
+        if mem.get('name'):
+            user_name=mem['name']
+    elif session.get('is_admin'):
+        user_name="أدمن"
+    return render_template_string(HT,user_name=user_name)
+
+@app.route('/library')
+def library_page():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return redirect(url_for('login'))
+    return render_template_string(LIBRARY_HTML)
+
+@app.route('/library/images')
+def library_images():
+    uid=get_user_id()
+    imgs=get_user_images(uid)
+    return jsonify({"images":imgs})
+
+@app.route('/library/upload',methods=['POST'])
+def library_upload():
+    try:
+        if not session.get('user_email') and not session.get('is_admin'):
+            return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
+        d=request.get_json()
+        image_data=d.get('image_data')
+        title=d.get('title') or "صورة"
+        if not image_data:
+            return jsonify({"status":"error","message":"لا توجد صورة"}),400
+        if len(image_data)>5000000:
+            return jsonify({"status":"error","message":"الصورة كبيرة جداً"}),413
+        uid=get_user_id()
+        save_image_to_library(uid,image_data=image_data,title=title,source="upload")
+        return jsonify({"status":"ok"})
+    except Exception as e:
+        print("library_upload:",e)
+        return jsonify({"status":"error","message":str(e)}),500
+
+@app.route('/library/delete',methods=['POST'])
+def library_delete():
+    try:
+        if not session.get('user_email') and not session.get('is_admin'):
+            return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
+        d=request.get_json()
+        image_id=d.get('id')
+        if not image_id:
+            return jsonify({"status":"error","message":"معرف مفقود"}),400
+        uid=get_user_id()
+        ok=delete_user_image(uid,image_id)
+        return jsonify({"status":"ok"}) if ok else jsonify({"status":"error"}),404
+    except Exception as e:
+        return jsonify({"status":"error","message":str(e)}),500
+
+# ====== التثبيت ======
+@app.route('/pinned_conversations')
+def pinned_conversations():
+    email=session.get('user_email')
+    if not email:
+        return jsonify({"pinned":[]})
+    pinned_ids=get_pinned_convs(email)
+    if not pinned_ids:
+        return jsonify({"pinned":[]})
+    uid=get_user_id()
+    all_convs=get_user_conversations(uid)
+    pinned_list=[c for c in all_convs if c["id"] in pinned_ids]
+    return jsonify({"pinned":pinned_list})
+
+@app.route('/pin_conversation',methods=['POST'])
+def pin_conversation():
+    email=session.get('user_email')
+    if not email:
+        return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
+    d=request.get_json()
+    cid=d.get('conv_id')
+    if not cid:
+        return jsonify({"status":"error"}),400
+    pinned=get_pinned_convs(email)
+    if cid not in pinned:
+        pinned.append(cid)
+        save_pinned_convs(email,pinned)
+    return jsonify({"status":"ok"})
+
+@app.route('/unpin_conversation',methods=['POST'])
+def unpin_conversation():
+    email=session.get('user_email')
+    if not email:
+        return jsonify({"status":"error"}),401
+    d=request.get_json()
+    cid=d.get('conv_id')
+    pinned=get_pinned_convs(email)
+    if cid in pinned:
+        pinned.remove(cid)
+        save_pinned_convs(email,pinned)
+    return jsonify({"status":"ok"})
+
+@app.route('/history')
+def history():
+    uid=get_user_id()
+    cs=get_user_conversations(uid)
+    email=session.get('user_email')
+    pinned_ids=get_pinned_convs(email) if email else []
+    result=[]
+    for c in cs:
+        result.append({"id":c["id"],"title":c["title"],"pinned":c["id"] in pinned_ids})
+    return jsonify({"conversations":result})
+
+@app.route('/load_conversation/<cid>')
+def load_conversation_route(cid):
+    uid=get_user_id()
+    ms=load_conversation(uid,cid)
+    return jsonify({"messages":ms}) if ms else (jsonify({"messages":None}),404)
+
+@app.route('/delete_message',methods=['POST'])
+def delete_message():
+    try:
+        d=request.get_json();cid=d.get('conv_id');idx=d.get('index');uid=get_user_id()
+        if not cid or idx is None:return jsonify({"status":"error","message":"بيانات ناقصة"}),400
+        ok=delete_message_row(uid,cid,idx)
+        if ok:return jsonify({"status":"ok"})
+        return jsonify({"status":"error","message":"غير موجودة"}),404
+    except Exception as e:
+        return jsonify({"status":"error","message":str(e)}),500
+
+@app.route('/delete_my_account',methods=['POST'])
+def delete_my_account():
+    email=session.get('user_email')
+    is_admin=session.get('is_admin')
+    if not email or is_admin:
+        return jsonify({"status":"error","message":"لا يوجد حساب لحذفه"}),400
+    uid=get_user_id()
+    try:
+        sb.table("assistant_chats").delete().eq("user_id",uid).execute()
+        sb.table("assistant_usage").delete().eq("user_id",uid).execute()
+        sb.table("image_library").delete().eq("user_id",uid).execute()
+        sb.table("profiles").delete().eq("email",email.lower()).execute()
+    except Exception as e:
+        print("delete_my_account:",e)
+    session.clear()
+    return jsonify({"status":"success","message":"تم حذف حسابك"})
+
+# ====== إعدادات إضافية ======
+@app.route('/update_profile',methods=['POST'])
+def update_profile():
+    email=session.get('user_email')
+    if not email:
+        return jsonify({"status":"error"}),401
+    d=request.get_json()
+    name=(d.get('name') or '').strip()
+    if name:
+        save_user_profile(email,name=name)
+        save_user_memory(email,{"name":name})
+    return jsonify({"status":"ok"})
+
+@app.route('/change_password',methods=['POST'])
+def change_password():
+    email=session.get('user_email')
+    if not email:
+        return jsonify({"status":"error","message":"يجب تسجيل الدخول"}),401
+    d=request.get_json()
+    oldp=d.get('old_password','')
+    newp=d.get('new_password','')
+    if not oldp or not newp or len(newp)<8:
+        return jsonify({"status":"error","message":"بيانات غير صحيحة"}),400
+    try:
+        r=requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",headers={"apikey":SUPABASE_KEY,"Content-Type":"application/json"},json={"email":email,"password":oldp},timeout=15)
+        if r.status_code!=200:
+            return jsonify({"status":"error","message":"كلمة المرور الحالية خاطئة"}),400
+        access_token=r.json().get('access_token')
+        r2=requests.put(f"{SUPABASE_URL}/auth/v1/user",headers={"apikey":SUPABASE_KEY,"Authorization":f"Bearer {access_token}","Content-Type":"application/json"},json={"password":newp},timeout=15)
+        if r2.status_code==200:
+            return jsonify({"status":"ok"})
+        return jsonify({"status":"error","message":"فشل تغيير كلمة المرور"}),400
+    except Exception as e:
+        return jsonify({"status":"error","message":str(e)}),500
+
+@app.route('/export_data')
+def export_data():
+    email=session.get('user_email')
+    if not email:
+        return "يجب تسجيل الدخول",401
+    uid=get_user_id()
+    convs=get_user_conversations(uid)
+    imgs=get_user_images(uid)
+    data={"user_email":email,"conversations":convs,"images_count":len(imgs),"pinned":get_pinned_convs(email)}
+    resp=jsonify(data)
+    resp.headers['Content-Disposition']=f'attachment; filename=nibras_data_{email}.json'
+    return resp
+
+@app.route('/report_bug',methods=['POST'])
+def report_bug():
+    d=request.get_json()
+    print(f"📩 بلاغ جديد: {d.get('type')} - {d.get('description')} - من {session.get('user_email','ضيف')}")
+    return jsonify({"status":"ok"})
+
+@app.route('/logout_all',methods=['POST'])
+def logout_all():
+    session.clear()
+    return jsonify({"status":"ok"})
+
+@app.route('/share/<cid>')
+def shared_conversation(cid):
+    rows=load_conversation_public(cid)
+    if not rows:return "المحادثة غير موجودة.",404
+    msgs=[]
+    title="محادثة نبراس"
+    for i,row in enumerate(rows):
+        if i==0 and row.get("title"):title=row["title"]
+        if row.get("message"):msgs.append({"role":"user","content":row["message"]})
+        if row.get("response"):msgs.append({"role":"assistant","content":row["response"]})
+    return render_template_string(SPH,messages=msgs,title=title)
+
+@app.route('/login',methods=['GET','POST'])
+@limiter.limit("10 per minute")
+def login():
+    if request.method=='POST':
+        e=request.form.get('email','').strip().lower()
+        p=request.form.get('password','')
+        ap=os.environ.get("ADMIN_PASSWORD")
+        if not e or "@" not in e:
+            return render_template_string(LH,error="يرجى إدخال بريد صحيح.")
+        if e==ADMIN_EMAIL.lower():
+            if not ap:return render_template_string(LH,error="لم يتم إعداد كلمة مرور الأدمن.")
+            if secrets.compare_digest(p,ap):
+                session.clear();session.permanent=True
+                session['user_email']=e;session['is_admin']=True
+                session['user_role']='admin'
+                return redirect(url_for('index'))
+            return render_template_string(LH,error="كلمة مرور الأدمن غير صحيحة.")
+        try:
+            r=requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",headers={"apikey":SUPABASE_KEY,"Content-Type":"application/json"},json={"email":e,"password":p},timeout=15)
+        except Exception as ex:
+            return render_template_string(LH,error="تعذر الاتصال بخدمة الدخول.")
+        if r.status_code!=200:
+            err_text = r.text.lower()
+            if "email not confirmed" in err_text or "not confirmed" in err_text:
+                return render_template_string(LH,error="يجب تأكيد بريدك أولاً.")
+            return render_template_string(LH,error="البريد الإلكتروني أو كلمة المرور غير صحيحة.")
+        data=r.json()
+        session.clear();session.permanent=True
+        session['user_email']=e
+        session['is_admin']=False
+        session['access_token']=data.get('access_token')
+        session['refresh_token']=data.get('refresh_token')
+        session['user_role']=get_user_role(e)
+        touch_user(e)
+        return redirect(url_for('index'))
+    return render_template_string(LH)
+
+@app.route('/signup',methods=['POST'])
+@limiter.limit("5 per hour")
+def signup():
+    e=request.form.get('email','').strip().lower()
+    p=request.form.get('password','')
+    name=request.form.get('name','').strip()
+    if not e or "@" not in e or len(p)<8:
+        return render_template_string(LH,error="بريد صحيح وكلمة مرور 8 أحرف على الأقل مطلوبة.")
+    if not name or len(name)<2:
+        return render_template_string(LH,error="الاسم الكامل مطلوب.")
+    try:
+        redirect_url = f"{request.host_url.rstrip('/')}/verified"
+        sb.auth.sign_up({"email": e,"password": p,"options": {"email_redirect_to": redirect_url,"data": {"display_name": name}}})
+        save_user_profile(e, name=name)
+        save_user_memory(e, {"name": name})
+        return render_template_string(LH,success="تم إنشاء حسابك! افتح بريدك واضغط رابط التأكيد.")
+    except Exception as ex:
+        err_msg = str(ex)
+        if "39 seconds" in err_msg or "rate limit" in err_msg.lower():
+            return render_template_string(LH,error="انتظر 60 ثانية ثم حاول مرة أخرى.")
+        if "already" in err_msg.lower():
+            return render_template_string(LH,error="هذا البريد مسجل مسبقاً.")
+        return render_template_string(LH,error=f"فشل: {ex}")
+
+@app.route('/verified')
+def verified():
+    return """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>تم التحقق - نبراس</title><style>*{font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;padding:15px}.box{background:#fff;padding:44px 30px;border-radius:24px;box-shadow:0 4px 30px rgba(0,0,0,0.06);width:100%;max-width:420px;text-align:center}.icon{width:80px;height:80px;background:#4a6a8a;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}.icon svg{width:40px;height:40px;stroke:#fff;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round}h2{font-size:24px;color:#1a2b3c;margin-bottom:12px;font-weight:700}p{color:#5a6b7c;line-height:1.8;margin-bottom:22px;font-size:15px}a{display:inline-block;background:#4a6a8a;color:#fff;padding:14px 40px;border-radius:14px;text-decoration:none;font-weight:700;font-size:15px}a:hover{background:#3a5a7a}</style></head><body><div class="box"><div class="icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><h2>تم تأكيد حسابك!</h2><p>بريدك مؤكد. يمكنك تسجيل الدخول الآن.</p><a href="/login">تسجيل الدخول</a></div>
+<script>
+(async function(){
+    try{
+        var accessToken=null,code=null;
+        if(window.location.hash){var hp=new URLSearchParams(window.location.hash.substring(1));accessToken=hp.get('access_token');}
+        var urlParams=new URLSearchParams(window.location.search);
+        if(!accessToken){code=urlParams.get('code');accessToken=urlParams.get('access_token');}
+        if(code){try{await fetch("__SUPABASE_URL__"+'/auth/v1/token?grant_type=pkce',{method:'POST',headers:{'apikey':"__SUPABASE_KEY__",'Content-Type':'application/json'},body:JSON.stringify({auth_code:code})});}catch(e){}}
+        if(accessToken){try{await fetch("__SUPABASE_URL__"+'/auth/v1/user',{headers:{'apikey':"__SUPABASE_KEY__",'Authorization':'Bearer '+accessToken}});}catch(e){}}
+    }catch(e){}
+})();
+</script></div></body></html>""".replace("__SUPABASE_URL__",SUPABASE_URL or "").replace("__SUPABASE_KEY__",SUPABASE_KEY or "")
+
+@app.route('/recover',methods=['POST'])
+@limiter.limit("5 per hour")
+def recover():
+    e=request.form.get('email','').strip().lower()
+    if not e or "@" not in e:
+        return render_template_string(LH,error="أدخل بريداً صحيحاً.")
+    try:
+        requests.post(f"{SUPABASE_URL}/auth/v1/recover",headers={"apikey":SUPABASE_KEY,"Content-Type":"application/json"},json={"email":e},timeout=15)
+        return render_template_string(LH,success="تم إرسال رابط استعادة كلمة المرور إلى بريدك.")
+    except Exception as ex:
+        return render_template_string(LH,error=f"تعذر إرسال الرابط: {ex}")
+
+@app.route('/logout')
+def logout():session.clear();return redirect(url_for('index'))
+
+@app.route('/admin/login',methods=['GET','POST'])
+def admin_login():
+    if request.method=='POST':
+        p=request.form.get('password','')
+        ap=os.environ.get("ADMIN_PASSWORD")
+        if ap and secrets.compare_digest(p,ap):
+            session['is_admin']=True;session.permanent=True
+            return redirect(url_for('admin_dashboard'))
+        return """<body style='background:#f4f7fc;color:#1a2b3c;font-family:sans-serif;text-align:center;padding:50px;'><h2>كلمة مرور خاطئة</h2><a href='/admin/login' style='color:#4a6a8a;'>حاول مرة أخرى</a></body>"""
+    return """<body style='background:#f4f7fc;color:#1a2b3c;font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;'><form method='POST' style='background:#fff;padding:30px;border-radius:20px;box-shadow:0 4px 30px rgba(0,0,0,0.06);text-align:center;'><h2 style='color:#4a6a8a;'>دخول الأدمن</h2><input type='password' name='password' placeholder='كلمة المرور' required style='padding:14px;border-radius:12px;border:1.5px solid #dce1e8;background:#fafbfc;color:#1a2b3c;font-size:16px;width:250px;font-family:inherit;'><br><br><button type='submit' style='background:#4a6a8a;color:#fff;border:none;padding:12px 30px;border-radius:12px;cursor:pointer;font-size:16px;font-weight:bold;font-family:inherit;'>دخول</button></form></body>"""
+
+@app.route('/admin')
+def admin_dashboard():
+    if not session.get('is_admin'):return redirect(url_for('admin_login'))
+    try:
+        recent_r=(sb.table("assistant_chats").select("user_id,title,created_at").order("created_at",desc=True).limit(10).execute())
+        recent=recent_r.data or []
+        users_r=(sb.table("profiles").select("email,display_name,role,created_at,last_seen").order("created_at",desc=True).limit(30).execute())
+        users_list=users_r.data or []
+        chats_r=(sb.table("assistant_chats").select("user_id").execute())
+        total_convs=len(chats_r.data or [])
+    except Exception as e:
+        print("admin_dashboard:",e);recent=[];users_list=[];total_convs=0
+    today=_date.today().isoformat()
+    today_convs=sum(1 for r in recent if (r.get("created_at") or "").startswith(today))
+    recent_html=""
+    for row in recent:
+        user=row.get("user_id","")[:20]
+        title=row.get("title") or "بدون عنوان"
+        time=(row.get("created_at") or "")[:16].replace("T"," ")
+        recent_html+=f'<div class="conv-item"><b>{title}</b><small>{user} | {time}</small></div>'
+    if not recent_html:recent_html="<p style='color:#8b949e;text-align:center;'>لا توجد محادثات</p>"
+    users_html=""
+    for u in users_list:
+        name=u.get("display_name") or "بدون اسم"
+        email=u.get("email","")
+        role=u.get("role","user")
+        role_badge="👑" if role=="admin" else "👤"
+        users_html+=f'<div class="conv-item"><b>{role_badge} {name}</b><small>{email} | {role}</small></div>'
+    if not users_html:users_html="<p style='color:#8b949e;text-align:center;'>لا يوجد مستخدمون</p>"
+    return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>body{{font-family:'Segoe UI',Tahoma;background:#f4f7fc;color:#1a2b3c;padding:20px;margin:0}}.container{{max-width:600px;margin:auto}}h1{{color:#4a6a8a;text-align:center}}.card{{background:#fff;border-radius:15px;padding:15px;margin:15px 0;box-shadow:0 4px 16px rgba(0,0,0,0.04)}}.stat{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eef1f6}}.stat:last-child{{border:none}}.num{{color:#4a6a8a;font-weight:bold;font-size:18px}}.conv-item{{padding:10px 0;border-bottom:1px solid #eef1f6}}.conv-item small{{color:#8b949e;display:block;font-size:12px}}.back{{display:block;text-align:center;color:#4a6a8a;text-decoration:none;margin-top:20px;font-weight:600}}</style></head><body><div class="container"><h1>لوحة تحكم نبراس</h1><div class="card"><div class="stat"><span>المستخدمون</span><span class="num">{len(users_list)}</span></div><div class="stat"><span>إجمالي المحادثات</span><span class="num">{total_convs}</span></div><div class="stat"><span>آخر 10 (اليوم)</span><span class="num">{today_convs}</span></div></div><div class="card"><h3>المستخدمون المسجلون</h3>{users_html}</div><div class="card"><h3>آخر 10 محادثات</h3>{recent_html}</div><a href="/" class="back">الرئيسية</a></div></body></html>"""
+
+@app.route('/set_gender',methods=['POST'])
+def set_gender():
+    d=request.get_json();g=d.get('gender','male');session['voice_gender']=g
+    return jsonify({"status":"ok"})
+
+@app.route('/voice',methods=['POST'])
+@limiter.limit("30 per minute")
+def voice():
+    try:
+        d=request.get_json()
+        text=(d.get('text') or "").strip()
+        if not text or len(text)>3000:
+            return jsonify({"audio":None})
+        g=session.get('voice_gender','male')
+        audio=generate_speech(text,g)
+        return jsonify({"audio":audio})
+    except Exception as e:
+        print(f"voice: {e}")
+        return jsonify({"audio":None})
+
+@app.route('/chat',methods=['POST'])
+@limiter.limit("20 per minute")
+def chat():
+    try:
+        d=request.get_json();um=d.get("message","").strip();hist=d.get("history",[]);cid=d.get("conv_id",None)
+        if not um:return jsonify({"reply":"اكتب شيء أساعدك فيه"})
+        is_admin=bool(session.get('is_admin'))
+        user_email=session.get('user_email','')
+        user_role=get_user_role(user_email) if user_email else 'guest'
+        is_registered=is_admin or (bool(user_email) and user_role in ('user','admin'))
+        uid=get_user_id()
+        
+        usage,limits,can_chat,can_search,can_image=check_limits(uid,user_role if not is_admin else 'admin')
+        
+        if not can_chat:
+            reply_limit="وصلت للحد اليومي للمحادثات (15). تقدر ترجع بكرة إن شاء الله."
+            if is_registered:
+                nid=save_message(uid,um,reply_limit,cid)
+            else:
+                nid=cid
+            return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
+        
+        if is_registered and user_email:
+            try: touch_user(user_email)
+            except: pass
+            if not cid:
+                try:
+                    recent=(sb.table("assistant_chats").select("conv_id")
+                            .eq("user_id",uid).order("created_at",desc=True).limit(1).execute())
+                    if recent and recent.data:
+                        last_cid=recent.data[0].get("conv_id")
+                        if last_cid: summarize_old_conversation(uid, last_cid)
+                except Exception as e:
+                    print("auto-summarize:",e)
+        
+        has_image=d.get("image") is not None
+        if has_image:
+            if not is_registered:
+                reply="تحليل الصور متاح للمسجلين فقط. سجّل دخولك عشان تستفيد."
+                nid=cid
+                return jsonify({"reply":reply,"conv_id":nid})
+            if not can_image:
+                reply="وصلت للحد اليومي لتحليل الصور (صورة واحدة). تقدر ترجع بكرة."
+                nid=save_message(uid,um,reply,cid)
+                inc_usage(uid,"chat_count")
+                return jsonify({"reply":reply,"conv_id":nid})
+        
+        search_keywords=["أحدث","اليوم","الآن","2025","2026","جديد","خبر","أخبار","سعر","أسعار","مباراة","نتيجة","طقس","متى"]
+        need_search=any(kw in um for kw in search_keywords)
+        
+        user_memory={}
+        memory_context=""
+        if is_registered:
+            user_memory=get_user_memory(user_email) if user_email else {}
+            name_patterns=[
+                r'(?:اسمي|انا|أنا|إسمي)\s+([\u0600-\u06FF]{2,20})',
+                r'(?:اسمي|انا|أنا|إسمي)\s+([A-Za-z]{2,20})',
+                r'(?:نادني|سميني|لقبي)\s+([\u0600-\u06FF]{2,20})',
+            ]
+            for pattern in name_patterns:
+                match=re.search(pattern,um)
+                if match:
+                    candidate=match.group(1).strip()
+                    stopwords=['وش','ايش','مين','هو','هي','من','في','على','ما','لا','واحد','شي']
+                    if candidate not in stopwords and len(candidate)>=2:
+                        user_memory['name']=candidate
+                        if user_email: save_user_memory(user_email,user_memory)
+                        break
+            
+            memory_parts=[]
+            if user_memory.get('name'):
+                memory_parts.append(f"اسم المستخدم: {user_memory['name']}")
+            elif user_email:
+                profile=get_user_profile(user_email)
+                if profile and profile.get('display_name'):
+                    memory_parts.append(f"اسم المستخدم: {profile['display_name']}")
+            
+            summaries=get_recent_summaries(uid, limit=5)
+            if summaries:
+                summary_lines=[]
+                for s in summaries:
+                    title=s.get('title','محادثة')
+                    summary=s['summary']
+                    summary_lines.append(f"• عن [{title}]: {summary}")
+                memory_parts.append("مواضيع سابقة تحدثنا فيها:\n"+"\n".join(summary_lines))
+            
+            if memory_parts:
+                memory_context="\n\n**معلومات عن المستخدم:**\n"+"\n".join(memory_parts)
+        
+        server_hist=load_conversation(uid,cid) if (cid and is_registered) else []
+        if not server_hist:server_hist=[]
+        server_hist.append({"role":"user","content":um})
+        ch=server_hist[-15:]
+        msgs=[{"role":"system","content":SP+memory_context}]
+        for e in ch:
+            if isinstance(e.get("content"),str):
+                msgs.append({"role":e["role"],"content":e["content"]})
+        
+        img_data=d.get("image",None)
+        if img_data and is_registered and can_image:
+            msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
+        
+        if is_registered and need_search and can_search:
+            try:
+                fc=""
+                for m in msgs[-6:]:
+                    if isinstance(m.get("content"),str):
+                        if m["role"]=="user":fc+=m["content"]+"\n"
+                        elif m["role"]=="assistant":fc+="نبراس: "+m["content"]+"\n"
+                sr=client.responses.create(model=OPENAI_MODEL,instructions=f"{SP}\n\nسياق:\n{fc}",input=f"ابحث عن أحدث المعلومات: {um}",tools=[{"type":"web_search"}])
+                res=sr.output_text.strip()
+                if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}"})
+                inc_usage(uid,"search_count")
+            except Exception as e:print(f"بحث: {e}")
+        
+        try:
+            r=client.chat.completions.create(model=OPENAI_MODEL,messages=msgs,max_completion_tokens=8000,reasoning_effort="low")
+            reply=r.choices[0].message.content.strip()
+            if not reply:reply="ما قدرت أجيب رد."
+        except Exception as e:
+            print(f"{e}")
+            return jsonify({"error":str(e)}),500
+        
+        lines=reply.split('\n');merged=[];cur=[]
+        for line in lines:
+            line=line.strip()
+            if not line:
+                if cur:merged.append(' '.join(cur));cur=[]
+            else:cur.append(line)
+        if cur:merged.append(' '.join(cur))
+        reply='\n\n'.join(merged)
+        
+        nid=cid
+        if is_registered:
+            nid=save_message(uid,um,reply,cid)
+            inc_usage(uid,"chat_count")
+            if has_image and can_image:
+                inc_usage(uid,"image_count")
+        else:
+            if not nid:
+                nid="guest_conv_"+secrets.token_hex(5)
+        
+        return jsonify({"reply":reply,"audio":None,"conv_id":nid})
+    except Exception as e:
+        print(f"{e}")
+        return jsonify({"status":"error","message":str(e)}),500
+
+if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
