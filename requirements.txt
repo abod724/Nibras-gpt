@@ -7,3 +7,5 @@ uvicorn
 flask-limiter
 supabase
 gotrue
+pywebpush
+py-vapid
