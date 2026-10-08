@@ -714,7 +714,7 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
 
 <div id="chat"></div><div id="imagePreviewContainer"><img id="imagePreview" src=""/><span class="label">صورة معلقة</span><button id="removeImageBtn">إزالة</button></div><div class="input-area"><button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button><button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button><div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button></div><textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea><button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/></div>
 
-<!-- ✅ نافذة المشاركة (مضافة) -->
+<!-- نافذة المشاركة -->
 <div class="share-modal" id="shareModal">
     <div class="box">
         <h3>مشاركة المحادثة</h3>
@@ -789,7 +789,7 @@ function logoutAll(){if(confirm('تسجيل الخروج من جميع الأج�
 function clearCache(){if(confirm('مسح الكاش المحلي؟')){localStorage.clear();showToast('تم المسح');}}
 function exportData(){window.location.href='/export_data';}
 function saveAds(){showToast('تم حفظ تفضيلات الإعلانات');closeSubPage();}
-function sendReport(){const d=document.getElementById('sp-report-desc').value;fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(()=>{showToast('تم إرسال البلاغ');closeSubPage();});}
+function sendReport(){const d=document.getElementById('sp-report-desc').value;if(!d||d.trim().length<3){showToast('الرجاء كتابة وصف للمشكلة');return;}fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(r=>r.json()).then(res=>{if(res.status==='ok'){showToast('✅ تم إرسال البلاغ، شكراً لك');document.getElementById('sp-report-desc').value='';setTimeout(()=>closeSubPage(),800);}else{showToast('فشل: '+(res.message||'خطأ'));}}).catch(()=>showToast('خطأ في الاتصال'));}
 
 // ====== التثبيت ======
 async function loadPinned(){try{const r=await fetch('/pinned_conversations');const d=await r.json();pl.innerHTML='';if(!d.pinned||d.pinned.length===0){pl.innerHTML='<div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;font-weight:500;">لا توجد محادثات مثبتة</div>';return;}d.pinned.forEach(c=>{const btn=document.createElement('button');btn.className='conv-item pinned-item';btn.innerHTML='<span class="conv-title">'+c.title+'</span><button class="pin-btn pinned" onclick="event.stopPropagation();unpinConv(\''+c.id+'\')"><svg viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></button>';btn.onclick=()=>loadConversation(c.id);pl.appendChild(btn);});}catch(e){console.error(e);}}
@@ -854,7 +854,7 @@ let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage('المتصفح لا يدعم التعرف على الصوت.','bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='ar-SA';this.classList.add('listening');addMessage('جاري الاستماع...','bot',true);recog.onresult=function(e){const tr=e.results[0][0].transcript;ui.value=tr;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('تحذير: سيتم حذف حسابك بالكامل. متأكد؟'))return;if(!confirm('تأكيد نهائي؟'))return;fetch('/delete_my_account',{method:'POST',headers:{'Content-Type':'application/json'}}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم حذف حسابك');window.location.href='/'}else alert('فشل: '+(d.message||''))}).catch(e=>alert('خطأ'))};
 
-// ✅ تفعيل الدوال للنطاق العام (onclick)
+// تفعيل الدوال للنطاق العام
 window.openSettings=openSettings;
 window.closeSettings=closeSettings;
 window.toggleThemeAccordion=toggleThemeAccordion;
@@ -1130,11 +1130,32 @@ def export_data():
     return resp
 
 
+# ---------- البلاغات ----------
 @app.route('/report_bug', methods=['POST'])
 def report_bug():
-    d = request.get_json()
-    print(f"📩 بلاغ جديد: {d.get('type')} - {d.get('description')} - من {session.get('user_email', 'ضيف')}")
-    return jsonify({"status": "ok"})
+    try:
+        d = request.get_json()
+        bug_type = d.get('type', 'غير محدد')
+        description = (d.get('description') or '').strip()
+        
+        if not description or len(description) < 3:
+            return jsonify({"status": "error", "message": "الوصف قصير جداً"}), 400
+        
+        user_email = session.get('user_email', 'ضيف')
+        user_role = session.get('user_role', 'guest')
+        
+        sb.table("bug_reports").insert({
+            "user_email": user_email,
+            "user_role": user_role,
+            "type": bug_type,
+            "description": description
+        }).execute()
+        
+        print(f"📩 بلاغ جديد [{bug_type}]: {description[:50]}... - من {user_email}")
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print(f"report_bug error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/logout_all', methods=['POST'])
@@ -1300,15 +1321,19 @@ def admin_login():
 def admin_dashboard():
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
+    
+    # ===== جلب البيانات الأساسية =====
     try:
         recent_r = (sb.table("assistant_chats")
                     .select("user_id,title,created_at")
                     .order("created_at", desc=True).limit(10).execute())
         recent = recent_r.data or []
+        
         users_r = (sb.table("profiles")
                    .select("email,display_name,role,created_at,last_seen")
                    .order("created_at", desc=True).limit(30).execute())
         users_list = users_r.data or []
+        
         chats_r = (sb.table("assistant_chats").select("user_id").execute())
         total_convs = len(chats_r.data or [])
     except Exception as e:
@@ -1316,8 +1341,33 @@ def admin_dashboard():
         recent = []
         users_list = []
         total_convs = 0
+    
+    # ===== جلب البلاغات =====
+    try:
+        reports_r = (sb.table("bug_reports")
+                     .select("*")
+                     .order("created_at", desc=True)
+                     .limit(30).execute())
+        reports_list = reports_r.data or []
+    except Exception as e:
+        print("reports fetch:", e)
+        reports_list = []
+    
+    # ===== عدّاد البلاغات الجديدة =====
+    try:
+        new_reports_r = (sb.table("bug_reports")
+                         .select("id")
+                         .eq("status", "new")
+                         .execute())
+        new_reports_count = len(new_reports_r.data or [])
+    except:
+        new_reports_count = 0
+    
+    # ===== إحصائيات =====
     today = _date.today().isoformat()
     today_convs = sum(1 for r in recent if (r.get("created_at") or "").startswith(today))
+    
+    # ===== بناء HTML للمحادثات =====
     recent_html = ""
     for row in recent:
         user = row.get("user_id", "")[:20]
@@ -1326,6 +1376,8 @@ def admin_dashboard():
         recent_html += f'<div class="conv-item"><b>{title}</b><small>{user} | {time}</small></div>'
     if not recent_html:
         recent_html = "<p style='color:#8b949e;text-align:center;'>لا توجد محادثات</p>"
+    
+    # ===== بناء HTML للمستخدمين =====
     users_html = ""
     for u in users_list:
         name = u.get("display_name") or "بدون اسم"
@@ -1335,7 +1387,124 @@ def admin_dashboard():
         users_html += f'<div class="conv-item"><b>{role_badge} {name}</b><small>{email} | {role}</small></div>'
     if not users_html:
         users_html = "<p style='color:#8b949e;text-align:center;'>لا يوجد مستخدمون</p>"
-    return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>body{{font-family:'Segoe UI',Tahoma;background:#f4f7fc;color:#1a2b3c;padding:20px;margin:0}}.container{{max-width:600px;margin:auto}}h1{{color:#4a6a8a;text-align:center}}.card{{background:#fff;border-radius:15px;padding:15px;margin:15px 0;box-shadow:0 4px 16px rgba(0,0,0,0.04)}}.stat{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eef1f6}}.stat:last-child{{border:none}}.num{{color:#4a6a8a;font-weight:bold;font-size:18px}}.conv-item{{padding:10px 0;border-bottom:1px solid #eef1f6}}.conv-item small{{color:#8b949e;display:block;font-size:12px}}.back{{display:block;text-align:center;color:#4a6a8a;text-decoration:none;margin-top:20px;font-weight:600}}</style></head><body><div class="container"><h1>لوحة تحكم نبراس</h1><div class="card"><div class="stat"><span>المستخدمون</span><span class="num">{len(users_list)}</span></div><div class="stat"><span>إجمالي المحادثات</span><span class="num">{total_convs}</span></div><div class="stat"><span>آخر 10 (اليوم)</span><span class="num">{today_convs}</span></div></div><div class="card"><h3>المستخدمون المسجلون</h3>{users_html}</div><div class="card"><h3>آخر 10 محادثات</h3>{recent_html}</div><a href="/" class="back">الرئيسية</a></div></body></html>"""
+    
+    # ===== بناء HTML للبلاغات =====
+    reports_html = ""
+    for r in reports_list:
+        status = r.get("status", "new")
+        if status == "new":
+            badge = "🆕"
+            border_color = "#e74c3c"
+            bg_color = "#fff5f5"
+        elif status == "done":
+            badge = "✅"
+            border_color = "#27ae60"
+            bg_color = "#f0fff4"
+        else:
+            badge = "⚪"
+            border_color = "#8b949e"
+            bg_color = "#f5f7fa"
+        
+        type_str = r.get("type") or "غير محدد"
+        email_str = r.get("user_email") or "ضيف"
+        time_str = (r.get("created_at") or "")[:16].replace("T", " ")
+        desc_str = (r.get("description") or "").replace("<", "&lt;").replace(">", "&gt;")
+        report_id = r.get("id")
+        btn_text = "تم الحل ✓" if status == "done" else "علّم كتم"
+        
+        reports_html += f'''
+        <div class="report-item" style="border-right:4px solid {border_color};background:{bg_color};padding:12px 14px;border-radius:10px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <b style="color:#1a2b3c;font-size:14px;">{badge} [{type_str}]</b>
+                <button onclick="resolveReport({report_id})" style="background:#4a6a8a;color:#fff;border:none;padding:4px 10px;border-radius:8px;font-size:11px;cursor:pointer;font-family:inherit;">{btn_text}</button>
+            </div>
+            <small style="color:#8b949e;font-size:11px;display:block;margin-bottom:6px;">👤 {email_str} | 🕐 {time_str}</small>
+            <p style="color:#2c3e50;font-size:13px;line-height:1.7;margin:0;background:#fff;padding:10px;border-radius:8px;">{desc_str}</p>
+        </div>
+        '''
+    
+    if not reports_html:
+        reports_html = "<p style='color:#8b949e;text-align:center;padding:20px;'>لا توجد بلاغات 📭</p>"
+    
+    # ===== إرجاع الصفحة =====
+    return f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>لوحة تحكم نبراس</title><style>
+    *{{box-sizing:border-box}}
+    body{{font-family:'Segoe UI',Tahoma;background:#f4f7fc;color:#1a2b3c;padding:16px;margin:0}}
+    .container{{max-width:700px;margin:auto}}
+    h1{{color:#4a6a8a;text-align:center;font-size:22px;margin-bottom:20px}}
+    h3{{color:#1a2b3c;font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px}}
+    .card{{background:#fff;border-radius:15px;padding:18px;margin:15px 0;box-shadow:0 4px 16px rgba(0,0,0,0.04)}}
+    .stat{{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eef1f6}}
+    .stat:last-child{{border:none}}
+    .num{{color:#4a6a8a;font-weight:bold;font-size:18px}}
+    .num.alert{{color:#e74c3c}}
+    .conv-item{{padding:10px 0;border-bottom:1px solid #eef1f6}}
+    .conv-item:last-child{{border:none}}
+    .conv-item b{{font-size:14px}}
+    .conv-item small{{color:#8b949e;display:block;font-size:12px;margin-top:2px}}
+    .back{{display:block;text-align:center;color:#4a6a8a;text-decoration:none;margin-top:24px;font-weight:600;padding:12px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}}
+    .back:hover{{background:#4a6a8a;color:#fff}}
+    .badge-new{{display:inline-block;background:#e74c3c;color:#fff;font-size:11px;padding:2px 8px;border-radius:20px;margin-right:6px;}}
+    </style></head><body><div class="container">
+    
+    <h1>🎛️ لوحة تحكم نبراس</h1>
+    
+    <div class="card">
+        <div class="stat"><span>👥 المستخدمون</span><span class="num">{len(users_list)}</span></div>
+        <div class="stat"><span>💬 إجمالي المحادثات</span><span class="num">{total_convs}</span></div>
+        <div class="stat"><span>📅 آخر 10 (اليوم)</span><span class="num">{today_convs}</span></div>
+        <div class="stat"><span>📩 بلاغات جديدة</span><span class="num {'alert' if new_reports_count > 0 else ''}">{new_reports_count}</span></div>
+    </div>
+    
+    <div class="card">
+        <h3>📩 البلاغات الأخيرة {f'<span class="badge-new">{new_reports_count} جديد</span>' if new_reports_count > 0 else ''}</h3>
+        {reports_html}
+    </div>
+    
+    <div class="card">
+        <h3>👥 المستخدمون المسجلون</h3>
+        {users_html}
+    </div>
+    
+    <div class="card">
+        <h3>💬 آخر 10 محادثات</h3>
+        {recent_html}
+    </div>
+    
+    <a href="/" class="back">← العودة للرئيسية</a>
+    
+    </div>
+    
+    <script>
+    async function resolveReport(id){{
+        if(!confirm('تعليم هذا البلاغ كمحلول؟')) return;
+        try{{
+            const r = await fetch('/admin/report/'+id+'/resolve', {{method:'POST'}});
+            const d = await r.json();
+            if(d.status === 'ok'){{
+                location.reload();
+            }} else {{
+                alert('فشل: ' + (d.message || 'خطأ'));
+            }}
+        }}catch(e){{
+            alert('خطأ في الاتصال');
+        }}
+    }}
+    </script>
+    
+    </body></html>"""
+
+
+@app.route('/admin/report/<int:report_id>/resolve', methods=['POST'])
+def resolve_report(report_id):
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 401
+    try:
+        sb.table("bug_reports").update({"status": "done"}).eq("id", report_id).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("resolve_report:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # ---------- إعدادات الصوت ----------
