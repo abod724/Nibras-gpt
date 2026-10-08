@@ -91,6 +91,24 @@ def touch_user(email):
     except Exception as e:
         print("touch_user:",e)
 
+# ✅ دوال الذاكرة طويلة المدى الجديدة
+def get_user_memory(email):
+    if not email: return {}
+    try:
+        r=(sb.table("profiles").select("memory").eq("email",email.lower()).limit(1).execute())
+        if r and r.data and r.data[0].get("memory"):
+            return r.data[0]["memory"] or {}
+    except Exception as e:
+        print("get_user_memory:",e)
+    return {}
+
+def save_user_memory(email, memory_dict):
+    if not email: return
+    try:
+        sb.table("profiles").update({"memory":memory_dict}).eq("email",email.lower()).execute()
+    except Exception as e:
+        print("save_user_memory:",e)
+
 def get_user_id():
     if session.get('is_admin'):return "admin_page"
     if session.get('user_email'):return "user_"+session['user_email']
@@ -142,8 +160,7 @@ def get_user_conversations(uid):
     for row in rows:
         cid=row.get("conv_id")
         if cid and cid not in seen:
-            # ✅ التعديل: ضمان وجود عنوان افتراضي في حال كان فارغاً
-            title = (row.get("title") or "").strip() or "محادثة"
+            title=(row.get("title") or "").strip() or "محادثة"
             seen[cid]={"id":cid,"conv_id":cid,"title":title,"timestamp":row.get("created_at")}
     return list(seen.values())
 
@@ -154,16 +171,13 @@ def save_message(uid,msg,resp,cid=None):
         has_prev=bool(ex.data)
         title=None
         if not has_prev:
-            # ✅ التعديل: تنظيف النص قبل استخراج العنوان
-            clean_msg = (msg or "").strip()
-            # إزالة الرموز الخاصة ما عدا الحروف العربية والإنجليزية والأرقام والمسافات
-            clean_msg = re.sub(r'[^\w\s\u0600-\u06FF]', '', clean_msg).strip()
+            clean_msg=(msg or "").strip()
+            clean_msg=re.sub(r'[^\w\s\u0600-\u06FF]','',clean_msg).strip()
             if clean_msg:
-                title = clean_msg[:30]
-                if len(clean_msg) > 30:
-                    title += "..."
+                title=clean_msg[:30]
+                if len(clean_msg)>30:title+="..."
             else:
-                title = "محادثة جديدة"
+                title="محادثة جديدة"
         sb.table("assistant_chats").insert({"user_id":uid,"conv_id":cid,"message":msg,"response":resp,"title":title}).execute()
     except Exception as e:
         print("save_message:",e)
@@ -328,7 +342,6 @@ async function loadHistory(){
             d.conversations.forEach(c => {
                 const b = document.createElement('button');
                 b.className = 'conv-item';
-                // ✅ التعديل: ضمان عرض عنوان افتراضي في حال كان فارغاً
                 b.textContent = (c.title && c.title.trim()) ? c.title : 'محادثة';
                 b.onclick = () => loadConversation(c.id);
                 hl.appendChild(b);
@@ -496,6 +509,8 @@ def signup():
         redirect_url = f"{request.host_url.rstrip('/')}/verified"
         sb.auth.sign_up({"email": e,"password": p,"options": {"email_redirect_to": redirect_url,"data": {"display_name": name}}})
         save_user_profile(e, name=name)
+        # ✅ حفظ الاسم في الذاكرة أيضاً
+        save_user_memory(e, {"name": name})
         return render_template_string(LH,success="تم إنشاء حسابك! افتح بريدك واضغط رابط التأكيد.")
     except Exception as ex:
         err_msg = str(ex)
@@ -699,11 +714,46 @@ def chat():
             reply="عذراً، تحليل الصور متاح للأعضاء المسجلين فقط."
             nid=save_message(uid,um,reply,cid)
             return jsonify({"reply":reply,"conv_id":nid})
+        
+        # ============ الذاكرة طويلة المدى ============
+        user_memory=get_user_memory(user_email) if user_email else {}
+        
+        # استخراج الاسم من الرسالة تلقائياً
+        name_patterns=[
+            r'(?:اسمي|انا|أنا|إسمي)\s+([\u0600-\u06FF]{2,20})',
+            r'(?:اسمي|انا|أنا|إسمي)\s+([A-Za-z]{2,20})',
+            r'(?:نادني|سميني|لقبي)\s+([\u0600-\u06FF]{2,20})',
+        ]
+        detected_name=None
+        for pattern in name_patterns:
+            match=re.search(pattern,um)
+            if match:
+                candidate=match.group(1).strip()
+                stopwords=['وش','ايش','مين','هو','هي','من','في','على','ما','لا','واحد','شي']
+                if candidate not in stopwords and len(candidate)>=2:
+                    detected_name=candidate
+                    break
+        if detected_name and user_email:
+            user_memory['name']=detected_name
+            save_user_memory(user_email,user_memory)
+        
+        # بناء سياق الذاكرة
+        memory_context=""
+        if user_email:
+            if not user_memory.get('name'):
+                profile=get_user_profile(user_email)
+                if profile and profile.get('display_name'):
+                    user_memory['name']=profile['display_name']
+                    save_user_memory(user_email,user_memory)
+            if user_memory.get('name'):
+                memory_context=f"\n\n**معلومات محفوظة عن المستخدم:**\n- اسمه: {user_memory['name']}\n\n⚠️ نادِ المستخدم باسمه بشكل طبيعي وعفوي. لا تذكر أبداً أنك تحفظ اسمه أو أن لديك ذاكرة."
+        # ============ نهاية الذاكرة ============
+        
         server_hist=load_conversation(uid,cid) if cid else []
         if not server_hist:server_hist=[]
         server_hist.append({"role":"user","content":um})
         ch=server_hist[-15:]
-        msgs=[{"role":"system","content":SP}]
+        msgs=[{"role":"system","content":SP+memory_context}]
         for e in ch:
             if isinstance(e.get("content"),str):
                 msgs.append({"role":e["role"],"content":e["content"]})
