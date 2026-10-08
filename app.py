@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, date as _date
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from supabase import create_client
+from pywebpush import webpush, WebPushException
 
 
 # ==================== إعدادات التطبيق ====================
@@ -43,6 +44,11 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("SUPABASE_URL و SUPABASE_KEY مطلوبان!")
 sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ---- VAPID (Push Notifications) ----
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", f"mailto:{ADMIN_EMAIL}")
 
 # ---- حدود الاستخدام ----
 LIMITS = {
@@ -87,6 +93,10 @@ def serve_sitemap():
 @app.route('/.well-known/<path:filename>')
 def serve_well_known(filename):
     return send_from_directory('.well-known', filename)
+
+@app.route('/service-worker.js')
+def service_worker():
+    return send_from_directory('static', 'service-worker.js', mimetype='application/javascript')
 
 
 # ==========================================================
@@ -447,6 +457,39 @@ def delete_user_image(uid, image_id):
 
 
 # ==========================================================
+#  Push Notifications
+# ==========================================================
+
+def send_push_to_user(user_id, title, body, url="/"):
+    """إرسال إشعار Push لمستخدم معين"""
+    if not VAPID_PRIVATE_KEY or not VAPID_SUBJECT:
+        print("⚠️ VAPID غير مُعَد")
+        return
+    try:
+        subs = sb.table("push_subscriptions").select("*").eq("user_id", user_id).execute()
+        for s in (subs.data or []):
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": s["endpoint"],
+                        "keys": {"p256dh": s["p256dh"], "auth": s["auth"]}
+                    },
+                    data=json.dumps({"title": title, "body": body, "url": url}),
+                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims={"sub": VAPID_SUBJECT}
+                )
+                print(f"✅ إشعار Push أُرسل لـ {user_id}")
+            except WebPushException as ex:
+                if ex.response and ex.response.status_code in (404, 410):
+                    sb.table("push_subscriptions").delete().eq("id", s["id"]).execute()
+                    print(f"🗑️ حذف اشتراك منتهي")
+                else:
+                    print(f"❌ فشل إرسال Push: {ex}")
+    except Exception as e:
+        print("send_push_to_user:", e)
+
+
+# ==========================================================
 #  قاعدة المعرفة + System Prompt
 # ==========================================================
 kc = ""
@@ -798,7 +841,45 @@ function saveGeneral(){
         })
         .catch(()=>showToast('خطأ في الاتصال'));
 }
-function requestNotifications(){if(!('Notification' in window)){showToast('المتصفح لا يدعم الإشعارات');return;}Notification.requestPermission().then(p=>{showToast(p==='granted'?'تم تفعيل الإشعارات':'تم رفض الإشعارات');});}
+
+// ====== إشعارات Push ======
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    showToast('المتصفح لا يدعم الإشعارات');
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.register('/service-worker.js');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      showToast('تم رفض الإشعارات');
+      return;
+    }
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array('BLHwJhdfs5Gv_sPwVbbdct2kqOXF5uJo7CiCPawCs2GwaKf9P2-1pHvFfzCjmK4PEaqaE9OA5c_LyRhKtfpQ3q8')
+    });
+    const res = await fetch('/save_push_subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub)
+    });
+    if (res.ok) showToast('✅ تم تفعيل الإشعارات');
+    else showToast('فشل الحفظ بالسيرفر');
+  } catch (err) {
+    console.error('Push error:', err);
+    showToast('فشل تفعيل الإشعارات');
+  }
+}
+
+function requestNotifications(){subscribeToPush();}
 function saveVoice(){const g=document.getElementById('sp-voice-gender').value;const lvl=document.getElementById('sp-voice-level').value;fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})}).then(()=>{localStorage.setItem('nibras-voice-level',lvl);showToast('تم حفظ إعدادات الصوت');closeSubPage();});}
 function changePassword(){const oldp=document.getElementById('sp-old-pass').value;const newp=document.getElementById('sp-new-pass').value;if(!oldp||!newp||newp.length<8){showToast('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:oldp,new_password:newp})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');closeSubPage();}else showToast('فشل: '+(d.message||''));});}
 function logoutAll(){if(confirm('تسجيل الخروج من جميع الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
@@ -900,6 +981,7 @@ window.openSubPage=openSubPage;
 window.closeSubPage=closeSubPage;
 window.saveGeneral=saveGeneral;
 window.requestNotifications=requestNotifications;
+window.subscribeToPush=subscribeToPush;
 window.saveVoice=saveVoice;
 window.changePassword=changePassword;
 window.logoutAll=logoutAll;
@@ -988,6 +1070,24 @@ def library_delete():
         ok = delete_user_image(uid, image_id)
         return jsonify({"status": "ok"}) if ok else jsonify({"status": "error"}), 404
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ---------- Push Subscription ----------
+@app.route('/save_push_subscription', methods=['POST'])
+def save_push_subscription():
+    try:
+        sub = request.get_json()
+        uid = get_user_id()
+        sb.table("push_subscriptions").upsert({
+            "user_id": uid,
+            "endpoint": sub["endpoint"],
+            "p256dh": sub["keys"]["p256dh"],
+            "auth": sub["keys"]["auth"]
+        }, on_conflict="endpoint").execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("save_push_subscription:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -1088,6 +1188,7 @@ def delete_my_account():
         sb.table("assistant_chats").delete().eq("user_id", uid).execute()
         sb.table("assistant_usage").delete().eq("user_id", uid).execute()
         sb.table("image_library").delete().eq("user_id", uid).execute()
+        sb.table("push_subscriptions").delete().eq("user_id", uid).execute()
         sb.table("profiles").delete().eq("email", email.lower()).execute()
     except Exception as e:
         print("delete_my_account:", e)
@@ -1681,7 +1782,7 @@ def chat():
                 ]
             })
 
-        # ✅ بحث تلقائي حسب الصلاحية فقط — يستخدم OPENAI_MODEL (يقبل gpt-5.6-Luna و gpt-4o)
+        # ✅ بحث تلقائي حسب الصلاحية فقط
         if is_registered and can_search:
             try:
                 fc = ""
@@ -1714,7 +1815,6 @@ def chat():
             except Exception as e:
                 print(f"❌ فشل البحث ({type(e).__name__}): {e}")
 
-        # ✅ تم حذف reasoning_effort — عشان يشتغل مع gpt-4o و gpt-5.6-Luna معاً
         try:
             r = client.chat.completions.create(
                 model=OPENAI_MODEL,
@@ -1749,6 +1849,11 @@ def chat():
             inc_usage(uid, "chat_count")
             if has_image and can_image:
                 inc_usage(uid, "image_count")
+            # ✅ إرسال إشعار Push
+            try:
+                send_push_to_user(uid, "نبراس - رد جديد", reply[:120])
+            except Exception as pe:
+                print("push send:", pe)
         else:
             if not nid:
                 nid = "guest_conv_" + secrets.token_hex(5)
