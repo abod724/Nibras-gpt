@@ -782,7 +782,7 @@ function openSubPage(key){const titleMap={general:'عام',notifications:'الإ
 function closeSubPage(){document.getElementById('subPage').classList.remove('show');}
 async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
 
-// ✅ دالة محدثة: تحقق من الاسم قبل الإرسال + تعرض تنبيه للتسجيل
+// حفظ الاسم — للأدمن والمسجل
 function saveGeneral(){
     const n=(document.getElementById('sp-name').value||'').trim();
     if(!n || n.length<2){showToast('اكتب اسم صحيح (حرفين على الأقل)');return;}
@@ -1104,9 +1104,10 @@ def update_profile():
         return jsonify({"status": "error", "message": "الاسم قصير جداً"}), 400
 
     email = session.get('user_email')
-    if not email or session.get('is_admin'):
+    if not email:
         return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
 
+    # ✅ الأدمن والمسجل: يحفظون في Supabase
     save_user_profile(email, name=name)
     save_user_memory(email, {"name": name})
     return jsonify({"status": "ok"})
