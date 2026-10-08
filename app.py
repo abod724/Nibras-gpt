@@ -25,9 +25,10 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("SUPABASE_URL و SUPABASE_KEY مطلوبان!")
 sb=create_client(SUPABASE_URL,SUPABASE_KEY)
 
+# ✅ الحدود: الضيف والمسجل كلاهما 15 محادثة، لكن المسجل عنده بحث وصور وذاكرة
 LIMITS={
-    "guest":  {"chat":15,"search":0,   "image":0},
-    "user":   {"chat":9999, "search":999, "image":999},
+    "guest":  {"chat":15,  "search":0,   "image":0},
+    "user":   {"chat":15,  "search":2,   "image":1},   # ← نفس الضيف + بحثين + صورة
     "admin":  {"chat":9999,"search":9999,"image":9999},
 }
 
@@ -162,6 +163,7 @@ def summarize_old_conversation(uid, cid):
         print("summarize_old_conversation:",e)
 
 def get_user_id():
+    """✅ يرجع UID ثابت لكل مستخدم مسجل، و UID مؤقت للضيف (محفوظ في الجلسة)"""
     if session.get('is_admin'):return "admin_page"
     if session.get('user_email'):return "user_"+session['user_email']
     if 'guest_id' not in session:
@@ -199,7 +201,9 @@ def check_limits(uid,role):
     usage=get_usage_today(uid)
     limits=LIMITS.get(role,LIMITS["guest"])
     can_chat=int(usage.get("chat_count",0) or 0)<limits["chat"]
-    return usage,limits,can_chat
+    can_search=int(usage.get("search_count",0) or 0)<limits["search"]
+    can_image=int(usage.get("image_count",0) or 0)<limits["image"]
+    return usage,limits,can_chat,can_search,can_image
 
 def get_user_conversations(uid):
     try:
@@ -327,29 +331,6 @@ SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهج�
 - لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
 - رد بشكل مباشر بدون مقدمات فلسفية."""
 
-def generate_image(prompt):
-    try:
-        api_key=os.environ.get("PEXELS_API_KEY")
-        if not api_key:return "ERROR: PEXELS_API_KEY غير موجود"
-        query=requests.utils.quote(prompt);url=f"https://api.pexels.com/v1/search?query={query}&per_page=1&orientation=landscape";headers={"Authorization":api_key};response=requests.get(url,headers=headers,timeout=10);data=response.json()
-        if response.status_code==200 and data.get("photos") and len(data["photos"])>0:return data["photos"][0]["src"]["large"]
-        else:return f"ERROR: {data.get('error','لم أجد صورة')}"
-    except Exception as e:return f"ERROR: {str(e)}"
-
-def search_video(prompt):
-    try:
-        api_key=os.environ.get("PEXELS_API_KEY")
-        if not api_key:return "ERROR: PEXELS_API_KEY غير موجود"
-        query=requests.utils.quote(prompt);url=f"https://api.pexels.com/videos/search?query={query}&per_page=1";headers={"Authorization":api_key};response=requests.get(url,headers=headers,timeout=10);data=response.json()
-        if response.status_code==200 and data.get("videos") and len(data["videos"])>0:
-            video_files=data["videos"][0]["video_files"]
-            for vf in video_files:
-                if vf.get("quality")=="hd" and vf.get("link"):return vf["link"]
-            if video_files and video_files[0].get("link"):return video_files[0]["link"]
-            return "ERROR: ما لقيت رابط فيديو"
-        else:return f"ERROR: {data.get('error','لم أجد فيديو')}"
-    except Exception as e:return f"ERROR: {str(e)}"
-
 async def _generate_speech_async(text, voice):
     communicate=edge_tts.Communicate(text, voice);audio_data=b""
     async for chunk in communicate.stream():
@@ -371,7 +352,7 @@ LIBRARY_HTML="""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UT
 const zone=document.getElementById('uploadZone');const fi=document.getElementById('fileInput');const grid=document.getElementById('grid');
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
 function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
-async function loadImages(){try{const r=await fetch('/library/images');const d=await r.json();grid.innerHTML='';if(!d.images||d.images.length===0){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><h3>مكتبتك فاضية</h3><p>ارفع أول صورة أو اطلب من نبراس يولّد صورة</p></div>';return;}d.images.forEach(img=>{const src=img.image_data||img.image_url;const card=document.createElement('div');card.className='img-card';card.innerHTML='<img class="preview" src="'+src+'" loading="lazy"/><button class="delete-btn" title="حذف"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button><div class="info"><div class="title">'+(img.title||'صورة')+'</div><div class="source">'+(img.source==='generated'?'مولدة':'مرفوعة')+'</div></div>';card.querySelector('.delete-btn').onclick=async(e)=>{e.stopPropagation();if(!confirm('حذف هذه الصورة؟'))return;const r=await fetch('/library/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:img.id})});const res=await r.json();if(res.status==='ok'){card.remove();showToast('تم الحذف');if(grid.children.length===0)loadImages();}else showToast('فشل الحذف');};grid.appendChild(card);});}catch(e){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><h3>خطأ</h3><p>تعذر تحميل الصور</p></div>';}}
+async function loadImages(){try{const r=await fetch('/library/images');const d=await r.json();grid.innerHTML='';if(!d.images||d.images.length===0){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><h3>مكتبتك فاضية</h3><p>ارفع أول صورة</p></div>';return;}d.images.forEach(img=>{const src=img.image_data||img.image_url;const card=document.createElement('div');card.className='img-card';card.innerHTML='<img class="preview" src="'+src+'" loading="lazy"/><button class="delete-btn" title="حذف"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button><div class="info"><div class="title">'+(img.title||'صورة')+'</div><div class="source">'+(img.source==='generated'?'مولدة':'مرفوعة')+'</div></div>';card.querySelector('.delete-btn').onclick=async(e)=>{e.stopPropagation();if(!confirm('حذف هذه الصورة؟'))return;const r=await fetch('/library/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:img.id})});const res=await r.json();if(res.status==='ok'){card.remove();showToast('تم الحذف');if(grid.children.length===0)loadImages();}else showToast('فشل الحذف');};grid.appendChild(card);});}catch(e){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><h3>خطأ</h3><p>تعذر تحميل الصور</p></div>';}}
 async function uploadFiles(files){for(const file of files){if(!file.type.startsWith('image/'))continue;await new Promise(res=>{compressImage(file,1000,async(dataUrl)=>{try{const r=await fetch('/library/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_data:dataUrl,title:file.name})});const d=await r.json();if(d.status==='ok')showToast('تم رفع الصورة');else showToast('فشل الرفع');}catch(e){showToast('خطأ في الاتصال');}res();});});}loadImages();}
 zone.onclick=()=>fi.click();fi.onchange=(e)=>{if(e.target.files.length>0)uploadFiles(e.target.files);fi.value='';};zone.ondragover=(e)=>{e.preventDefault();zone.classList.add('dragover');};zone.ondragleave=()=>zone.classList.remove('dragover');zone.ondrop=(e)=>{e.preventDefault();zone.classList.remove('dragover');uploadFiles(e.dataTransfer.files);};loadImages();
 </script></body></html>"""
@@ -716,106 +697,80 @@ def chat():
         user_role=get_user_role(user_email) if user_email else 'guest'
         is_registered=is_admin or (bool(user_email) and user_role in ('user','admin'))
         uid=get_user_id()
-        usage,limits,can_chat=check_limits(uid,user_role if not is_admin else 'admin')
-        if not can_chat and is_registered and not is_admin:
-            guest_uid=f"guest_{get_remote_address()}"
-            guest_usage,guest_limits,guest_can=check_limits(guest_uid,"guest")
-            if guest_can:
-                uid=guest_uid
-                usage=guest_usage
-                limits=guest_limits
-                is_registered=False
-                can_chat=True
+        
+        # ✅ الحصول على الحدود والحالات
+        usage,limits,can_chat,can_search,can_image=check_limits(uid,user_role if not is_admin else 'admin')
+        
+        # ✅ إذا وصل لحد المحادثات، يوقف
         if not can_chat:
-            reply_limit="وصلت للحد اليومي. سجّل غداً للمزيد."
-            nid=save_message(uid,um,reply_limit,cid)
+            reply_limit="وصلت للحد اليومي للمحادثات (15). تقدر ترجع بكرة إن شاء الله."
+            # فقط نحفظ لو مسجل
+            if is_registered:
+                nid=save_message(uid,um,reply_limit,cid)
+            else:
+                nid=cid
             return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
         
-        # تحديث last_seen
-        if user_email:
+        # ✅ تحديث last_seen و حفظ المحادثة السابقة (فقط للمسجل)
+        if is_registered and user_email:
             try: touch_user(user_email)
             except: pass
+            if not cid:
+                try:
+                    recent=(sb.table("assistant_chats").select("conv_id")
+                            .eq("user_id",uid).order("created_at",desc=True).limit(1).execute())
+                    if recent and recent.data:
+                        last_cid=recent.data[0].get("conv_id")
+                        if last_cid: summarize_old_conversation(uid, last_cid)
+                except Exception as e:
+                    print("auto-summarize:",e)
         
-        # لخّص المحادثة السابقة
-        if user_email and not cid:
-            try:
-                recent=(sb.table("assistant_chats").select("conv_id")
-                        .eq("user_id",uid).order("created_at",desc=True).limit(1).execute())
-                if recent and recent.data:
-                    last_cid=recent.data[0].get("conv_id")
-                    if last_cid: summarize_old_conversation(uid, last_cid)
-            except Exception as e:
-                print("auto-summarize:",e)
-        
-        draw_phrases=["ارسم لي","ابي صورة","ابي صوره","ابي صورت","صوره لي","ارسم","أنشئ","انشئ","انشى","صمم","ولّد","generate","draw","فيديو","ابي فيديو","عرض فيديو"]
-        def is_image_request(text):
-            tl=text.lower().strip()
-            if len(tl.split())<=1:return False
-            for p in draw_phrases:
-                if p in tl:return True
-            return False
+        # ✅ إذا فيه صورة مرفقة (يحتاج مسجل + can_image)
         has_image=d.get("image") is not None
-        if is_image_request(um) and not has_image:
-            video_keywords=["فيديو","ابي فيديو","عرض فيديو"]
-            is_video=any(kw in um for kw in video_keywords)
-            if is_video:
-                vr=search_video(um)
-                if vr and vr.startswith("ERROR:"):
-                    reply=f"{vr.replace('ERROR:','')}"
-                    nid=save_message(uid,um,reply,cid)
-                    return jsonify({"reply":reply,"conv_id":nid})
-                elif vr:
-                    reply="إليك الفيديو:";rw=reply+"\n"+vr
-                    nid=save_message(uid,um,rw,cid)
-                    return jsonify({"reply":rw,"image_url":vr,"conv_id":nid})
-            else:
-                ir=generate_image(um)
-                if ir and ir.startswith("ERROR:"):
-                    reply=f"{ir.replace('ERROR:','')}"
-                    nid=save_message(uid,um,reply,cid)
-                    return jsonify({"reply":reply,"conv_id":nid})
-                elif ir:
-                    reply="إليك الصورة:";rw=reply+"\n"+ir
-                    nid=save_message(uid,um,rw,cid)
-                    if is_registered:
-                        try: save_image_to_library(uid,image_url=ir,title=um[:60],source="generated")
-                        except: pass
-                    return jsonify({"reply":rw,"image_url":ir,"conv_id":nid})
-        if has_image and not is_registered:
-            reply="عذراً، تحليل الصور متاح للأعضاء المسجلين فقط."
-            nid=save_message(uid,um,reply,cid)
-            return jsonify({"reply":reply,"conv_id":nid})
+        if has_image:
+            if not is_registered:
+                reply="تحليل الصور متاح للمسجلين فقط. سجّل دخولك عشان تستفيد."
+                nid=cid
+                return jsonify({"reply":reply,"conv_id":nid})
+            if not can_image:
+                reply="وصلت للحد اليومي لتحليل الصور (صورة واحدة). تقدر ترجع بكرة."
+                nid=save_message(uid,um,reply,cid)
+                inc_usage(uid,"chat_count")
+                return jsonify({"reply":reply,"conv_id":nid})
         
-        # ============ الذاكرة طويلة المدى ============
-        user_memory=get_user_memory(user_email) if user_email else {}
+        # ✅ إذا فيه بحث بالويب
+        search_keywords=["أحدث","اليوم","الآن","2025","2026","جديد","خبر","أخبار","سعر","أسعار","مباراة","نتيجة","طقس","متى"]
+        need_search=any(kw in um for kw in search_keywords)
         
-        # استخراج الاسم تلقائياً
-        name_patterns=[
-            r'(?:اسمي|انا|أنا|إسمي)\s+([\u0600-\u06FF]{2,20})',
-            r'(?:اسمي|انا|أنا|إسمي)\s+([A-Za-z]{2,20})',
-            r'(?:نادني|سميني|لقبي)\s+([\u0600-\u06FF]{2,20})',
-        ]
-        for pattern in name_patterns:
-            match=re.search(pattern,um)
-            if match:
-                candidate=match.group(1).strip()
-                stopwords=['وش','ايش','مين','هو','هي','من','في','على','ما','لا','واحد','شي']
-                if candidate not in stopwords and len(candidate)>=2:
-                    user_memory['name']=candidate
-                    if user_email: save_user_memory(user_email,user_memory)
-                    break
-        
-        # بناء سياق الذاكرة
-        memory_parts=[]
-        if user_memory.get('name'):
-            memory_parts.append(f"اسم المستخدم: {user_memory['name']}")
-        if user_email and not user_memory.get('name'):
-            profile=get_user_profile(user_email)
-            if profile and profile.get('display_name'):
-                memory_parts.append(f"اسم المستخدم: {profile['display_name']}")
-        
-        # جلب ملخصات آخر 5 محادثات
-        if user_email:
+        # ✅ الذاكرة طويلة المدى (فقط للمسجل)
+        user_memory={}
+        memory_context=""
+        if is_registered:
+            user_memory=get_user_memory(user_email) if user_email else {}
+            # استخراج الاسم
+            name_patterns=[
+                r'(?:اسمي|انا|أنا|إسمي)\s+([\u0600-\u06FF]{2,20})',
+                r'(?:اسمي|انا|أنا|إسمي)\s+([A-Za-z]{2,20})',
+                r'(?:نادني|سميني|لقبي)\s+([\u0600-\u06FF]{2,20})',
+            ]
+            for pattern in name_patterns:
+                match=re.search(pattern,um)
+                if match:
+                    candidate=match.group(1).strip()
+                    stopwords=['وش','ايش','مين','هو','هي','من','في','على','ما','لا','واحد','شي']
+                    if candidate not in stopwords and len(candidate)>=2:
+                        user_memory['name']=candidate
+                        if user_email: save_user_memory(user_email,user_memory)
+                        break
+            
+            memory_parts=[]
+            if user_memory.get('name'):
+                memory_parts.append(f"اسم المستخدم: {user_memory['name']}")
+            elif user_email:
+                profile=get_user_profile(user_email)
+                if profile and profile.get('display_name'):
+                    memory_parts.append(f"اسم المستخدم: {profile['display_name']}")
+            
             summaries=get_recent_summaries(uid, limit=5)
             if summaries:
                 summary_lines=[]
@@ -823,14 +778,13 @@ def chat():
                     title=s.get('title','محادثة')
                     summary=s['summary']
                     summary_lines.append(f"• عن [{title}]: {summary}")
-                memory_parts.append("مواضيع سابقة تحدثت فيها مع المستخدم:\n"+"\n".join(summary_lines))
+                memory_parts.append("مواضيع سابقة تحدثنا فيها:\n"+"\n".join(summary_lines))
+            
+            if memory_parts:
+                memory_context="\n\n**معلومات عن المستخدم:**\n"+"\n".join(memory_parts)
         
-        memory_context=""
-        if memory_parts:
-            memory_context="\n\n**معلومات عن المستخدم:**\n"+"\n".join(memory_parts)
-        # ============ نهاية الذاكرة ============
-        
-        server_hist=load_conversation(uid,cid) if cid else []
+        # ✅ بناء السياق
+        server_hist=load_conversation(uid,cid) if (cid and is_registered) else []
         if not server_hist:server_hist=[]
         server_hist.append({"role":"user","content":um})
         ch=server_hist[-15:]
@@ -838,12 +792,13 @@ def chat():
         for e in ch:
             if isinstance(e.get("content"),str):
                 msgs.append({"role":e["role"],"content":e["content"]})
+        
         img_data=d.get("image",None)
-        if img_data and is_registered:
+        if img_data and is_registered and can_image:
             msgs.append({"role":"user","content":[{"type":"text","text":um or "حلل الصورة"},{"type":"image_url","image_url":{"url":img_data}}]})
-        search_keywords=["أحدث","اليوم","الآن","2025","2026","جديد","خبر","أخبار","سعر","أسعار","مباراة","نتيجة","طقس","متى"]
-        need_search=any(kw in um for kw in search_keywords)
-        if is_registered and need_search:
+        
+        # ✅ البحث بالويب (فقط للمسجل + can_search)
+        if is_registered and need_search and can_search:
             try:
                 fc=""
                 for m in msgs[-6:]:
@@ -855,6 +810,8 @@ def chat():
                 if res:msgs.append({"role":"user","content":f"نتيجة البحث:\n{res}"})
                 inc_usage(uid,"search_count")
             except Exception as e:print(f"بحث: {e}")
+        
+        # ✅ توليد الرد
         try:
             r=client.chat.completions.create(model=OPENAI_MODEL,messages=msgs,max_completion_tokens=8000,reasoning_effort="low")
             reply=r.choices[0].message.content.strip()
@@ -862,6 +819,8 @@ def chat():
         except Exception as e:
             print(f"{e}")
             return jsonify({"error":str(e)}),500
+        
+        # ✅ تنسيق الفقرات
         lines=reply.split('\n');merged=[];cur=[]
         for line in lines:
             line=line.strip()
@@ -870,8 +829,19 @@ def chat():
             else:cur.append(line)
         if cur:merged.append(' '.join(cur))
         reply='\n\n'.join(merged)
-        nid=save_message(uid,um,reply,cid)
-        inc_usage(uid,"chat_count")
+        
+        # ✅ الحفظ (فقط للمسجل)
+        nid=cid
+        if is_registered:
+            nid=save_message(uid,um,reply,cid)
+            inc_usage(uid,"chat_count")
+            if has_image and can_image:
+                inc_usage(uid,"image_count")
+        else:
+            # الضيف: نستخدم cid مؤقت في الجلسة فقط
+            if not nid:
+                nid="guest_conv_"+secrets.token_hex(5)
+        
         return jsonify({"reply":reply,"audio":None,"conv_id":nid})
     except Exception as e:
         print(f"{e}")
