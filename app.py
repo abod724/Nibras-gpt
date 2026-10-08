@@ -35,6 +35,9 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود!")
 
+# موديل البحث (افتراضي: gpt-4o-search-preview)
+OPENAI_SEARCH_MODEL = os.environ.get("OPENAI_SEARCH_MODEL", "gpt-4o-search-preview")
+
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # ---- Supabase ----
@@ -1107,7 +1110,6 @@ def update_profile():
     if not email:
         return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
 
-    # ✅ الأدمن والمسجل: يحفظون في Supabase
     save_user_profile(email, name=name)
     save_user_memory(email, {"name": name})
     return jsonify({"status": "ok"})
@@ -1622,11 +1624,6 @@ def chat():
                 inc_usage(uid, "chat_count")
                 return jsonify({"reply": reply, "conv_id": nid})
 
-        search_keywords = ["أحدث", "اليوم", "الآن", "2025", "2026", "جديد",
-                           "خبر", "أخبار", "سعر", "أسعار", "مباراة", "نتيجة",
-                           "طقس", "متى"]
-        need_search = any(kw in um for kw in search_keywords)
-
         user_memory = {}
         memory_context = ""
         if is_registered:
@@ -1687,7 +1684,8 @@ def chat():
                 ]
             })
 
-        if is_registered and need_search and can_search:
+        # ✅ التعديل: بحث تلقائي حسب الصلاحية فقط (بدون شرط كلمات مفتاحية)
+        if is_registered and can_search:
             try:
                 fc = ""
                 for m in msgs[-6:]:
@@ -1697,17 +1695,28 @@ def chat():
                         elif m["role"] == "assistant":
                             fc += "نبراس: " + m["content"] + "\n"
                 sr = client.responses.create(
-                    model=OPENAI_MODEL,
+                    model=OPENAI_SEARCH_MODEL,
                     instructions=f"{SP}\n\nسياق:\n{fc}",
                     input=f"ابحث عن أحدث المعلومات: {um}",
-                    tools=[{"type": "web_search"}]
+                    tools=[{"type": "web_search_preview"}]
                 )
-                res = sr.output_text.strip()
+                # دعم شكلين محتملين للرد
+                res = ""
+                if hasattr(sr, "output_text") and sr.output_text:
+                    res = sr.output_text.strip()
+                elif getattr(sr, "output", None):
+                    try:
+                        res = sr.output[0].content[0].text
+                    except Exception:
+                        res = ""
                 if res:
                     msgs.append({"role": "user", "content": f"نتيجة البحث:\n{res}"})
+                    print(f"✅ بحث ناجح ({'أدمن' if is_admin else 'مستخدم'}) - {len(res)} حرف")
+                else:
+                    print("⚠️ رد البحث فاضي")
                 inc_usage(uid, "search_count")
             except Exception as e:
-                print(f"بحث: {e}")
+                print(f"❌ فشل البحث ({type(e).__name__}): {e}")
 
         try:
             r = client.chat.completions.create(
