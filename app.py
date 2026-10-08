@@ -781,7 +781,23 @@ const subPagesContent={
 function openSubPage(key){const titleMap={general:'عام',notifications:'الإشعارات',voice:'الصوت',safety:'السلامة',security:'الأمان وتسجيل الدخول',remote:'التحكم عن بُعد',storage:'التخزين',privacy:'مركز الخصوصية',data:'التحكم في البيانات',ads:'التحكم في الإعلانات',report:'الإبلاغ عن خطأ',about:'حول'};document.getElementById('subPageTitle').textContent=titleMap[key]||'إعدادات';document.getElementById('subPageBody').innerHTML=subPagesContent[key]||'<div class="info-box">قريباً</div>';document.getElementById('subPage').classList.add('show');if(key==='storage')loadStorageInfo();}
 function closeSubPage(){document.getElementById('subPage').classList.remove('show');}
 async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
-function saveGeneral(){const n=document.getElementById('sp-name').value;fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم الحفظ');closeSubPage();}});}
+
+// ✅ دالة محدثة: تحقق من الاسم قبل الإرسال + تعرض تنبيه للتسجيل
+function saveGeneral(){
+    const n=(document.getElementById('sp-name').value||'').trim();
+    if(!n || n.length<2){showToast('اكتب اسم صحيح (حرفين على الأقل)');return;}
+    fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})})
+        .then(r=>r.json())
+        .then(d=>{
+            if(d.status==='ok'){showToast('✅ تم الحفظ');closeSubPage();setTimeout(()=>location.reload(),500);}
+            else if(d.message && d.message.includes('سجّل')){
+                showToast('🔓 سجّل دخولك أولاً عشان أحفظ اسمك');
+                setTimeout(()=>window.location.href='/login',1800);
+            }
+            else{showToast('فشل: '+(d.message||'خطأ'));}
+        })
+        .catch(()=>showToast('خطأ في الاتصال'));
+}
 function requestNotifications(){if(!('Notification' in window)){showToast('المتصفح لا يدعم الإشعارات');return;}Notification.requestPermission().then(p=>{showToast(p==='granted'?'تم تفعيل الإشعارات':'تم رفض الإشعارات');});}
 function saveVoice(){const g=document.getElementById('sp-voice-gender').value;const lvl=document.getElementById('sp-voice-level').value;fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:g})}).then(()=>{localStorage.setItem('nibras-voice-level',lvl);showToast('تم حفظ إعدادات الصوت');closeSubPage();});}
 function changePassword(){const oldp=document.getElementById('sp-old-pass').value;const newp=document.getElementById('sp-new-pass').value;if(!oldp||!newp||newp.length<8){showToast('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:oldp,new_password:newp})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');closeSubPage();}else showToast('فشل: '+(d.message||''));});}
@@ -1082,14 +1098,17 @@ def delete_my_account():
 # ---------- إعدادات إضافية ----------
 @app.route('/update_profile', methods=['POST'])
 def update_profile():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "error"}), 401
     d = request.get_json()
     name = (d.get('name') or '').strip()
-    if name:
-        save_user_profile(email, name=name)
-        save_user_memory(email, {"name": name})
+    if not name or len(name) < 2:
+        return jsonify({"status": "error", "message": "الاسم قصير جداً"}), 400
+
+    email = session.get('user_email')
+    if not email or session.get('is_admin'):
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+
+    save_user_profile(email, name=name)
+    save_user_memory(email, {"name": name})
     return jsonify({"status": "ok"})
 
 
