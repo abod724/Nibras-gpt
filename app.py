@@ -12,6 +12,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from supabase import create_client
 from pywebpush import webpush, WebPushException
+from concurrent.futures import ThreadPoolExecutor
 
 
 app = Flask(__name__, static_folder='static')
@@ -480,6 +481,20 @@ def send_push_to_user(user_id, title, body, url="/"):
         print("send_push_to_user:", e)
 
 
+def send_push_to_all(user_ids, title, body):
+    """إرسال متوازي لكل المشتركين باستخدام ThreadPoolExecutor"""
+    if not user_ids:
+        return 0
+    sent = 0
+    try:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            list(executor.map(lambda u: send_push_to_user(u, title, body), user_ids))
+        sent = len(user_ids)
+    except Exception as e:
+        print("send_push_to_all:", e)
+    return sent
+
+
 # ==========================================================
 #  قاعدة المعرفة
 # ==========================================================
@@ -547,7 +562,7 @@ const zone=document.getElementById('uploadZone');const fi=document.getElementByI
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
 function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
 async function loadImages(){try{const r=await fetch('/library/images');const d=await r.json();grid.innerHTML='';if(!d.images||d.images.length===0){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><h3>مكتبتك فاضية</h3><p>ارفع أول صورة</p></div>';return;}d.images.forEach(img=>{const src=img.image_data||img.image_url;const card=document.createElement('div');card.className='img-card';card.innerHTML='<img class="preview" src="'+src+'" loading="lazy"/><button class="delete-btn" title="حذف"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button><div class="info"><div class="title">'+(img.title||'صورة')+'</div><div class="source">'+(img.source==='generated'?'مولدة':'مرفوعة')+'</div></div>';card.querySelector('.delete-btn').onclick=async(e)=>{e.stopPropagation();if(!confirm('حذف هذه الصورة؟'))return;const r=await fetch('/library/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:img.id})});const res=await r.json();if(res.status==='ok'){card.remove();showToast('تم الحذف');if(grid.children.length===0)loadImages();}else showToast('فشل الحذف');};grid.appendChild(card);});}catch(e){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><h3>خطأ</h3><p>تعذر تحميل الصور</p></div>';}}
-async function uploadFiles(files){for(const file of files){if(!file.type.startsWith('image/'))continue;await new Promise(res=>{compressImage(file,1000,async(dataUrl)=>{try{const r=await fetch('/library/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_data:dataUrl,title:file.name})});const d=await r.json();if(d.status==='ok')showToast('تم رفع الصورة');else showToast('فشل الرفع');}catch(e){showToast('خطأ في الاتصال');}res();});});}loadImages();}
+async function uploadFiles(files){for(const file of files){if(!file.type.startsWith('image/'))continue;await new Promise(res=>{compressImage(file,1000,async(dataUrl)=>{try{const r=await fetch('/library/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_data:dataUrl,title:file.name})});const d=await r.json();if(d.status==='ok')showToast('تم رفع الصورة');else showToast(d.message||'فشل الرفع');}catch(e){showToast('خطأ في الاتصال');}res();});});}loadImages();}
 zone.onclick=()=>fi.click();fi.onchange=(e)=>{if(e.target.files.length>0)uploadFiles(e.target.files);fi.value='';};zone.ondragover=(e)=>{e.preventDefault();zone.classList.add('dragover');};zone.ondragleave=()=>zone.classList.remove('dragover');zone.ondrop=(e)=>{e.preventDefault();zone.classList.remove('dragover');uploadFiles(e.dataTransfer.files);};loadImages();
 </script></body></html>"""
 
@@ -944,14 +959,22 @@ document.querySelector('[data-action="new"]').addEventListener('click',function(
 document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();if(!cid){alert('لا توجد محادثة!');dd.classList.remove('show');return}const url=window.location.origin+'/share/'+cid,text=encodeURIComponent('اطلع على محادثتي:');document.getElementById('shareWhatsapp').href='https://api.whatsapp.com/send?text='+text+'%20'+encodeURIComponent(url);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(url)+'&text='+text;document.getElementById('shareSnapchat').onclick=function(ev){ev.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>alert('تم نسخ الرابط!')).catch(()=>alert('الرابط: '+url))}else alert('الرابط: '+url);sm.classList.remove('show')};sm.classList.add('show');dd.classList.remove('show')});
 sm.addEventListener('click',function(e){if(e.target===sm)sm.classList.remove('show')});
 
-function formatBotText(t){let s=String(t||'');let paragraphs=s.split(/\n\s*\n/);return paragraphs.map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');}
+// ====== دوال مساعدة (escape + format) ======
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function formatBotText(t){let s=escapeHtml(t);let paragraphs=s.split(/\n\s*\n/);return paragraphs.map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');}
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1500);}
 const SVG_COPY='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 const SVG_CHECK='<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
 const SVG_SHARE='<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
 const SVG_TRASH='<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 function buildActions(dt,el){const actions=document.createElement('div');actions.className='actions';const copyBtn=document.createElement('button');copyBtn.className='copy-btn';copyBtn.innerHTML=SVG_COPY;copyBtn.addEventListener('click',function(e){e.stopPropagation();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(dt).then(()=>{copyBtn.innerHTML=SVG_CHECK;copyBtn.classList.add('copied');showToast('تم النسخ');setTimeout(()=>{copyBtn.innerHTML=SVG_COPY;copyBtn.classList.remove('copied')},2000)})}});const shareBtn=document.createElement('button');shareBtn.className='copy-btn';shareBtn.innerHTML=SVG_SHARE;shareBtn.addEventListener('click',function(e){e.stopPropagation();window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(dt),'_blank');});const delBtn=document.createElement('button');delBtn.className='del-msg-btn';delBtn.innerHTML=SVG_TRASH;delBtn.addEventListener('click',function(e){e.stopPropagation();deleteMessage(el)});actions.appendChild(copyBtn);actions.appendChild(shareBtn);actions.appendChild(delBtn);return actions;}
-function addMessage(t,s,isSys,img,imageUrl){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(s==='error')el.classList.add('error');const now=new Date(),tm=isSys?'':now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});if(img){el.innerHTML='<img src="'+img+'" class="image-upload" />';cb.appendChild(el);cb.scrollTop=cb.scrollHeight;return el}const imatch=t.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);let dt=t,genUrl=null;if(imatch){genUrl=imatch[0];dt=t.replace(imatch[0],'').trim();if(!dt)dt='الصورة المولدة'}if(s==='bot'&&!isSys&&!genUrl&&!imageUrl){const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML='<span class="typing-text"></span>';const actions=buildActions(dt,el);wrapper.appendChild(textDiv);wrapper.appendChild(actions);el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;const ts=textDiv.querySelector('.typing-text');let idx=0,interacted=false;const onInteract=function(){interacted=true;cb.removeEventListener('touchstart',onInteract);cb.removeEventListener('scroll',onInteract)};cb.addEventListener('touchstart',onInteract);cb.addEventListener('scroll',onInteract);function typeChar(){if(idx<dt.length){ts.textContent+=dt.charAt(idx);idx++;if(!interacted)cb.scrollTop=cb.scrollHeight;setTimeout(typeChar,20)}else{ts.innerHTML=formatBotText(dt);cb.scrollTop=cb.scrollHeight}}typeChar();return el}let content=dt;if(s==='bot')content=formatBotText(dt);if(genUrl)content+='<br/><img src="'+genUrl+'" class="generated-image" />';if(imageUrl){if(imageUrl.match(/\.(mp4|webm|mov)$/i)||imageUrl.includes('video')){content+='<br><video controls class="generated-video" src="'+imageUrl+'"></video>';}else{content+='<br><img src="'+imageUrl+'" class="generated-image" />';}}const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML=content;wrapper.appendChild(textDiv);if(s==='bot'&&!isSys){wrapper.appendChild(buildActions(dt,el))}el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;return el}
+function addMessage(t,s,isSys,img,imageUrl){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(s==='error')el.classList.add('error');const now=new Date(),tm=isSys?'':now.toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'});
+if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);cb.scrollTop=cb.scrollHeight;return el}
+const imatch=String(t||'').match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp))/i);let dt=t,genUrl=null;if(imatch){genUrl=imatch[0];dt=t.replace(imatch[0],'').trim();if(!dt)dt='الصورة المولدة'}
+if(s==='bot'&&!isSys&&!genUrl&&!imageUrl){const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML='<span class="typing-text"></span>';const actions=buildActions(dt,el);wrapper.appendChild(textDiv);wrapper.appendChild(actions);el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;const ts=textDiv.querySelector('.typing-text');let idx=0,interacted=false;const onInteract=function(){interacted=true;cb.removeEventListener('touchstart',onInteract);cb.removeEventListener('scroll',onInteract)};cb.addEventListener('touchstart',onInteract);cb.addEventListener('scroll',onInteract);function typeChar(){if(idx<dt.length){ts.textContent+=dt.charAt(idx);idx++;if(!interacted)cb.scrollTop=cb.scrollHeight;setTimeout(typeChar,20)}else{ts.innerHTML=formatBotText(dt);cb.scrollTop=cb.scrollHeight}}typeChar();return el}
+let content=formatBotText(dt);if(genUrl)content+='<br/><img src="'+escapeHtml(genUrl)+'" class="generated-image" />';
+if(imageUrl){const safeUrl=escapeHtml(imageUrl);if(String(imageUrl).match(/\.(mp4|webm|mov)$/i)||String(imageUrl).includes('video')){content+='<br><video controls class="generated-video" src="'+safeUrl+'"></video>';}else{content+='<br><img src="'+safeUrl+'" class="generated-image" />';}}
+const wrapper=document.createElement('div');wrapper.className='content-wrapper';const textDiv=document.createElement('div');textDiv.className='content-text';textDiv.innerHTML=content;wrapper.appendChild(textDiv);if(s==='bot'&&!isSys){wrapper.appendChild(buildActions(dt,el))}el.appendChild(wrapper);if(tm){const timeSpan=document.createElement('span');timeSpan.className='time';timeSpan.textContent=tm;el.appendChild(timeSpan)}cb.appendChild(el);cb.scrollTop=cb.scrollHeight;return el}
 async function deleteMessage(el){if(!cid){showToast('لا توجد محادثة');return}if(!confirm('حذف هذه الرسالة؟'))return;try{const idx=Array.from(cb.children).indexOf(el);const r=await fetch('/delete_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid,index:idx})});const d=await r.json();if(d.status==='ok'){ch.splice(idx,1);el.remove();showToast('تم الحذف');}else{showToast('فشل الحذف')}}catch(e){showToast('خطأ في الاتصال')}}
 function showImagePreview(d){ip.src=d;ipc.style.display='flex'}
 function clearPending(){pid=null;ipc.style.display='none';ip.src=''}
@@ -1039,11 +1062,18 @@ def library_images():
 def library_upload():
     try:
         if not session.get('user_email') and not session.get('is_admin'):
-            return jsonify({"status": "error"}), 401
+            return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
         d = request.get_json()
-        save_image_to_library(get_user_id(), image_data=d.get('image_data'), title=d.get('title') or "صورة", source="upload")
+        image_data = d.get('image_data') or ''
+        # ✅ حماية حجم الصورة (5MB)
+        if len(image_data) > 5000000:
+            return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
+        if not image_data:
+            return jsonify({"status": "error", "message": "لا توجد صورة"}), 400
+        save_image_to_library(get_user_id(), image_data=image_data, title=d.get('title') or "صورة", source="upload")
         return jsonify({"status": "ok"})
     except Exception as e:
+        print("library_upload:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -1368,14 +1398,9 @@ def admin_send_notification():
             return jsonify({"status": "error", "message": "الرسالة فاضية"}), 400
         subs = sb.table("push_subscriptions").select("user_id").execute()
         user_ids = list({s["user_id"] for s in (subs.data or [])})
-        sent = 0
-        for uid in user_ids:
-            try:
-                send_push_to_user(uid, title, body)
-                sent += 1
-            except Exception as e:
-                print(f"فشل لـ {uid}: {e}")
-        return jsonify({"status": "ok", "sent": sent, "total": len(user_ids)})
+        # ✅ إرسال متوازي باستخدام ThreadPoolExecutor
+        send_push_to_all(user_ids, title, body)
+        return jsonify({"status": "ok", "sent": len(user_ids), "total": len(user_ids)})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
