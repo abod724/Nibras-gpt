@@ -27,7 +27,7 @@ sb=create_client(SUPABASE_URL,SUPABASE_KEY)
 
 LIMITS={
     "guest":  {"chat":15,"search":0,   "image":0},
-    "user":   {"chat":2, "search":999, "image":1},
+    "user":   {"chat":9999, "search":999, "image":999},
     "admin":  {"chat":9999,"search":9999,"image":9999},
 }
 
@@ -91,7 +91,7 @@ def touch_user(email):
     except Exception as e:
         print("touch_user:",e)
 
-# ✅ دوال الذاكرة طويلة المدى الجديدة
+# ✅ دوال الذاكرة طويلة المدى
 def get_user_memory(email):
     if not email: return {}
     try:
@@ -108,6 +108,73 @@ def save_user_memory(email, memory_dict):
         sb.table("profiles").update({"memory":memory_dict}).eq("email",email.lower()).execute()
     except Exception as e:
         print("save_user_memory:",e)
+
+# ✅ ملخصات المحادثات السابقة
+def get_recent_summaries(uid, limit=3):
+    """جلب ملخصات آخر N محادثات للمستخدم"""
+    try:
+        r=(sb.table("assistant_chats")
+             .select("conv_id,summary,title,created_at")
+             .eq("user_id",uid)
+             .not_.is_("summary","null")
+             .order("created_at",desc=True)
+             .limit(50)
+             .execute())
+        rows=r.data or []
+    except Exception as e:
+        print("get_recent_summaries:",e)
+        return []
+    # تجميع فريد حسب conv_id
+    seen={}
+    for row in rows:
+        cid=row.get("conv_id")
+        if cid and cid not in seen and row.get("summary"):
+            seen[cid]={"conv_id":cid,"summary":row["summary"],"title":row.get("title")}
+        if len(seen)>=limit:
+            break
+    return list(seen.values())
+
+def summarize_old_conversation(uid, cid):
+    """تلخيص محادثة سابقة وحفظ الملخص"""
+    if not cid: return
+    try:
+        # هل الملخص موجود مسبقاً؟
+        existing=(sb.table("assistant_chats").select("summary").eq("user_id",uid).eq("conv_id",cid).limit(1).execute())
+        if existing and existing.data and existing.data[0].get("summary"):
+            return  # موجود مسبقاً
+        
+        # جلب رسائل المحادثة
+        msgs=load_conversation(uid,cid)
+        if not msgs or len(msgs)<2: return
+        
+        # بناء نص المحادثة
+        convo_text=""
+        for m in msgs[:20]:  # أول 20 رسالة
+            role="المستخدم" if m["role"]=="user" else "نبراس"
+            convo_text+=f"{role}: {m['content'][:300]}\n"
+        
+        # توليد الملخص
+        try:
+            r=client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role":"system","content":"لخّص المحادثة التالية في 2-3 جمل قصيرة بالعربية، ركّز على المواضيع الأساسية والمعلومات المهمة عن المستخدم (اسمه، اهتماماته، طلباته). اكتب الملخص بصيغة الغائب (المستخدم)."},
+                    {"role":"user","content":convo_text}
+                ],
+                max_completion_tokens=300
+            )
+            summary=r.choices[0].message.content.strip()
+        except Exception as e:
+            print("summarize generation:",e)
+            return
+        
+        if not summary: return
+        
+        # حفظ الملخص على كل صفوف المحادثة
+        sb.table("assistant_chats").update({"summary":summary}).eq("user_id",uid).eq("conv_id",cid).execute()
+        print(f"✅ تم تلخيص المحادثة {cid}: {summary[:80]}...")
+    except Exception as e:
+        print("summarize_old_conversation:",e)
 
 def get_user_id():
     if session.get('is_admin'):return "admin_page"
@@ -261,6 +328,7 @@ SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهج�
 1. **ملف المعرفة** (أدناه).
 2. **معرفتك العامة**.
 3. **البحث بالويب** عند الحاجة.
+4. **ذاكرة المحادثات السابقة** (إن وُجدت).
 
 **ملف المعرفة:**
 {kc}
@@ -273,7 +341,8 @@ SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهج�
 **⚠️ أسلوب الحديث:**
 - سولف بشكل طبيعي وعفوي.
 - لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
-- رد بشكل مباشر بدون مقدمات فلسفية."""
+- رد بشكل مباشر بدون مقدمات فلسفية.
+- إذا ذكر المستخدم معلومة عن نفسه (اسمه، اهتماماته)، استخدمها بشكل طبيعي."""
 
 def generate_image(prompt):
     try:
@@ -382,6 +451,22 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage('المتصفح لا يدعم التعرف على الصوت.','bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='ar-SA';this.classList.add('listening');addMessage('جاري الاستماع...','bot',true);recog.onresult=function(e){const tr=e.results[0][0].transcript;ui.value=tr;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('تحذير: سيتم حذف حسابك بالكامل. متأكد؟'))return;if(!confirm('تأكيد نهائي؟'))return;fetch('/delete_my_account',{method:'POST',headers:{'Content-Type':'application/json'}}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم حذف حسابك');window.location.href='/'}else alert('فشل: '+(d.message||''))}).catch(e=>alert('خطأ'))};
+
+// ✅ الترحيب التلقائي عند فتح الصفحة
+const isLoggedIn = {{ 'true' if session.get('user_email') or session.get('is_admin') else 'false' }};
+let welcomeSent = false;
+async function sendWelcome() {
+    if (welcomeSent || !isLoggedIn) return;
+    welcomeSent = true;
+    try {
+        const r = await fetch('/welcome', { method: 'POST', headers: {'Content-Type':'application/json'} });
+        const d = await r.json();
+        if (d && d.reply) {
+            addMessage(d.reply, 'bot', true);
+        }
+    } catch(e) { console.log('Welcome error:', e); }
+}
+setTimeout(sendWelcome, 800);
 })();</script></body></html>"""
 
 # ==================== Routes ====================
@@ -396,6 +481,10 @@ def index():
             user_name=p.get("display_name") or email.split("@")[0]
         else:
             user_name=email.split("@")[0]
+        # لو فيه اسم في الذاكرة، نستخدمه
+        mem=get_user_memory(email)
+        if mem.get('name'):
+            user_name=mem['name']
     elif session.get('is_admin'):
         user_name="أدمن"
     return render_template_string(HT,user_name=user_name)
@@ -509,7 +598,7 @@ def signup():
         redirect_url = f"{request.host_url.rstrip('/')}/verified"
         sb.auth.sign_up({"email": e,"password": p,"options": {"email_redirect_to": redirect_url,"data": {"display_name": name}}})
         save_user_profile(e, name=name)
-        # ✅ حفظ الاسم في الذاكرة أيضاً
+        # ✅ حفظ الاسم في الذاكرة
         save_user_memory(e, {"name": name})
         return render_template_string(LH,success="تم إنشاء حسابك! افتح بريدك واضغط رابط التأكيد.")
     except Exception as ex:
@@ -651,6 +740,53 @@ def voice():
         print(f"voice: {e}")
         return jsonify({"audio":None})
 
+# ✅ مسار الترحيب التلقائي
+@app.route('/welcome', methods=['POST'])
+def welcome():
+    user_email=session.get('user_email')
+    is_admin=session.get('is_admin')
+    if not user_email and not is_admin:
+        return jsonify({"reply": None})
+    
+    # تحديد الوقت
+    hour=datetime.now().hour
+    if 5 <= hour < 12: time_greet="صباح الخير"
+    elif 12 <= hour < 17: time_greet="مساء الخير"
+    elif 17 <= hour < 22: time_greet="مساء الخير"
+    else: time_greet="سهرة سعيدة"
+    
+    # جلب الاسم
+    name=None
+    if user_email:
+        mem=get_user_memory(user_email)
+        name=mem.get('name')
+        if not name:
+            profile=get_user_profile(user_email)
+            if profile and profile.get('display_name'):
+                name=profile['display_name']
+    if is_admin: name="أدمن"
+    
+    # جلب آخر محادثة
+    uid=get_user_id()
+    last_conv=None
+    try:
+        recent=get_user_conversations(uid)
+        if recent: last_conv=recent[0].get('title')
+    except: pass
+    
+    # بناء الترحيب
+    if name:
+        greet=f"{time_greet} يا {name}! 👋"
+    else:
+        greet=f"{time_greet}! 👋"
+    
+    if last_conv:
+        greet+=f"\nآخر محادثة كانت عن: _{last_conv}_"
+    
+    greet+="\nكيف أقدر أساعدك اليوم؟"
+    
+    return jsonify({"reply": greet})
+
 @app.route('/chat',methods=['POST'])
 @limiter.limit("20 per minute")
 def chat():
@@ -676,6 +812,19 @@ def chat():
             reply_limit="وصلت للحد اليومي. سجّل غداً للمزيد."
             nid=save_message(uid,um,reply_limit,cid)
             return jsonify({"reply":reply_limit,"conv_id":nid,"audio":None})
+        
+        # ✅ إذا كانت رسالة جديدة (بدون cid سابق)، لخّص المحادثة السابقة
+        if user_email and not cid:
+            try:
+                # جلب آخر محادثة للمستخدم ولخّصها
+                recent=(sb.table("assistant_chats").select("conv_id")
+                        .eq("user_id",uid).order("created_at",desc=True).limit(1).execute())
+                if recent and recent.data:
+                    last_cid=recent.data[0].get("conv_id")
+                    if last_cid: summarize_old_conversation(uid, last_cid)
+            except Exception as e:
+                print("auto-summarize:",e)
+        
         draw_phrases=["ارسم لي","ابي صورة","ابي صوره","ابي صورت","صوره لي","ارسم","أنشئ","انشئ","انشى","صمم","ولّد","generate","draw","فيديو","ابي فيديو","عرض فيديو"]
         def is_image_request(text):
             tl=text.lower().strip()
@@ -718,35 +867,41 @@ def chat():
         # ============ الذاكرة طويلة المدى ============
         user_memory=get_user_memory(user_email) if user_email else {}
         
-        # استخراج الاسم من الرسالة تلقائياً
+        # استخراج الاسم تلقائياً
         name_patterns=[
             r'(?:اسمي|انا|أنا|إسمي)\s+([\u0600-\u06FF]{2,20})',
             r'(?:اسمي|انا|أنا|إسمي)\s+([A-Za-z]{2,20})',
             r'(?:نادني|سميني|لقبي)\s+([\u0600-\u06FF]{2,20})',
         ]
-        detected_name=None
         for pattern in name_patterns:
             match=re.search(pattern,um)
             if match:
                 candidate=match.group(1).strip()
                 stopwords=['وش','ايش','مين','هو','هي','من','في','على','ما','لا','واحد','شي']
                 if candidate not in stopwords and len(candidate)>=2:
-                    detected_name=candidate
+                    user_memory['name']=candidate
+                    if user_email: save_user_memory(user_email,user_memory)
                     break
-        if detected_name and user_email:
-            user_memory['name']=detected_name
-            save_user_memory(user_email,user_memory)
         
         # بناء سياق الذاكرة
-        memory_context=""
+        memory_parts=[]
+        if user_memory.get('name'):
+            memory_parts.append(f"اسم المستخدم: {user_memory['name']} (نادِه به بشكل طبيعي، بدون مبالغة)")
+        if user_email and not user_memory.get('name'):
+            profile=get_user_profile(user_email)
+            if profile and profile.get('display_name'):
+                memory_parts.append(f"اسم المستخدم: {profile['display_name']}")
+        
+        # ✅ جلب ملخصات آخر 3 محادثات
         if user_email:
-            if not user_memory.get('name'):
-                profile=get_user_profile(user_email)
-                if profile and profile.get('display_name'):
-                    user_memory['name']=profile['display_name']
-                    save_user_memory(user_email,user_memory)
-            if user_memory.get('name'):
-                memory_context=f"\n\n**معلومات محفوظة عن المستخدم:**\n- اسمه: {user_memory['name']}\n\n⚠️ نادِ المستخدم باسمه بشكل طبيعي وعفوي. لا تذكر أبداً أنك تحفظ اسمه أو أن لديك ذاكرة."
+            summaries=get_recent_summaries(uid, limit=3)
+            if summaries:
+                summary_text="\n".join([f"- [{s.get('title','محادثة')}]: {s['summary']}" for s in summaries])
+                memory_parts.append(f"ملخصات محادثات سابقة:\n{summary_text}")
+        
+        memory_context=""
+        if memory_parts:
+            memory_context="\n\n**معلومات محفوظة عن المستخدم (استخدمها بشكل طبيعي، لا تذكر أنها من ذاكرة):**\n"+"\n".join(memory_parts)
         # ============ نهاية الذاكرة ============
         
         server_hist=load_conversation(uid,cid) if cid else []
