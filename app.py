@@ -67,7 +67,7 @@ def get_user_role(email):
 def get_user_profile(email):
     if not email: return None
     try:
-        r=(sb.table("profiles").select("*").eq("email",email.lower()).limit(1).execute())
+        r=(sb.table("profiles").select("*").eq("email",email.lower().strip()).limit(1).execute())
         if r and r.data:
             return r.data[0]
     except Exception as e:
@@ -77,7 +77,7 @@ def get_user_profile(email):
 def save_user_profile(email, name=None, avatar=None):
     if not email: return
     try:
-        data={"email":email.lower()}
+        data={"email":email.lower().strip()}
         if name is not None: data["display_name"]=name
         if avatar is not None: data["avatar_url"]=avatar
         sb.table("profiles").upsert(data, on_conflict="email").execute()
@@ -87,14 +87,14 @@ def save_user_profile(email, name=None, avatar=None):
 def touch_user(email):
     if not email: return
     try:
-        sb.table("profiles").update({"last_seen":datetime.utcnow().isoformat()}).eq("email",email.lower()).execute()
+        sb.table("profiles").update({"last_seen":datetime.utcnow().isoformat()}).eq("email",email.lower().strip()).execute()
     except Exception as e:
         print("touch_user:",e)
 
 def get_user_memory(email):
     if not email: return {}
     try:
-        r=(sb.table("profiles").select("memory").eq("email",email.lower()).limit(1).execute())
+        r=(sb.table("profiles").select("memory").eq("email",email.lower().strip()).limit(1).execute())
         if r and r.data and r.data[0].get("memory"):
             return r.data[0]["memory"] or {}
     except Exception as e:
@@ -104,7 +104,7 @@ def get_user_memory(email):
 def save_user_memory(email, memory_dict):
     if not email: return
     try:
-        sb.table("profiles").update({"memory":memory_dict}).eq("email",email.lower()).execute()
+        sb.table("profiles").update({"memory":memory_dict}).eq("email",email.lower().strip()).execute()
     except Exception as e:
         print("save_user_memory:",e)
 
@@ -146,7 +146,7 @@ def summarize_old_conversation(uid, cid):
             r=client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=[
-                    {"role":"system","content":"لخّص المحادثة التالية في 2-3 جمل قصيرة بالعربية. ركّز على: اسم المستخدم إن ذُكر، المواضيع التي تحدثوا عنها، أي مشكلة أو اهتمام ذكره المستخدم، أي معلومة شخصية ذكرها. اكتب بصيغة الغائب عن 'المستخدم'."},
+                    {"role":"system","content":"لخّص المحادثة التالية في 2-3 جمل قصيرة بالعربية. ركّز على: اسم المستخدم إن ذُكر، المواضيع التي تحدثوا عنها، أي معلومة شخصية ذكرها. اكتب بصيغة الغائب عن 'المستخدم'."},
                     {"role":"user","content":convo_text}
                 ],
                 max_completion_tokens=300
@@ -307,19 +307,12 @@ for fn in ["Knowledge.md","knowledge.md","معرفة.md","README.md","ملف_ا�
         except:pass
 if not kc:kc="أنت نبراس، مساعد ذكي."
 
-SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء (السعودية/الخليجية).
-
-**شخصيتك:**
-- صديق ذكي وقريب من المستخدم.
-- تتذكر الاسم والمواضيع السابقة بشكل طبيعي جداً.
-- لا تتصرف مثل روبوت، سولف بشكل عفوي مثل صديق حقيقي.
-- لا تذكر أبداً كلمة "ذاكرة" أو "حفظت" أو "تذكرت من قبل" - تصرف كأنك تعرف هذه المعلومات بشكل بديهي.
+SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
 
 **مصادر معرفتك:**
-1. ملف المعرفة (أدناه).
-2. معرفتك العامة.
-3. البحث بالويب عند الحاجة.
-4. المعلومات المحفوظة عن المستخدم (اسمه، مواضيعه السابقة).
+1. **ملف المعرفة** (أدناه).
+2. **معرفتك العامة**.
+3. **البحث بالويب** عند الحاجة.
 
 **ملف المعرفة:**
 {kc}
@@ -329,20 +322,10 @@ SP=f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهج�
 - لا تضع كل جملة في سطر منفصل.
 - الفاصل الوحيد هو سطر فارغ بين الفقرات.
 
-**⚠️ قواعد التعامل مع الذاكرة (مهم جداً):**
-- إذا عرفت اسم المستخدم، نادِه باسمه أحياناً بشكل طبيعي (مو بكل رسالة).
-- إذا ذكر المستخدم موضوعاً سابقاً أو كان لديك ملخص لمحادثة سابقة، اربط الموضوع بشكل طبيعي جداً، مثل:
-  * "بالمناسبة، وش صار مع [الموضوع]؟"
-  * "لا تنسى تكلمني عن [الموضوع] اللي قلته قبل"
-  * "ذكرتني، وش سويت بخصوص [الموضوع]؟"
-- لا تقل "حسب المحادثات السابقة" أو "كما ذكرت سابقاً" - هذي صيغة رسمية.
-- تصرف كأنك صديق يتذكر أشياء من فترة لفترة بشكل عفوي.
-
 **⚠️ أسلوب الحديث:**
 - سولف بشكل طبيعي وعفوي.
-- رد بشكل مباشر بدون مقدمات فلسفية أو رسمية.
-- استخدم كلمات مثل "يا" و"وش" و"كيف" و"الحين" بشكل طبيعي.
-- تجنب الردود الطويلة جداً، خليها مختصرة ومركزة."""
+- لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
+- رد بشكل مباشر بدون مقدمات فلسفية."""
 
 def generate_image(prompt):
     try:
@@ -451,22 +434,6 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage('المتصفح لا يدعم التعرف على الصوت.','bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='ar-SA';this.classList.add('listening');addMessage('جاري الاستماع...','bot',true);recog.onresult=function(e){const tr=e.results[0][0].transcript;ui.value=tr;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('تحذير: سيتم حذف حسابك بالكامل. متأكد؟'))return;if(!confirm('تأكيد نهائي؟'))return;fetch('/delete_my_account',{method:'POST',headers:{'Content-Type':'application/json'}}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم حذف حسابك');window.location.href='/'}else alert('فشل: '+(d.message||''))}).catch(e=>alert('خطأ'))};
-
-// ✅ الترحيب التلقائي
-const isLoggedIn = {{ 'true' if session.get('user_email') or session.get('is_admin') else 'false' }};
-let welcomeSent = false;
-async function sendWelcome() {
-    if (welcomeSent || !isLoggedIn) return;
-    welcomeSent = true;
-    try {
-        const r = await fetch('/welcome', { method: 'POST', headers: {'Content-Type':'application/json'} });
-        const d = await r.json();
-        if (d && d.reply) {
-            addMessage(d.reply, 'bot', true);
-        }
-    } catch(e) { console.log('Welcome error:', e); }
-}
-setTimeout(sendWelcome, 800);
 })();</script></body></html>"""
 
 # ==================== Routes ====================
@@ -738,146 +705,6 @@ def voice():
         print(f"voice: {e}")
         return jsonify({"audio":None})
 
-# ✅ الترحيب الديناميكي بالـ AI (يقرأ كل المعلومات من قاعدة البيانات)
-@app.route('/welcome', methods=['POST'])
-def welcome():
-    user_email=session.get('user_email')
-    is_admin=session.get('is_admin')
-    if not user_email and not is_admin:
-        return jsonify({"reply": None})
-    
-    uid=get_user_id()
-    
-    # === 1. جلب معلومات المستخدم من قاعدة البيانات ===
-    name=None
-    last_seen=None
-    days_since=None
-    hours_since=None
-    minutes_since=None
-    if user_email:
-        profile=get_user_profile(user_email)
-        if profile:
-            last_seen=profile.get('last_seen')
-        mem=get_user_memory(user_email)
-        name=mem.get('name')
-        if not name and profile:
-            name=profile.get('display_name')
-    if is_admin: name="أدمن"
-    
-    # حساب مدة الغياب
-    if last_seen:
-        try:
-            ls=last_seen.replace('Z','').replace('+00:00','')
-            last_dt=datetime.fromisoformat(ls)
-            diff=datetime.utcnow()-last_dt
-            days_since=diff.days
-            hours_since=int(diff.total_seconds()//3600)
-            minutes_since=int(diff.total_seconds()//60)
-        except Exception as e:
-            print("days calc:",e)
-    
-    # === 2. جلب ملخصات المحادثات السابقة ===
-    summaries_text=""
-    try:
-        summaries=get_recent_summaries(uid, limit=5)
-        if summaries:
-            lines=[]
-            for s in summaries:
-                title=s.get('title') or 'بدون عنوان'
-                lines.append(f"- [{title}]: {s['summary']}")
-            summaries_text="\n".join(lines)
-    except Exception as e:
-        print("summaries:",e)
-    
-    # === 3. جلب آخر محادثة (رسائلها) ===
-    last_conv_snippet=""
-    try:
-        recent_convs=get_user_conversations(uid)
-        if recent_convs:
-            last_cid=recent_convs[0]['id']
-            msgs=load_conversation(uid, last_cid)
-            if msgs:
-                for m in msgs[-4:]:
-                    role="المستخدم" if m['role']=='user' else "نبراس"
-                    last_conv_snippet+=f"{role}: {m['content'][:200]}\n"
-    except Exception as e:
-        print("last_conv:",e)
-    
-    # === 4. الوقت الحالي ===
-    now=datetime.now()
-    hour=now.hour
-    day_name=now.strftime('%A')
-    days_ar={'Monday':'الاثنين','Tuesday':'الثلاثاء','Wednesday':'الأربعاء','Thursday':'الخميس','Friday':'الجمعة','Saturday':'السبت','Sunday':'الأحد'}
-    day_ar=days_ar.get(day_name,'')
-    
-    # === 5. بناء رسالة داخلية للـ AI فيها كل المعلومات ===
-    info_lines=[]
-    info_lines.append(f"الوقت الحالي: {hour}:00 - {day_ar}")
-    if name:
-        info_lines.append(f"اسم المستخدم: {name}")
-    else:
-        info_lines.append("اسم المستخدم: غير معروف")
-    if days_since is not None:
-        if days_since==0 and hours_since==0:
-            info_lines.append(f"آخر زيارة: قبل {minutes_since} دقيقة")
-        elif days_since==0:
-            info_lines.append(f"آخر زيارة: قبل {hours_since} ساعة")
-        elif days_since==1:
-            info_lines.append("آخر زيارة: أمس")
-        else:
-            info_lines.append(f"آخر زيارة: قبل {days_since} يوم")
-    if summaries_text:
-        info_lines.append(f"\nملخصات محادثات سابقة:\n{summaries_text}")
-    if last_conv_snippet:
-        info_lines.append(f"\nآخر محادثة (مقتطف):\n{last_conv_snippet}")
-    
-    internal_prompt="\n".join(info_lines)
-    
-    # === 6. استخدام AI لتوليد الترحيب ===
-    welcome_system="""أنت "نبراس"، صديق ذكي للمستخدم. مهمتك الآن: كتابة رسالة ترحيب قصيرة طبيعية جداً عند فتحه الموقع.
-
-**القواعد:**
-- استخدم المعلومات اللي عندك بشكل طبيعي جداً، كأنك صديق حقيقي يعرفه من زمان.
-- لو اسمه معروف، نادِه باسمه بشكل طبيعي (مرة واحدة، مو مبالغ فيه).
-- لو مر عليه وقت طويل، اعترف بالغيبة بشكل ودّي ("يا زين من جانا"، "لك زمان ما شفناك"، إلخ).
-- لو كنا نتكلم عن موضوع، اربط به بشكل طبيعي ("وش صار مع ذاك الموضوع؟").
-- لو الوقت صباح/مساء/ليل، استخدم الترحيب المناسب.
-- لا تذكر أبداً كلمة "ذاكرة" أو "محفوظ" أو "قاعدة بيانات".
-- لا تكتب أي مقدمات مثل "بناءً على المعلومات" أو "حسب البيانات".
-- الرسالة تكون قصيرة (2-4 أسطر).
-- أسلوب عامي خليجي طبيعي.
-- استخدم إيموجي بشكل طبيعي (1-2 مو أكثر).
-- لا تكرر صيغة معينة، كل مرة اختر صيغة مختلفة.
-
-**أمثلة لأسلوبك (لا تقلدها حرفياً):**
-- "يا هلا يا عبدالله 😄 بخير ونعمة، دامك جيت بالسوالف. وش علومك؟"
-- "يا زين من جانا! 👋 وش الأخبار؟ بالمناسبة، وش صار مع [الموضوع اللي كنا نتكلم عنه]؟"
-- "هلا والله، لك زمان ما شفناك 😄 عساك بخير؟"
-
-اكتب الآن رسالة الترحيب فقط، بدون أي شرح أو مقدمات."""
-    
-    try:
-        r=client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role":"system","content":welcome_system},
-                {"role":"user","content":f"معلومات عن المستخدم:\n{internal_prompt}\n\nاكتب له رسالة ترحيب مناسبة."}
-            ],
-            max_completion_tokens=300,
-            temperature=0.9
-        )
-        greet=r.choices[0].message.content.strip()
-        if not greet:
-            greet="يا هلا! 👋 وش الأخبار؟"
-    except Exception as e:
-        print(f"welcome AI: {e}")
-        if name:
-            greet=f"يا هلا يا {name}! 👋 وش الأخبار؟"
-        else:
-            greet="يا هلا! 👋 وش الأخبار؟"
-    
-    return jsonify({"reply": greet})
-
 @app.route('/chat',methods=['POST'])
 @limiter.limit("20 per minute")
 def chat():
@@ -981,7 +808,7 @@ def chat():
         # بناء سياق الذاكرة
         memory_parts=[]
         if user_memory.get('name'):
-            memory_parts.append(f"اسم المستخدم: {user_memory['name']} (نادِه به بشكل طبيعي، مو بكل رسالة)")
+            memory_parts.append(f"اسم المستخدم: {user_memory['name']}")
         if user_email and not user_memory.get('name'):
             profile=get_user_profile(user_email)
             if profile and profile.get('display_name'):
@@ -996,11 +823,11 @@ def chat():
                     title=s.get('title','محادثة')
                     summary=s['summary']
                     summary_lines.append(f"• عن [{title}]: {summary}")
-                memory_parts.append("مواضيع سابقة تحدثت فيها مع المستخدم (استخدمها بشكل طبيعي لما يناسب السياق، مثل صديق يتذكر):\n"+"\n".join(summary_lines))
+                memory_parts.append("مواضيع سابقة تحدثت فيها مع المستخدم:\n"+"\n".join(summary_lines))
         
         memory_context=""
         if memory_parts:
-            memory_context="\n\n**معلومات عن المستخدم (استخدمها بشكل عفوي جداً، لا تذكر أنها محفوظة):**\n"+"\n".join(memory_parts)
+            memory_context="\n\n**معلومات عن المستخدم:**\n"+"\n".join(memory_parts)
         # ============ نهاية الذاكرة ============
         
         server_hist=load_conversation(uid,cid) if cid else []
