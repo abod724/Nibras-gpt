@@ -1055,3 +1055,596 @@ window.deleteMessage=deleteMessage;
 # ═══════════════════════════════════════════════════════════════
 #  ⚠️ الجزء الثالث (Routes) في الرسالة التالية
 # ═══════════════════════════════════════════════════════════════
+# ==========================================================
+#  Routes
+# ==========================================================
+
+@app.route('/')
+def index():
+    user_name = None
+    email = session.get('user_email')
+    if email and not session.get('is_admin'):
+        p = get_user_profile(email)
+        if p:
+            user_name = p.get("display_name") or email.split("@")[0]
+        else:
+            user_name = email.split("@")[0]
+        mem = get_user_memory(email)
+        if mem.get('name'):
+            user_name = mem['name']
+    elif session.get('is_admin'):
+        user_name = "أدمن"
+    return render_template_string(HT, user_name=user_name)
+
+
+@app.route('/library')
+def library_page():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return redirect(url_for('login'))
+    return render_template_string(LIBRARY_HTML)
+
+
+@app.route('/library/images')
+def library_images():
+    return jsonify({"images": get_user_images(get_user_id())})
+
+
+@app.route('/library/upload', methods=['POST'])
+def library_upload():
+    try:
+        if not session.get('user_email') and not session.get('is_admin'):
+            return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
+        d = request.get_json()
+        image_data = d.get('image_data') or ''
+        if len(image_data) > 5000000:
+            return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
+        if not image_data:
+            return jsonify({"status": "error", "message": "لا توجد صورة"}), 400
+        save_image_to_library(get_user_id(), image_data=image_data, title=d.get('title') or "صورة", source="upload")
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("library_upload:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/library/delete', methods=['POST'])
+def library_delete():
+    try:
+        d = request.get_json()
+        ok = delete_user_image(get_user_id(), d.get('id'))
+        return jsonify({"status": "ok"}) if ok else jsonify({"status": "error"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/save_push_subscription', methods=['POST'])
+def save_push_subscription():
+    try:
+        sub = request.get_json()
+        uid = get_user_id()
+        sb.table("push_subscriptions").upsert({
+            "user_id": uid,
+            "endpoint": sub["endpoint"],
+            "p256dh": sub["keys"]["p256dh"],
+            "auth": sub["keys"]["auth"]
+        }, on_conflict="endpoint").execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("save_push_subscription:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/remove_push_subscription', methods=['POST'])
+def remove_push_subscription():
+    try:
+        uid = get_user_id()
+        sb.table("push_subscriptions").delete().eq("user_id", uid).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("remove_push_subscription:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/pinned_conversations')
+def pinned_conversations():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"pinned": []})
+    pinned_ids = get_pinned_convs(email)
+    if not pinned_ids:
+        return jsonify({"pinned": []})
+    all_convs = get_user_conversations(get_user_id())
+    return jsonify({"pinned": [c for c in all_convs if c["id"] in pinned_ids]})
+
+
+@app.route('/pin_conversation', methods=['POST'])
+def pin_conversation():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error"}), 401
+    d = request.get_json()
+    cid = d.get('conv_id')
+    pinned = get_pinned_convs(email)
+    if cid not in pinned:
+        pinned.append(cid)
+        save_pinned_convs(email, pinned)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/unpin_conversation', methods=['POST'])
+def unpin_conversation():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error"}), 401
+    d = request.get_json()
+    cid = d.get('conv_id')
+    pinned = get_pinned_convs(email)
+    if cid in pinned:
+        pinned.remove(cid)
+        save_pinned_convs(email, pinned)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/history')
+def history():
+    uid = get_user_id()
+    cs = get_user_conversations(uid)
+    email = session.get('user_email')
+    pinned_ids = get_pinned_convs(email) if email else []
+    return jsonify({"conversations": [{"id": c["id"], "title": c["title"], "pinned": c["id"] in pinned_ids} for c in cs]})
+
+
+@app.route('/load_conversation/<cid>')
+def load_conversation_route(cid):
+    ms = load_conversation(get_user_id(), cid)
+    return jsonify({"messages": ms}) if ms else (jsonify({"messages": None}), 404)
+
+
+@app.route('/delete_message', methods=['POST'])
+def delete_message():
+    try:
+        d = request.get_json()
+        ok = delete_message_row(get_user_id(), d.get('conv_id'), d.get('index'))
+        return jsonify({"status": "ok"}) if ok else jsonify({"status": "error"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/delete_my_account', methods=['POST'])
+def delete_my_account():
+    email = session.get('user_email')
+    if not email or session.get('is_admin'):
+        return jsonify({"status": "error"}), 400
+    uid = get_user_id()
+    try:
+        sb.table("assistant_chats").delete().eq("user_id", uid).execute()
+        sb.table("assistant_usage").delete().eq("user_id", uid).execute()
+        sb.table("image_library").delete().eq("user_id", uid).execute()
+        sb.table("push_subscriptions").delete().eq("user_id", uid).execute()
+        sb.table("profiles").delete().eq("email", email.lower()).execute()
+    except Exception as e:
+        print("delete_my_account:", e)
+    session.clear()
+    return jsonify({"status": "success"})
+
+
+@app.route('/update_profile', methods=['POST'])
+def update_profile():
+    d = request.get_json()
+    name = (d.get('name') or '').strip()
+    if not name or len(name) < 2:
+        return jsonify({"status": "error"}), 400
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    save_user_profile(email, name=name)
+    save_user_memory(email, {"name": name})
+    return jsonify({"status": "ok"})
+
+
+@app.route('/change_password', methods=['POST'])
+def change_password():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error"}), 401
+    d = request.get_json()
+    oldp = d.get('old_password', '')
+    newp = d.get('new_password', '')
+    if not oldp or not newp or len(newp) < 8:
+        return jsonify({"status": "error"}), 400
+    try:
+        r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+            json={"email": email, "password": oldp}, timeout=15)
+        if r.status_code != 200:
+            return jsonify({"status": "error", "message": "كلمة المرور الحالية خاطئة"}), 400
+        at = r.json().get('access_token')
+        r2 = requests.put(f"{SUPABASE_URL}/auth/v1/user",
+            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {at}", "Content-Type": "application/json"},
+            json={"password": newp}, timeout=15)
+        return jsonify({"status": "ok"}) if r2.status_code == 200 else jsonify({"status": "error"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/export_data')
+def export_data():
+    email = session.get('user_email')
+    if not email:
+        return "يجب تسجيل الدخول", 401
+    uid = get_user_id()
+    data = {"user_email": email, "conversations": get_user_conversations(uid), "images_count": len(get_user_images(uid))}
+    resp = jsonify(data)
+    resp.headers['Content-Disposition'] = f'attachment; filename=nibras_data_{email}.json'
+    return resp
+
+
+@app.route('/report_bug', methods=['POST'])
+def report_bug():
+    try:
+        d = request.get_json()
+        desc = (d.get('description') or '').strip()
+        if not desc or len(desc) < 3:
+            return jsonify({"status": "error"}), 400
+        sb.table("bug_reports").insert({
+            "user_email": session.get('user_email', 'ضيف'),
+            "user_role": session.get('user_role', 'guest'),
+            "type": d.get('type', 'غير محدد'),
+            "description": desc
+        }).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/logout_all', methods=['POST'])
+def logout_all():
+    session.clear()
+    return jsonify({"status": "ok"})
+
+
+@app.route('/share/<cid>')
+def shared_conversation(cid):
+    rows = load_conversation_public(cid)
+    if not rows:
+        return "المحادثة غير موجودة.", 404
+    msgs = []
+    title = "محادثة نبراس"
+    for i, row in enumerate(rows):
+        if i == 0 and row.get("title"):
+            title = row["title"]
+        if row.get("message"):
+            msgs.append({"role": "user", "content": row["message"]})
+        if row.get("response"):
+            msgs.append({"role": "assistant", "content": row["response"]})
+    return render_template_string(SPH, messages=msgs, title=title)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute")
+def login():
+    if request.method == 'POST':
+        e = request.form.get('email', '').strip().lower()
+        p = request.form.get('password', '')
+        ap = os.environ.get("ADMIN_PASSWORD")
+        if not e or "@" not in e:
+            return render_template_string(LH, error="بريد صحيح مطلوب.")
+        if e == ADMIN_EMAIL.lower():
+            if not ap or not secrets.compare_digest(p, ap):
+                return render_template_string(LH, error="كلمة مرور الأدمن غير صحيحة.")
+            session.clear()
+            session.permanent = True
+            session['user_email'] = e
+            session['is_admin'] = True
+            session['user_role'] = 'admin'
+            return redirect(url_for('index'))
+        try:
+            r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+                headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+                json={"email": e, "password": p}, timeout=15)
+        except:
+            return render_template_string(LH, error="تعذر الاتصال.")
+        if r.status_code != 200:
+            return render_template_string(LH, error="البريد أو كلمة المرور غير صحيحة.")
+        data = r.json()
+        session.clear()
+        session.permanent = True
+        session['user_email'] = e
+        session['is_admin'] = False
+        session['access_token'] = data.get('access_token')
+        session['refresh_token'] = data.get('refresh_token')
+        session['user_role'] = get_user_role(e)
+        touch_user(e)
+        return redirect(url_for('index'))
+    return render_template_string(LH)
+
+
+@app.route('/signup', methods=['POST'])
+@limiter.limit("5 per hour")
+def signup():
+    e = request.form.get('email', '').strip().lower()
+    p = request.form.get('password', '')
+    name = request.form.get('name', '').strip()
+    if not e or "@" not in e or len(p) < 8:
+        return render_template_string(LH, error="بيانات غير صحيحة.")
+    if not name or len(name) < 2:
+        return render_template_string(LH, error="الاسم مطلوب.")
+    try:
+        sb.auth.sign_up({"email": e, "password": p, "options": {"email_redirect_to": f"{request.host_url.rstrip('/')}/verified", "data": {"display_name": name}}})
+        save_user_profile(e, name=name)
+        save_user_memory(e, {"name": name})
+        return render_template_string(LH, success="تم إنشاء حسابك! افتح بريدك للتأكيد.")
+    except Exception as ex:
+        return render_template_string(LH, error=f"فشل: {ex}")
+
+
+@app.route('/verified')
+def verified():
+    return """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تم التحقق</title></head><body style="text-align:center;padding:50px;font-family:sans-serif;"><h2>تم تأكيد حسابك!</h2><a href="/login">تسجيل الدخول</a></body></html>"""
+
+
+@app.route('/recover', methods=['POST'])
+@limiter.limit("5 per hour")
+def recover():
+    e = request.form.get('email', '').strip().lower()
+    if not e or "@" not in e:
+        return render_template_string(LH, error="أدخل بريداً صحيحاً.")
+    try:
+        requests.post(f"{SUPABASE_URL}/auth/v1/recover", headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"}, json={"email": e}, timeout=15)
+        return render_template_string(LH, success="تم إرسال رابط الاستعادة.")
+    except Exception as ex:
+        return render_template_string(LH, error=f"فشل: {ex}")
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+
+# ==================== لوحة الأدمن ====================
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        p = request.form.get('password', '')
+        ap = os.environ.get("ADMIN_PASSWORD")
+        if ap and secrets.compare_digest(p, ap):
+            session['is_admin'] = True
+            session.permanent = True
+            return redirect(url_for('admin_dashboard'))
+        return "<h2>كلمة مرور خاطئة</h2>"
+    return """<body style='text-align:center;padding:50px;font-family:sans-serif;'><form method='POST'><h2>دخول الأدمن</h2><input type='password' name='password' required><br><br><button type='submit'>دخول</button></form></body>"""
+
+
+@app.route('/admin/send_notification', methods=['POST'])
+def admin_send_notification():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 401
+    try:
+        d = request.get_json()
+        title = (d.get('title') or 'نبراس').strip()
+        body = (d.get('body') or '').strip()
+        if not body:
+            return jsonify({"status": "error", "message": "الرسالة فاضية"}), 400
+        subs = sb.table("push_subscriptions").select("user_id").execute()
+        user_ids = list({s["user_id"] for s in (subs.data or [])})
+        send_push_to_all(user_ids, title, body)
+        return jsonify({"status": "ok", "sent": len(user_ids), "total": len(user_ids)})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/admin')
+def admin_dashboard():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+
+    try:
+        recent = (sb.table("assistant_chats").select("user_id,title,created_at").order("created_at", desc=True).limit(10).execute()).data or []
+        users_list = (sb.table("profiles").select("email,display_name,role").order("created_at", desc=True).limit(30).execute()).data or []
+        reports_list = (sb.table("bug_reports").select("*").order("created_at", desc=True).limit(30).execute()).data or []
+        subs_count = len((sb.table("push_subscriptions").select("id").execute()).data or [])
+    except:
+        recent, users_list, reports_list, subs_count = [], [], [], 0
+
+    recent_html = "".join([f'<div class="conv-item"><b>{r.get("title","?")}</b><small>{r.get("user_id","")[:30]}</small></div>' for r in recent]) or "<p style='color:#8b949e;'>لا توجد</p>"
+    users_html = "".join([f'<div class="conv-item"><b>{u.get("display_name","?")}</b><small>{u.get("email","")} ({u.get("role","user")})</small></div>' for u in users_list]) or "<p style='color:#8b949e;'>لا يوجد</p>"
+    reports_html = "".join([f'<div style="border-right:3px solid #e74c3c;padding:10px;margin:8px 0;background:#fff5f5;border-radius:8px;"><b>[{r.get("type","?")}]</b> {r.get("user_email","?")}<br><small>{r.get("description","")}</small></div>' for r in reports_list]) or "<p style='color:#8b949e;'>لا توجد</p>"
+
+    return f"""<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>لوحة الأدمن</title><style>
+    *{{box-sizing:border-box}}
+    body{{font-family:'Segoe UI',Tahoma,sans-serif;padding:16px;background:#f4f7fc;color:#1a2b3c;margin:0}}
+    .container{{max-width:700px;margin:auto}}
+    h1{{color:#4a6a8a;text-align:center;font-size:22px}}
+    h3{{color:#1a2b3c;font-size:16px;margin:0 0 12px}}
+    .card{{background:#fff;padding:18px;margin:15px 0;border-radius:15px;box-shadow:0 4px 16px rgba(0,0,0,0.04)}}
+    .stat{{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eef1f6}}
+    .stat:last-child{{border:none}}
+    .num{{color:#4a6a8a;font-weight:bold;font-size:18px}}
+    .conv-item{{padding:10px 0;border-bottom:1px solid #eef1f6}}
+    .conv-item:last-child{{border:none}}
+    .conv-item b{{font-size:14px}}
+    .conv-item small{{color:#8b949e;display:block;font-size:12px;margin-top:2px}}
+    .back{{display:block;text-align:center;color:#4a6a8a;text-decoration:none;margin-top:24px;font-weight:600;padding:12px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}}
+    .notif-input{{width:100%;padding:12px;margin:6px 0;border:1px solid #dce1e8;border-radius:10px;font-family:inherit;font-size:14px;outline:none}}
+    .notif-input:focus{{border-color:#4a6a8a}}
+    .notif-btn{{background:#4a6a8a;color:#fff;border:none;padding:12px 30px;border-radius:10px;cursor:pointer;font-weight:600;font-family:inherit;font-size:15px}}
+    .notif-btn:hover{{background:#3a5a7a}}
+    </style></head><body><div class="container">
+
+    <h1>🎛️ لوحة تحكم نبراس</h1>
+
+    <div class="card">
+        <h3>📢 إرسال إشعار يدوي</h3>
+        <input type="text" id="notif-title" class="notif-input" placeholder="العنوان" value="نبراس">
+        <textarea id="notif-body" class="notif-input" placeholder="اكتب الرسالة..." style="min-height:80px;"></textarea>
+        <button onclick="sendNotif()" class="notif-btn">📤 إرسال للجميع</button>
+        <div id="notif-result" style="margin-top:10px;font-size:13px;"></div>
+    </div>
+
+    <div class="card">
+        <div class="stat"><span>👥 المستخدمون</span><span class="num">{len(users_list)}</span></div>
+        <div class="stat"><span>🔔 المشتركون بالإشعارات</span><span class="num">{subs_count}</span></div>
+        <div class="stat"><span>📩 البلاغات</span><span class="num">{len(reports_list)}</span></div>
+    </div>
+
+    <div class="card"><h3>📩 البلاغات</h3>{reports_html}</div>
+    <div class="card"><h3>👥 المستخدمون</h3>{users_html}</div>
+    <div class="card"><h3>💬 آخر المحادثات</h3>{recent_html}</div>
+
+    <a href="/" class="back">← العودة للرئيسية</a>
+    </div>
+
+    <script>
+    async function sendNotif(){{
+        const title = document.getElementById('notif-title').value.trim() || 'نبراس';
+        const body = document.getElementById('notif-body').value.trim();
+        if(!body){{ alert('اكتب الرسالة أول'); return; }}
+        if(!confirm('إرسال الإشعار لكل المشتركين؟')) return;
+        const res = document.getElementById('notif-result');
+        res.textContent = '⏳ جاري الإرسال...';
+        res.style.color = '#4a6a8a';
+        try{{
+            const r = await fetch('/admin/send_notification', {{
+                method:'POST',
+                headers:{{'Content-Type':'application/json'}},
+                body: JSON.stringify({{title: title, body: body}})
+            }});
+            const d = await r.json();
+            if(d.status === 'ok'){{
+                res.textContent = '✅ تم الإرسال لـ ' + d.sent + ' من ' + d.total;
+                res.style.color = '#27ae60';
+                document.getElementById('notif-body').value = '';
+            }} else {{
+                res.textContent = '❌ ' + (d.message || 'فشل');
+                res.style.color = '#e74c3c';
+            }}
+        }}catch(e){{
+            res.textContent = '❌ خطأ في الاتصال';
+            res.style.color = '#e74c3c';
+        }}
+    }}
+    </script>
+    </body></html>"""
+
+
+# ==================== الصوت ====================
+@app.route('/set_gender', methods=['POST'])
+def set_gender():
+    session['voice_gender'] = request.get_json().get('gender', 'male')
+    return jsonify({"status": "ok"})
+
+
+@app.route('/voice', methods=['POST'])
+@limiter.limit("30 per minute")
+def voice():
+    try:
+        d = request.get_json()
+        text = (d.get('text') or "").strip()
+        if not text or len(text) > 3000:
+            return jsonify({"audio": None})
+        return jsonify({"audio": generate_speech(text, session.get('voice_gender', 'male'))})
+    except Exception as e:
+        print(f"voice: {e}")
+        return jsonify({"audio": None})
+
+
+# ==================== المحادثة ====================
+@app.route('/chat', methods=['POST'])
+@limiter.limit("20 per minute")
+def chat():
+    try:
+        d = request.get_json()
+        um = d.get("message", "").strip()
+        cid = d.get("conv_id", None)
+        if not um:
+            return jsonify({"reply": "اكتب شيء أساعدك فيه"})
+
+        is_admin = bool(session.get('is_admin'))
+        user_email = session.get('user_email', '')
+        user_role = get_user_role(user_email) if user_email else 'guest'
+        is_registered = is_admin or (bool(user_email) and user_role in ('user', 'admin'))
+        uid = get_user_id()
+
+        usage, limits, can_chat, can_search, can_image = check_limits(uid, user_role if not is_admin else 'admin')
+
+        if not can_chat:
+            reply_limit = "وصلت للحد اليومي (15)."
+            nid = save_message(uid, um, reply_limit, cid) if is_registered else cid
+            return jsonify({"reply": reply_limit, "conv_id": nid, "audio": None})
+
+        if is_registered and user_email:
+            try: touch_user(user_email)
+            except: pass
+
+        has_image = d.get("image") is not None
+        if has_image:
+            if not is_registered:
+                return jsonify({"reply": "تحليل الصور للمسجلين فقط.", "conv_id": cid})
+            if not can_image:
+                nid = save_message(uid, um, "وصلت للحد اليومي للصور.", cid)
+                inc_usage(uid, "chat_count")
+                return jsonify({"reply": "وصلت للحد اليومي للصور.", "conv_id": nid})
+
+        user_memory = get_user_memory(user_email) if user_email else {}
+        memory_context = ""
+        if user_memory.get('name'):
+            memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
+
+        server_hist = load_conversation(uid, cid) if (cid and is_registered) else []
+        if not server_hist: server_hist = []
+        server_hist.append({"role": "user", "content": um})
+        msgs = [{"role": "system", "content": SP + memory_context}] + server_hist[-15:]
+
+        img_data = d.get("image", None)
+        if img_data and is_registered and can_image:
+            msgs.append({"role": "user", "content": [{"type": "text", "text": um or "حلل الصورة"}, {"type": "image_url", "image_url": {"url": img_data}}]})
+
+        if is_registered and can_search:
+            try:
+                sr = client.responses.create(
+                    model=OPENAI_MODEL,
+                    instructions=SP,
+                    input=f"ابحث عن أحدث المعلومات: {um}",
+                    tools=[{"type": "web_search"}]
+                )
+                res = ""
+                if hasattr(sr, "output_text") and sr.output_text:
+                    res = sr.output_text.strip()
+                elif getattr(sr, "output", None):
+                    try: res = sr.output[0].content[0].text
+                    except: res = ""
+                if res:
+                    msgs.append({"role": "user", "content": f"نتيجة البحث:\n{res}"})
+                    print(f"✅ بحث ناجح ({'أدمن' if is_admin else 'مستخدم'}) - {len(res)} حرف")
+                inc_usage(uid, "search_count")
+            except Exception as e:
+                print(f"❌ فشل البحث ({type(e).__name__}): {e}")
+
+        try:
+            r = client.chat.completions.create(model=OPENAI_MODEL, messages=msgs, max_completion_tokens=8000)
+            reply = r.choices[0].message.content.strip() or "ما قدرت أجيب رد."
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        reply = '\n\n'.join([' '.join(l.strip() for l in block.split('\n') if l.strip()) for block in reply.split('\n\n') if block.strip()])
+
+        nid = cid
+        if is_registered:
+            nid = save_message(uid, um, reply, cid)
+            inc_usage(uid, "chat_count")
+            if has_image and can_image: inc_usage(uid, "image_count")
+            if not is_admin:
+                try: send_push_to_user(uid, "نبراس - رد جديد", reply[:120])
+                except Exception as pe: print("push send:", pe)
+        else:
+            if not nid: nid = "guest_conv_" + secrets.token_hex(5)
+
+        return jsonify({"reply": reply, "audio": None, "conv_id": nid})
+    except Exception as e:
+        print(f"{e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
