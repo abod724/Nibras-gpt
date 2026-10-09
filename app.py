@@ -4,7 +4,8 @@
 
 from flask import (
     Flask, request, jsonify, render_template_string,
-    session, redirect, url_for, send_from_directory
+    session, redirect, url_for, send_from_directory,
+    Response, stream_with_context
 )
 import openai, os, secrets, json, asyncio, base64, re, requests, edge_tts
 from datetime import datetime, timedelta, date as _date
@@ -755,7 +756,7 @@ gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
 fi.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];fi.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
 cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
 ci.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];ci.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
-async function sendMessage(){if(iw)return;const t=ui.value.trim(),img=pid;if(!t&&!img)return;if(t)addMessage(t,'user');if(img){addMessage('صورة مرفقة','user',false,img);clearPending()}ui.value='';ui.style.height='auto';iw=true;const td=document.createElement('div');td.className='msg bot typing-indicator';td.innerHTML='<span class="typing-dots">جاري التفكير</span>';cb.appendChild(td);cb.scrollTop=cb.scrollHeight;const payload={message:t||"مرفق",image:img||null,history:ch,conv_id:cid};try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),d=await r.json();if(td.parentNode)td.remove();if(r.ok){addMessage(d.reply,'bot',false,null,d.image_url);if(d.conv_id)cid=d.conv_id;if(voiceOn&&d.reply&&!d.image_url&&d.reply.length<1500){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:d.reply})}).then(r=>r.json()).then(v=>{if(v.audio){if(ca){ca.pause();ca.currentTime=0;}const src='data:audio/mp3;base64,'+v.audio;ca=new Audio(src);ca.onended=function(){ca=null;};const savedLvl=localStorage.getItem('nibras-voice-level');if(savedLvl)ca.volume=savedLvl/100;ca.play();}}).catch(()=>{});}}else addMessage('خطأ: '+(d.error||'مشكلة'),'error')}catch(e){if(td.parentNode)td.remove();addMessage('تعذر الاتصال','error')}finally{iw=false}}
+async function sendMessage(){if(iw)return;const t=ui.value.trim(),img=pid;if(!t&&!img)return;if(t)addMessage(t,'user');if(img){addMessage('صورة مرفقة','user',false,img);clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">جاري التفكير</span>';cb.appendChild(botEl);cb.scrollTop=cb.scrollHeight;const payload={message:t||"مرفق",image:img||null,history:ch,conv_id:cid};let fullText='';let started=false;try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let buffer='';while(true){const {done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const parts=buffer.split('\n\n');buffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(!started){botEl.innerHTML='';started=true;}fullText+=data.token;botEl.innerHTML=formatBotText(fullText);cb.scrollTop=cb.scrollHeight;}else if(data.done){if(data.conv_id)cid=data.conv_id;}else if(data.error){if(!started){botEl.innerHTML='';}botEl.innerHTML=formatBotText('خطأ: '+data.error);}}catch(e){}}}if(voiceOn&&fullText&&fullText.length<1500){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:fullText})}).then(r=>r.json()).then(v=>{if(v.audio){if(ca){ca.pause();ca.currentTime=0;}const src='data:audio/mp3;base64,'+v.audio;ca=new Audio(src);ca.onended=function(){ca=null;};const savedLvl=localStorage.getItem('nibras-voice-level');if(savedLvl)ca.volume=savedLvl/100;ca.play();}}).catch(()=>{});}}catch(e){if(botEl.parentNode)botEl.remove();addMessage('تعذر الاتصال','error')}finally{iw=false}}
 sb.addEventListener('click',sendMessage);
 ui.addEventListener('keypress',function(e){if(e.key==='Enter'){e.preventDefault();sendMessage()}});
 document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
@@ -1347,23 +1348,53 @@ def chat():
                 inc_usage(uid, "search_count")
             except Exception as e:
                 print(f"❌ فشل البحث ({type(e).__name__}): {e}")
-        try:
-            r = client.chat.completions.create(model=OPENAI_MODEL, messages=msgs, max_completion_tokens=8000)
-            reply = r.choices[0].message.content.strip() or "ما قدرت أجيب رد."
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-        reply = '\n\n'.join([' '.join(l.strip() for l in block.split('\n') if l.strip()) for block in reply.split('\n\n') if block.strip()])
-        nid = cid
-        if is_registered:
-            nid = save_message(uid, um, reply, cid)
-            inc_usage(uid, "chat_count")
-            if has_image and can_image: inc_usage(uid, "image_count")
-            if not is_admin:
-                try: send_push_to_user(uid, "نبراس - رد جديد", reply[:120])
-                except Exception as pe: print("push send:", pe)
-        else:
-            if not nid: nid = "guest_conv_" + secrets.token_hex(5)
-        return jsonify({"reply": reply, "audio": None, "conv_id": nid})
+
+        # ✅ البث المباشر (Streaming)
+        def generate():
+            full_reply = ""
+            try:
+                stream = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=msgs,
+                    max_completion_tokens=8000,
+                    stream=True
+                )
+                for chunk in stream:
+                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                        token = chunk.choices[0].delta.content
+                        full_reply += token
+                        yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+
+                cleaned = '\n\n'.join([
+                    ' '.join(l.strip() for l in block.split('\n') if l.strip())
+                    for block in full_reply.split('\n\n') if block.strip()
+                ]) or "ما قدرت أجيب رد."
+
+                nid = cid
+                if is_registered:
+                    nid = save_message(uid, um, cleaned, cid)
+                    inc_usage(uid, "chat_count")
+                    if has_image and can_image: inc_usage(uid, "image_count")
+                    if not is_admin:
+                        try: send_push_to_user(uid, "نبراس - رد جديد", cleaned[:120])
+                        except Exception as pe: print("push send:", pe)
+                else:
+                    if not nid: nid = "guest_conv_" + secrets.token_hex(5)
+
+                yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+            except Exception as e:
+                print("stream error:", e)
+                yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+        return Response(
+            stream_with_context(generate()),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no',
+                'Connection': 'keep-alive'
+            }
+        )
     except Exception as e:
         print(f"{e}")
         return jsonify({"status": "error", "message": str(e)}), 500
