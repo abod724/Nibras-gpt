@@ -14,6 +14,7 @@ from flask_limiter.util import get_remote_address
 from supabase import create_client
 from pywebpush import webpush, WebPushException
 from concurrent.futures import ThreadPoolExecutor
+from markupsafe import escape
 
 
 # ==========================================================
@@ -21,7 +22,11 @@ from concurrent.futures import ThreadPoolExecutor
 # ==========================================================
 
 app = Flask(__name__, static_folder='static')
-app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # الحد الأقصى للطلب: 8MB
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise RuntimeError("يجب ضبط SECRET_KEY كمتغير بيئة ثابت بطول 32 حرفًا على الأقل")
+app.secret_key = SECRET_KEY
 app.permanent_session_lifetime = timedelta(days=30)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -421,11 +426,11 @@ def load_conversation(uid, cid):
     return msgs
 
 
-def load_conversation_public(cid):
+def load_conversation_public(cid, uid):
     try:
         r = (sb.table("assistant_chats")
-             .select("message,response,title,created_at")
-             .eq("conv_id", cid).order("created_at").execute())
+             .select("message,response,title,created_at,user_id")
+             .eq("user_id", uid).eq("conv_id", cid).order("created_at").execute())
         return r.data or []
     except Exception as e:
         print("load_conversation_public:", e)
@@ -487,29 +492,32 @@ def delete_user_image(uid, image_id):
 def send_push_to_user(user_id, title, body, url="/"):
     if not VAPID_PRIVATE_KEY or not VAPID_SUBJECT:
         print("⚠️ VAPID غير مُعَد")
-        return
+        return 0
+    sent_count = 0
     try:
         subs = sb.table("push_subscriptions").select("*").eq("user_id", user_id).execute()
-        for s in (subs.data or []):
+        for sub in (subs.data or []):
             try:
                 webpush(
                     subscription_info={
-                        "endpoint": s["endpoint"],
-                        "keys": {"p256dh": s["p256dh"], "auth": s["auth"]}
+                        "endpoint": sub["endpoint"],
+                        "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}
                     },
                     data=json.dumps({"title": title, "body": body, "url": url}),
                     vapid_private_key=VAPID_PRIVATE_KEY,
                     vapid_claims={"sub": VAPID_SUBJECT}
                 )
+                sent_count += 1
                 print(f"✅ إشعار Push أُرسل لـ {user_id}")
             except WebPushException as ex:
                 if ex.response and ex.response.status_code in (404, 410):
-                    sb.table("push_subscriptions").delete().eq("id", s["id"]).execute()
-                    print(f"🗑️ حذف اشتراك منتهي")
+                    sb.table("push_subscriptions").delete().eq("id", sub["id"]).execute()
+                    print("🗑️ حذف اشتراك منتهي")
                 else:
                     print(f"❌ فشل إرسال Push: {ex}")
     except Exception as e:
         print("send_push_to_user:", e)
+    return sent_count
 
 
 def send_push_to_all(user_ids, title, body):
@@ -517,10 +525,10 @@ def send_push_to_all(user_ids, title, body):
         return 0
     try:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            list(executor.map(lambda u: send_push_to_user(u, title, body), user_ids))
+            return sum(executor.map(lambda uid: send_push_to_user(uid, title, body), user_ids))
     except Exception as e:
         print("send_push_to_all:", e)
-    return len(user_ids)
+        return 0
 
 
 # ==========================================================
@@ -597,13 +605,41 @@ def generate_speech(text, gender):
 #  قوالب HTML
 # ==========================================================
 
-SPH = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}</style></head><body><div class="container"><div class="header"><h1>{{ title or 'محادثة نبراس' }}</h1><a href="/">الرئيسية</a></div><div>{% for msg in messages %}<div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}"><div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div><div class="content">{{ msg.content|replace('\n','<br>')|safe }}</div></div>{% endfor %}</div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div></body></html>"""
+SHARED_VIEW_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:flex-start;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px;margin-top:20px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px;font-weight:600}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word;white-space:pre-wrap}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}.error{background:#ffe8e8;color:#c33;padding:20px;border-radius:14px;text-align:center;font-weight:600}</style></head><body><div class="container"><div class="header"><h1>محادثة نبراس</h1><a href="/">الرئيسية</a></div><div id="content"><div class="error">جاري التحميل...</div></div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div><script>
+(function(){
+    var container=document.getElementById('content');
+    try{
+        var hash=window.location.hash||'';
+        var m=hash.match(/[#&]d=([^&]+)/);
+        if(!m){container.innerHTML='<div class="error">الرابط غير صالح أو ناقص.</div>';return;}
+        var encoded=decodeURIComponent(m[1]);
+        var json=decodeURIComponent(escape(atob(encoded)));
+        var msgs=JSON.parse(json);
+        if(!Array.isArray(msgs)||msgs.length===0){container.innerHTML='<div class="error">المحادثة فاضية.</div>';return;}
+        container.innerHTML='';
+        msgs.forEach(function(msg){
+            var div=document.createElement('div');
+            div.className='msg '+(msg.r==='u'?'user':'bot');
+            var av=document.createElement('div');av.className='avatar';av.textContent=msg.r==='u'?'👤':'🤖';
+            var ct=document.createElement('div');ct.className='content';ct.textContent=msg.c||'';
+            div.appendChild(av);div.appendChild(ct);
+            container.appendChild(div);
+        });
+        if(msgs[0]&&msgs[0].c){document.title=String(msgs[0].c).slice(0,30);}
+    }catch(e){
+        console.error(e);
+        container.innerHTML='<div class="error">تعذر قراءة المحادثة من الرابط.</div>';
+    }
+})();
+</script></body></html>"""
+
+SPH = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}</style></head><body><div class="container"><div class="header"><h1>{{ (title or 'محادثة نبراس')|e }}</h1><a href="/">الرئيسية</a></div><div>{% for msg in messages %}<div class="msg {{ 'user' if msg.role == 'user' else 'bot' }}"><div class="avatar">{{ '👤' if msg.role == 'user' else '🤖' }}</div><div class="content">{{ msg.content|e|replace('\n','<br>')|safe }}</div></div>{% endfor %}</div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div></body></html>"""
 
 LIBRARY_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>مكتبتي - نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;min-height:100dvh;color:#1a2b3c;padding:20px}.container{max-width:1000px;margin:0 auto}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}.topbar h1{font-size:24px;color:#1a2b3c;display:flex;align-items:center;gap:10px}.topbar a{color:#4a6a8a;text-decoration:none;font-weight:600;padding:10px 18px;border:1.5px solid #4a6a8a;border-radius:12px;transition:all .2s}.topbar a:hover{background:#4a6a8a;color:#fff}.upload-zone{background:#fff;border:2px dashed #dce1e8;border-radius:20px;padding:40px 20px;text-align:center;margin-bottom:24px;transition:all .25s;cursor:pointer}.upload-zone:hover,.upload-zone.dragover{border-color:#4a6a8a;background:#f5f9ff}.upload-zone svg{width:48px;height:48px;stroke:#4a6a8a;stroke-width:1.5;fill:none;margin-bottom:12px}.upload-zone h3{font-size:17px;color:#1a2b3c;margin-bottom:6px}.upload-zone p{color:#8b949e;font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}.img-card{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.06);position:relative;transition:transform .2s,box-shadow .2s}.img-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,0.12)}.img-card .preview{width:100%;height:180px;object-fit:cover;display:block;background:#f5f7fa}.img-card .info{padding:10px 14px}.img-card .info .title{font-size:14px;font-weight:600;color:#1a2b3c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.img-card .info .source{font-size:11px;color:#8b949e;margin-top:2px}.img-card .delete-btn{position:absolute;top:8px;left:8px;background:rgba(255,255,255,0.95);border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all .2s}.img-card .delete-btn:hover{background:#ff4757}.img-card .delete-btn:hover svg{stroke:#fff}.img-card .delete-btn svg{width:16px;height:16px;stroke:#ff4757;stroke-width:2;fill:none}.empty{text-align:center;padding:60px 20px;color:#8b949e}.empty svg{width:64px;height:64px;stroke:#dce1e8;stroke-width:1.5;fill:none;margin-bottom:16px}.empty h3{color:#5a6b7c;font-size:18px;margin-bottom:6px}.empty p{font-size:14px}.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:12px 24px;border-radius:30px;font-size:14px;z-index:9999}@media(max-width:520px){.topbar h1{font-size:20px}.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.img-card .preview{height:150px}}</style></head><body><div class="container"><div class="topbar"><h1><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4a6a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> مكتبتي</h1><a href="/">الرئيسية</a></div><div class="upload-zone" id="uploadZone"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><h3>ارفع صورة جديدة</h3><p>اضغط أو اسحب الصورة هنا</p></div><input type="file" id="fileInput" accept="image/*" style="display:none" multiple><div id="grid" class="grid"><div style="text-align:center;padding:30px;color:#8b949e;grid-column:1/-1">جاري التحميل...</div></div></div><script>
 const zone=document.getElementById('uploadZone');const fi=document.getElementById('fileInput');const grid=document.getElementById('grid');
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
 function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
-async function loadImages(){try{const r=await fetch('/library/images');const d=await r.json();grid.innerHTML='';if(!d.images||d.images.length===0){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><h3>مكتبتك فاضية</h3><p>ارفع أول صورة</p></div>';return;}d.images.forEach(img=>{const src=img.image_data||img.image_url;const card=document.createElement('div');card.className='img-card';card.innerHTML='<img class="preview" src="'+src+'" loading="lazy"/><button class="delete-btn" title="حذف"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button><div class="info"><div class="title">'+(img.title||'صورة')+'</div><div class="source">'+(img.source==='generated'?'مولدة':'مرفوعة')+'</div></div>';card.querySelector('.delete-btn').onclick=async(e)=>{e.stopPropagation();if(!confirm('حذف هذه الصورة؟'))return;const r=await fetch('/library/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:img.id})});const res=await r.json();if(res.status==='ok'){card.remove();showToast('تم الحذف');if(grid.children.length===0)loadImages();}else showToast('فشل الحذف');};grid.appendChild(card);});}catch(e){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><h3>خطأ</h3><p>تعذر تحميل الصور</p></div>';}}
+async function loadImages(){try{const r=await fetch('/library/images');const d=await r.json();grid.replaceChildren();if(!d.images||d.images.length===0){const empty=document.createElement('div');empty.className='empty';empty.style.gridColumn='1/-1';const h=document.createElement('h3');h.textContent='مكتبتك فاضية';const p=document.createElement('p');p.textContent='ارفع أول صورة';empty.append(h,p);grid.appendChild(empty);return;}d.images.forEach(img=>{const src=img.image_data||img.image_url||'';const card=document.createElement('div');card.className='img-card';const preview=document.createElement('img');preview.className='preview';preview.loading='lazy';if(typeof src==='string'&&(src.startsWith('data:image/')||src.startsWith('https://')))preview.src=src;preview.alt='صورة من المكتبة';const del=document.createElement('button');del.className='delete-btn';del.type='button';del.title='حذف';del.textContent='×';const info=document.createElement('div');info.className='info';const title=document.createElement('div');title.className='title';title.textContent=String(img.title||'صورة');const source=document.createElement('div');source.className='source';source.textContent=img.source==='generated'?'مولدة':'مرفوعة';info.append(title,source);card.append(preview,del,info);del.onclick=async(e)=>{e.stopPropagation();if(!confirm('حذف هذه الصورة؟'))return;try{const dr=await fetch('/library/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:img.id})});const res=await dr.json();if(dr.ok&&res.status==='ok'){card.remove();showToast('تم الحذف');if(grid.children.length===0)loadImages();}else showToast('فشل الحذف');}catch(e){showToast('خطأ في الاتصال');}};grid.appendChild(card);});}catch(e){grid.replaceChildren();const msg=document.createElement('p');msg.className='empty';msg.textContent='تعذر تحميل الصور';grid.appendChild(msg);}}
 async function uploadFiles(files){for(const file of files){if(!file.type.startsWith('image/'))continue;await new Promise(res=>{compressImage(file,1000,async(dataUrl)=>{try{const r=await fetch('/library/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_data:dataUrl,title:file.name})});const d=await r.json();if(d.status==='ok')showToast('تم رفع الصورة');else showToast(d.message||'فشل الرفع');}catch(e){showToast('خطأ في الاتصال');}res();});});}loadImages();}
 zone.onclick=()=>fi.click();fi.onchange=(e)=>{if(e.target.files.length>0)uploadFiles(e.target.files);fi.value='';};zone.ondragover=(e)=>{e.preventDefault();zone.classList.add('dragover');};zone.ondragleave=()=>zone.classList.remove('dragover');zone.ondrop=(e)=>{e.preventDefault();zone.classList.remove('dragover');uploadFiles(e.dataTransfer.files);};loadImages();
 </script></body></html>"""
@@ -774,7 +810,47 @@ async function loadPinned(){try{let pinned=[];if(IS_REGISTERED){const r=await fe
 async function loadHistory(){try{const r=await fetch('/history');const d=await r.json();hl.innerHTML='';const localPinned=getPinnedLocal();if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const isPinned=IS_REGISTERED?c.pinned:localPinned.includes(c.id);const b=document.createElement('div');b.className='conv-item';b.style.cursor='pointer';b.innerHTML='<span class="conv-title">'+((c.title&&c.title.trim())?c.title:'محادثة')+'</span><button class="pin-btn '+(isPinned?'pinned':'')+'" title="'+(isPinned?'إلغاء التثبيت':'تثبيت')+'"><svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></button>';b.onclick=(e)=>{if(e.target.closest('.pin-btn'))return;loadConversation(c.id);};b.querySelector('.pin-btn').onclick=async(e)=>{e.stopPropagation();await togglePin(c.id,isPinned,e.currentTarget);};hl.appendChild(b);});}else{const e=document.createElement('div');e.className='item';e.style.color='var(--text-secondary)';e.style.fontSize='13px';e.style.justifyContent='center';e.textContent=userLang==='en'?'No conversations':'لا توجد محادثات';hl.appendChild(e);}}catch(e){}}
 async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.slice(-50).forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){}}
 document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.style.display='none';ui.value=''});
-document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();if(!cid){alert('لا توجد محادثة!');dd.classList.remove('show');return}const url=window.location.origin+'/share/'+cid;navigator.clipboard.writeText(url).then(()=>alert('تم نسخ الرابط'));dd.classList.remove('show')});
+document.querySelector('[data-action="share"]').addEventListener('click',function(e){
+    e.stopPropagation();
+    dd.classList.remove('show');
+    const msgs = ch.slice(-20).map(function(m){
+        return {r: m.role==='user'?'u':'b', c: String(m.content||'').slice(0,500)};
+    }).filter(function(m){ return m.c; });
+    if(!msgs || msgs.length===0){
+        showToast(userLang==='en'?'No conversation to share':'لا توجد محادثة لمشاركتها');
+        return;
+    }
+    const text = userLang==='en'?'Check out my conversation with Nibras':'شوف محادثتي مع نبراس';
+    if(IS_REGISTERED){
+        const dbUrl = window.location.origin + '/share/' + cid;
+        document.getElementById('shareWhatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(text + '\n' + dbUrl);
+        document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(dbUrl);
+        document.getElementById('shareTwitter').href  = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(dbUrl) + '&text=' + encodeURIComponent(text);
+        document.getElementById('shareSnapchat').onclick = function(){
+            navigator.clipboard.writeText(dbUrl).then(function(){ showToast(userLang==='en'?'✅ Link copied':'✅ تم نسخ الرابط'); }).catch(function(){ showToast(userLang==='en'?'Copy failed':'فشل النسخ'); });
+        };
+        sm.classList.add('show');
+    } else {
+        let url = '';
+        try {
+            const json = JSON.stringify(msgs);
+            const encoded = btoa(unescape(encodeURIComponent(json)));
+            url = window.location.origin + '/share/view#d=' + encodeURIComponent(encoded);
+        } catch(err){
+            showToast(userLang==='en'?'Failed to prepare link':'تعذر تجهيز الرابط');
+            return;
+        }
+        if(url.length > 60000){
+            showToast(userLang==='en'?'Conversation too long to share':'المحادثة طويلة جداً للمشاركة');
+            return;
+        }
+        if(navigator.share){
+            navigator.share({ title: userLang==='en'?'Nibras Conversation':'محادثة نبراس', text: text, url: url }).catch(function(){});
+        } else {
+            navigator.clipboard.writeText(url).then(function(){ showToast(userLang==='en'?'✅ Link copied':'✅ تم نسخ الرابط'); }).catch(function(){ showToast(userLang==='en'?'Copy failed':'فشل النسخ'); });
+        }
+    }
+});
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function formatBotText(t){let s=escapeHtml(t);return s.split(/\n\s*\n/).map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');}
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1500);}
@@ -926,13 +1002,23 @@ def library_upload():
     try:
         if not session.get('user_email') and not session.get('is_admin'):
             return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
-        d = request.get_json()
+        d = request.get_json(silent=True) or {}
+        if not isinstance(d, dict):
+            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
         image_data = d.get('image_data') or ''
-        if len(image_data) > 5000000:
+        if not isinstance(image_data, str) or len(image_data) > 7000000:
             return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
         if not image_data:
             return jsonify({"status": "error", "message": "لا توجد صورة"}), 400
-        save_image_to_library(get_user_id(), image_data=image_data, title=d.get('title') or "صورة", source="upload")
+        if not re.fullmatch(r"data:image/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+", image_data):
+            return jsonify({"status": "error", "message": "صيغة الصورة غير صالحة"}), 400
+        try:
+            if len(base64.b64decode(image_data.split(",", 1)[1], validate=True)) > 5 * 1024 * 1024:
+                return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
+        except Exception:
+            return jsonify({"status": "error", "message": "تعذر قراءة بيانات الصورة"}), 400
+        title = d.get('title') if isinstance(d.get('title'), str) else "صورة"
+        save_image_to_library(get_user_id(), image_data=image_data, title=title[:200] or "صورة", source="upload")
         return jsonify({"status": "ok"})
     except Exception as e:
         print("library_upload:", e)
@@ -942,11 +1028,14 @@ def library_upload():
 @app.route('/library/delete', methods=['POST'])
 def library_delete():
     try:
-        d = request.get_json()
+        d = request.get_json(silent=True) or {}
         ok = delete_user_image(get_user_id(), d.get('id'))
-        return jsonify({"status": "ok"}) if ok else jsonify({"status": "error"}), 404
+        if ok:
+            return jsonify({"status": "ok"}), 200
+        return jsonify({"status": "error"}), 404
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print("library_delete:", e)
+        return jsonify({"status": "error", "message": "حدث خطأ داخلي"}), 500
 
 
 # ==========================================================
@@ -956,7 +1045,7 @@ def library_delete():
 @app.route('/save_push_subscription', methods=['POST'])
 def save_push_subscription():
     try:
-        sub = request.get_json()
+        sub = request.get_json(silent=True) or {}
         uid = get_user_id()
         sb.table("push_subscriptions").upsert({
             "user_id": uid,
@@ -1002,7 +1091,7 @@ def pin_conversation():
     email = session.get('user_email')
     if not email:
         return jsonify({"status": "error"}), 401
-    d = request.get_json()
+    d = request.get_json(silent=True) or {}
     cid = d.get('conv_id')
     pinned = get_pinned_convs(email)
     if cid not in pinned:
@@ -1016,7 +1105,7 @@ def unpin_conversation():
     email = session.get('user_email')
     if not email:
         return jsonify({"status": "error"}), 401
-    d = request.get_json()
+    d = request.get_json(silent=True) or {}
     cid = d.get('conv_id')
     pinned = get_pinned_convs(email)
     if cid in pinned:
@@ -1047,9 +1136,13 @@ def load_conversation_route(cid):
 @app.route('/delete_message', methods=['POST'])
 def delete_message():
     try:
-        d = request.get_json()
+        d = request.get_json(silent=True) or {}
+        if not isinstance(d, dict) or not isinstance(d.get('conv_id'), str) or not isinstance(d.get('index'), int):
+            return jsonify({"status": "error", "message": "بيانات الحذف غير صحيحة"}), 400
         ok = delete_message_row(get_user_id(), d.get('conv_id'), d.get('index'))
-        return jsonify({"status": "ok"}) if ok else jsonify({"status": "error"}), 404
+        if ok:
+            return jsonify({"status": "ok"}), 200
+        return jsonify({"status": "error"}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1065,20 +1158,47 @@ def delete_my_account():
         return jsonify({"status": "error"}), 400
     uid = get_user_id()
     try:
+        service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not service_key:
+            return jsonify({"status": "error", "message": "حذف الحساب الكامل غير مُعدّ على الخادم. تواصل مع الإدارة."}), 503
+        auth_user_id = None
+        for page in range(1, 101):
+            ar = requests.get(
+                f"{SUPABASE_URL}/auth/v1/admin/users",
+                headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+                params={"page": page, "per_page": 100}, timeout=15
+            )
+            ar.raise_for_status()
+            users_payload = ar.json()
+            auth_users = users_payload.get("users", []) if isinstance(users_payload, dict) else []
+            for auth_user in auth_users:
+                if (auth_user.get("email") or "").lower() == email.lower():
+                    auth_user_id = auth_user.get("id")
+                    break
+            if auth_user_id or len(auth_users) < 100:
+                break
+        if not auth_user_id:
+            return jsonify({"status": "error", "message": "لم يتم العثور على حساب المصادقة؛ لم تُحذف البيانات."}), 404
         sb.table("assistant_chats").delete().eq("user_id", uid).execute()
         sb.table("assistant_usage").delete().eq("user_id", uid).execute()
         sb.table("image_library").delete().eq("user_id", uid).execute()
         sb.table("push_subscriptions").delete().eq("user_id", uid).execute()
         sb.table("profiles").delete().eq("email", email.lower()).execute()
+        dr = requests.delete(
+            f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
+            headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"}, timeout=15
+        )
+        dr.raise_for_status()
     except Exception as e:
         print("delete_my_account:", e)
+        return jsonify({"status": "error", "message": "تعذر إكمال حذف الحساب. راجع سجلات الخادم."}), 500
     session.clear()
-    return jsonify({"status": "success"})
+    return jsonify({"status": "success"}), 200
 
 
 @app.route('/update_profile', methods=['POST'])
 def update_profile():
-    d = request.get_json()
+    d = request.get_json(silent=True) or {}
     name = (d.get('name') or '').strip()
     lang = d.get('lang')
     if not name or len(name) < 2:
@@ -1097,7 +1217,7 @@ def update_profile():
 
 @app.route('/update_language', methods=['POST'])
 def update_language():
-    d = request.get_json()
+    d = request.get_json(silent=True) or {}
     lang = d.get('lang')
     if lang not in ('ar', 'en'):
         return jsonify({"status": "error"}), 400
@@ -1117,7 +1237,7 @@ def change_password():
     email = session.get('user_email')
     if not email:
         return jsonify({"status": "error"}), 401
-    d = request.get_json()
+    d = request.get_json(silent=True) or {}
     oldp = d.get('old_password', '')
     newp = d.get('new_password', '')
     if not oldp or not newp or len(newp) < 8:
@@ -1132,7 +1252,9 @@ def change_password():
         r2 = requests.put(f"{SUPABASE_URL}/auth/v1/user",
             headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {at}", "Content-Type": "application/json"},
             json={"password": newp}, timeout=15)
-        return jsonify({"status": "ok"}) if r2.status_code == 200 else jsonify({"status": "error"}), 400
+        if r2.status_code == 200:
+            return jsonify({"status": "ok"}), 200
+        return jsonify({"status": "error", "message": "تعذر تغيير كلمة المرور"}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1152,7 +1274,7 @@ def export_data():
 @app.route('/report_bug', methods=['POST'])
 def report_bug():
     try:
-        d = request.get_json()
+        d = request.get_json(silent=True) or {}
         desc = (d.get('description') or '').strip()
         if not desc or len(desc) < 3:
             return jsonify({"status": "error"}), 400
@@ -1177,11 +1299,19 @@ def logout_all():
 #  Routes - المشاركة
 # ==========================================================
 
+@app.route('/share/view')
+def shared_view():
+    """صفحة عرض المحادثة المشفّرة داخل الرابط (بدون قاعدة بيانات)"""
+    return render_template_string(SHARED_VIEW_HTML)
+
+
 @app.route('/share/<cid>')
 def shared_conversation(cid):
-    rows = load_conversation_public(cid)
+    if not session.get('user_email') and not session.get('is_admin'):
+        return "سجّل الدخول لعرض محادثاتك.", 401
+    rows = load_conversation_public(cid, get_user_id())
     if not rows:
-        return "المحادثة غير موجودة.", 404
+        return "المحادثة غير موجودة أو لا تملك صلاحية عرضها.", 404
     msgs = []
     title = "محادثة نبراس"
     for i, row in enumerate(rows):
@@ -1302,15 +1432,18 @@ def admin_send_notification():
     if not session.get('is_admin'):
         return jsonify({"status": "error", "message": "غير مصرح"}), 401
     try:
-        d = request.get_json()
-        title = (d.get('title') or 'نبراس').strip()
-        body = (d.get('body') or '').strip()
+        d = request.get_json(silent=True) or {}
+        if not isinstance(d, dict):
+            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
+        title = (d.get('title') if isinstance(d.get('title'), str) else 'نبراس').strip()[:120]
+        body = (d.get('body') if isinstance(d.get('body'), str) else '').strip()[:2000]
         if not body:
             return jsonify({"status": "error", "message": "الرسالة فاضية"}), 400
         subs = sb.table("push_subscriptions").select("user_id").execute()
         user_ids = list({s["user_id"] for s in (subs.data or [])})
-        send_push_to_all(user_ids, title, body)
-        return jsonify({"status": "ok", "sent": len(user_ids), "total": len(user_ids)})
+        sent = send_push_to_all(user_ids, title, body)
+        total = len((sb.table("push_subscriptions").select("id").execute()).data or [])
+        return jsonify({"status": "ok", "sent": sent, "total": total})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1326,9 +1459,9 @@ def admin_dashboard():
         subs_count = len((sb.table("push_subscriptions").select("id").execute()).data or [])
     except:
         recent, users_list, reports_list, subs_count = [], [], [], 0
-    recent_html = "".join([f'<div class="conv-item"><b>{r.get("title","?")}</b><small>{r.get("user_id","")[:30]}</small></div>' for r in recent]) or "<p style='color:#8b949e;'>لا توجد</p>"
-    users_html = "".join([f'<div class="conv-item"><b>{u.get("display_name","?")}</b><small>{u.get("email","")} ({u.get("role","user")})</small></div>' for u in users_list]) or "<p style='color:#8b949e;'>لا يوجد</p>"
-    reports_html = "".join([f'<div style="border-right:3px solid #e74c3c;padding:10px;margin:8px 0;background:#fff5f5;border-radius:8px;"><b>[{r.get("type","?")}]</b> {r.get("user_email","?")}<br><small>{r.get("description","")}</small></div>' for r in reports_list]) or "<p style='color:#8b949e;'>لا توجد</p>"
+    recent_html = "".join([f'<div class="conv-item"><b>{escape(str(r.get("title", "?")))}</b><small>{escape(str(r.get("user_id", ""))[:30])}</small></div>' for r in recent]) or "<p style='color:#8b949e;'>لا توجد</p>"
+    users_html = "".join([f'<div class="conv-item"><b>{escape(str(u.get("display_name", "?")))}</b><small>{escape(str(u.get("email", "")))} ({escape(str(u.get("role", "user")))})</small></div>' for u in users_list]) or "<p style='color:#8b949e;'>لا يوجد</p>"
+    reports_html = "".join([f'<div style="border-right:3px solid #e74c3c;padding:10px;margin:8px 0;background:#fff5f5;border-radius:8px;"><b>[{escape(str(r.get("type", "?")))}]</b> {escape(str(r.get("user_email", "?")))}<br><small>{escape(str(r.get("description", "")))}</small></div>' for r in reports_list]) or "<p style='color:#8b949e;'>لا توجد</p>"
     return f"""<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>لوحة الأدمن</title><style>
     *{{box-sizing:border-box}}
     body{{font-family:'Segoe UI',Tahoma,sans-serif;padding:16px;background:#f4f7fc;color:#1a2b3c;margin:0}}
@@ -1412,7 +1545,7 @@ def admin_dashboard():
 
 @app.route('/set_gender', methods=['POST'])
 def set_gender():
-    session['voice_gender'] = request.get_json().get('gender', 'male')
+    session['voice_gender'] = request.get_json(silent=True) or {}.get('gender', 'male')
     return jsonify({"status": "ok"})
 
 
@@ -1420,7 +1553,7 @@ def set_gender():
 @limiter.limit("30 per minute")
 def voice():
     try:
-        d = request.get_json()
+        d = request.get_json(silent=True) or {}
         text = (d.get('text') or "").strip()
         if not text or len(text) > 3000:
             return jsonify({"audio": None})
@@ -1434,11 +1567,19 @@ def voice():
 @limiter.limit("20 per minute")
 def chat():
     try:
-        d = request.get_json()
-        um = d.get("message", "").strip()
-        cid = d.get("conv_id", None)
-        if not um:
-            return jsonify({"reply": "اكتب شيء أساعدك فيه"})
+        d = request.get_json(silent=True) or {}
+        if not isinstance(d, dict):
+            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
+        raw_message = d.get("message", "")
+        if not isinstance(raw_message, str):
+            return jsonify({"status": "error", "message": "نص الرسالة غير صالح"}), 400
+        um = raw_message.strip()
+        cid = d.get("conv_id")
+        img_data = d.get("image")
+        if len(um) > 12000:
+            return jsonify({"status": "error", "message": "الرسالة طويلة جدًا (الحد 12000 حرف)"}), 413
+        if not um and not img_data:
+            return jsonify({"reply": "اكتب شيء أساعدك فيه أو أرفق صورة"})
         is_admin = bool(session.get('is_admin'))
         user_email = session.get('user_email', '')
         user_role = get_user_role(user_email) if user_email else 'guest'
@@ -1461,8 +1602,16 @@ def chat():
         if is_registered and user_email:
             try: touch_user(user_email)
             except: pass
-        has_image = d.get("image") is not None
+        has_image = img_data is not None
         if has_image:
+            if not isinstance(img_data, str) or len(img_data) > 7000000 or not re.fullmatch(r"data:image/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+", img_data):
+                return jsonify({"status": "error", "message": "صيغة الصورة غير صالحة أو حجمها كبير"}), 400
+            try:
+                encoded = img_data.split(",", 1)[1]
+                if len(base64.b64decode(encoded, validate=True)) > 5 * 1024 * 1024:
+                    return jsonify({"status": "error", "message": "حجم الصورة يتجاوز 5MB"}), 413
+            except Exception:
+                return jsonify({"status": "error", "message": "تعذر قراءة بيانات الصورة"}), 400
             if not is_registered:
                 msg = "تحليل الصور للمسجلين فقط." if user_lang == 'ar' else "Image analysis is for registered users only."
                 return jsonify({"reply": msg, "conv_id": cid})
@@ -1476,15 +1625,19 @@ def chat():
         if user_memory.get('name'):
             memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
         server_hist = load_conversation(uid, cid) if (cid and is_registered) else []
-        if not server_hist: server_hist = []
-        server_hist.append({"role": "user", "content": um})
+        if not server_hist:
+            server_hist = []
+        if img_data and is_registered and can_image:
+            user_content = [
+                {"type": "text", "text": um or "حلل الصورة"},
+                {"type": "image_url", "image_url": {"url": img_data}}
+            ]
+            server_hist.append({"role": "user", "content": user_content})
+        else:
+            server_hist.append({"role": "user", "content": um})
 
         lang_inst = LANG_INSTRUCTION.get(user_lang, "")
         msgs = [{"role": "system", "content": SP + memory_context + lang_inst}] + server_hist[-15:]
-
-        img_data = d.get("image", None)
-        if img_data and is_registered and can_image:
-            msgs.append({"role": "user", "content": [{"type": "text", "text": um or "حلل الصورة"}, {"type": "image_url", "image_url": {"url": img_data}}]})
         if is_registered and can_search:
             try:
                 sr = client.responses.create(model=OPENAI_MODEL, instructions=SP, input=f"ابحث عن أحدث المعلومات: {um}", tools=[{"type": "web_search"}])
@@ -1523,19 +1676,22 @@ def chat():
 
                 nid = cid
                 if is_registered:
-                    nid = save_message(uid, um, cleaned, cid)
-                    inc_usage(uid, "chat_count")
-                    if has_image and can_image: inc_usage(uid, "image_count")
+                    nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
                     if not is_admin:
                         try: send_push_to_user(uid, "نبراس - رد جديد", cleaned[:120])
                         except Exception as pe: print("push send:", pe)
                 else:
-                    if not nid: nid = "guest_conv_" + secrets.token_hex(5)
+                    if not nid:
+                        nid = "guest_conv_" + secrets.token_hex(5)
+                inc_usage(uid, "chat_count")
+                if has_image and is_registered and can_image:
+                    inc_usage(uid, "image_count")
 
                 yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
             except Exception as e:
-                print("stream error:", e)
-                yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+                print("stream error:", repr(e))
+                safe_error = "تعذر إكمال الطلب. حاول مرة أخرى." if user_lang == "ar" else "The request failed. Please try again."
+                yield f"data: {json.dumps({'error': safe_error}, ensure_ascii=False)}\n\n"
 
         return Response(
             stream_with_context(generate()),
@@ -1547,8 +1703,8 @@ def chat():
             }
         )
     except Exception as e:
-        print(f"{e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print("chat request error:", repr(e))
+        return jsonify({"status": "error", "message": "حدث خطأ داخلي أثناء معالجة الطلب"}), 500
 
 
 # ==========================================================
