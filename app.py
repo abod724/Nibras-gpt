@@ -750,6 +750,65 @@ function isNearBottom(){return cb.scrollHeight-cb.scrollTop-cb.clientHeight<10;}
 cb.addEventListener('scroll',function(){stickBottom=isNearBottom();},{passive:true});
 cb.addEventListener('touchmove',function(){stickBottom=isNearBottom();},{passive:true});
 cb.addEventListener('wheel',function(){stickBottom=isNearBottom();},{passive:true});
+function attachBotActions(el,msgText){
+    if(!el||el.querySelector('.msg-actions'))return;
+    const actions=document.createElement('div');actions.className='msg-actions';
+    actions.innerHTML=
+        '<button class="act-like" title="إعجاب"><svg viewBox="0 0 24 24"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg></button>'+
+        '<button class="act-dislike" title="عدم إعجاب"><svg viewBox="0 0 24 24"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg></button>'+
+        '<button class="act-copy" title="نسخ"><svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2.5" ry="2.5"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>'+
+        '<button class="act-speak" title="استماع"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>';
+    el.appendChild(actions);
+    const likeBtn=actions.querySelector('.act-like');
+    const dislikeBtn=actions.querySelector('.act-dislike');
+    const copyBtn=actions.querySelector('.act-copy');
+    const speakBtn=actions.querySelector('.act-speak');
+    likeBtn.addEventListener('click',function(){
+        const wasLiked=this.classList.contains('liked');
+        this.classList.toggle('liked',!wasLiked);
+        dislikeBtn.classList.remove('disliked');
+        actions.classList.add('touched');
+        showToast(wasLiked?'تم إلغاء الإعجاب':'👍 شكراً لتقييمك');
+    });
+    dislikeBtn.addEventListener('click',function(){
+        const wasDisliked=this.classList.contains('disliked');
+        this.classList.toggle('disliked',!wasDisliked);
+        likeBtn.classList.remove('liked');
+        actions.classList.add('touched');
+        showToast(wasDisliked?'تم إلغاء التقييم':'👎 رأيك مهم، بنتحسن');
+    });
+    copyBtn.addEventListener('click',function(){
+        navigator.clipboard.writeText(msgText).then(()=>{
+            this.classList.add('copied');
+            showToast('✅ تم النسخ');
+            const b=this;setTimeout(()=>b.classList.remove('copied'),1500);
+        }).catch(()=>showToast('فشل النسخ'));
+    });
+    speakBtn.addEventListener('click',function(){
+        const btn=this;
+        if(btn.classList.contains('speaking')){
+            if(ca){ca.pause();ca.currentTime=0;ca=null;}
+            btn.classList.remove('speaking');
+            return;
+        }
+        if(ca){ca.pause();ca.currentTime=0;ca=null;}
+        btn.classList.add('speaking');
+        fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msgText})}).then(r=>r.json()).then(v=>{
+            if(v.audio){
+                const src='data:audio/mp3;base64,'+v.audio;
+                ca=new Audio(src);
+                ca.onended=function(){ca=null;btn.classList.remove('speaking');};
+                ca.onerror=function(){btn.classList.remove('speaking');};
+                const savedLvl=localStorage.getItem('nibras-voice-level');
+                if(savedLvl)ca.volume=savedLvl/100;
+                ca.play().catch(()=>btn.classList.remove('speaking'));
+            }else{
+                btn.classList.remove('speaking');
+                showToast('فشل التشغيل');
+            }
+        }).catch(()=>{btn.classList.remove('speaking');showToast('فشل الاتصال');});
+    });
+}
 function addMessage(t,s,isSys,img,imageUrl){
     s=s||'bot';isSys=isSys||false;
     const el=document.createElement('div');el.className='msg '+s;
@@ -757,65 +816,7 @@ function addMessage(t,s,isSys,img,imageUrl){
     let content=formatBotText(t);
     if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}
     el.innerHTML=content;
-    if(s==='bot'&&!isSys){
-        const actions=document.createElement('div');actions.className='msg-actions';
-        actions.innerHTML=
-            '<button class="act-like" title="إعجاب"><svg viewBox="0 0 24 24"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg></button>'+
-            '<button class="act-dislike" title="عدم إعجاب"><svg viewBox="0 0 24 24"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg></button>'+
-            '<button class="act-copy" title="نسخ"><svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2.5" ry="2.5"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>'+
-            '<button class="act-speak" title="استماع"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>';
-        el.appendChild(actions);
-        const msgText=t;
-        const likeBtn=actions.querySelector('.act-like');
-        const dislikeBtn=actions.querySelector('.act-dislike');
-        const copyBtn=actions.querySelector('.act-copy');
-        const speakBtn=actions.querySelector('.act-speak');
-        likeBtn.addEventListener('click',function(){
-            const wasLiked=this.classList.contains('liked');
-            this.classList.toggle('liked',!wasLiked);
-            dislikeBtn.classList.remove('disliked');
-            actions.classList.add('touched');
-            showToast(wasLiked?'تم إلغاء الإعجاب':'👍 شكراً لتقييمك');
-        });
-        dislikeBtn.addEventListener('click',function(){
-            const wasDisliked=this.classList.contains('disliked');
-            this.classList.toggle('disliked',!wasDisliked);
-            likeBtn.classList.remove('liked');
-            actions.classList.add('touched');
-            showToast(wasDisliked?'تم إلغاء التقييم':'👎 رأيك مهم، بنتحسن');
-        });
-        copyBtn.addEventListener('click',function(){
-            navigator.clipboard.writeText(msgText).then(()=>{
-                this.classList.add('copied');
-                showToast('✅ تم النسخ');
-                const b=this;setTimeout(()=>b.classList.remove('copied'),1500);
-            }).catch(()=>showToast('فشل النسخ'));
-        });
-        speakBtn.addEventListener('click',function(){
-            const btn=this;
-            if(btn.classList.contains('speaking')){
-                if(ca){ca.pause();ca.currentTime=0;ca=null;}
-                btn.classList.remove('speaking');
-                return;
-            }
-            if(ca){ca.pause();ca.currentTime=0;ca=null;}
-            btn.classList.add('speaking');
-            fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msgText})}).then(r=>r.json()).then(v=>{
-                if(v.audio){
-                    const src='data:audio/mp3;base64,'+v.audio;
-                    ca=new Audio(src);
-                    ca.onended=function(){ca=null;btn.classList.remove('speaking');};
-                    ca.onerror=function(){btn.classList.remove('speaking');};
-                    const savedLvl=localStorage.getItem('nibras-voice-level');
-                    if(savedLvl)ca.volume=savedLvl/100;
-                    ca.play().catch(()=>btn.classList.remove('speaking'));
-                }else{
-                    btn.classList.remove('speaking');
-                    showToast('فشل التشغيل');
-                }
-            }).catch(()=>{btn.classList.remove('speaking');showToast('فشل الاتصال');});
-        });
-    }
+    if(s==='bot'&&!isSys){attachBotActions(el,t);}
     cb.appendChild(el);
     if(stickBottom)cb.scrollTop=cb.scrollHeight;
     return el;
@@ -831,7 +832,7 @@ gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
 fi.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];fi.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
 cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
 ci.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];ci.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
-async function sendMessage(){if(iw)return;const t=ui.value.trim(),img=pid;if(!t&&!img)return;let userMsgEl=null;if(t)userMsgEl=addMessage(t,'user');if(img){userMsgEl=addMessage('صورة مرفقة','user',false,img);clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">جاري التفكير</span>';cb.appendChild(botEl);if(userMsgEl)scrollMsgToTop(userMsgEl);const payload={message:t||"مرفق",image:img||null,history:ch,conv_id:cid};let displayText='';let bufferText='';let streamDone=false;let typingTimer=null;function tick(){if(bufferText.length>0){displayText+=bufferText.slice(0,1);bufferText=bufferText.slice(1);botEl.innerHTML=formatBotText(displayText);}if(bufferText.length===0&&streamDone){clearInterval(typingTimer);typingTimer=null;botEl.innerHTML=formatBotText(displayText);iw=false;if(voiceOn&&displayText&&displayText.length<1500){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:displayText})}).then(r=>r.json()).then(v=>{if(v.audio){if(ca){ca.pause();ca.currentTime=0;}const src='data:audio/mp3;base64,'+v.audio;ca=new Audio(src);ca.onended=function(){ca=null;};const savedLvl=localStorage.getItem('nibras-voice-level');if(savedLvl)ca.volume=savedLvl/100;ca.play();}}).catch(()=>{});}}}typingTimer=setInterval(tick,15);try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}clearInterval(typingTimer);botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let sseBuffer='';let firstToken=true;while(true){const {done,value}=await reader.read();if(done)break;sseBuffer+=decoder.decode(value,{stream:true});const parts=sseBuffer.split('\n\n');sseBuffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(firstToken){botEl.innerHTML='';firstToken=false;}bufferText+=data.token;}else if(data.done){if(data.conv_id)cid=data.conv_id;}else if(data.error){bufferText+='\n\nخطأ: '+data.error;}}catch(e){}}}streamDone=true;}catch(e){clearInterval(typingTimer);if(botEl.parentNode)botEl.remove();addMessage('تعذر الاتصال','error');iw=false;}}
+async function sendMessage(){if(iw)return;const t=ui.value.trim(),img=pid;if(!t&&!img)return;let userMsgEl=null;if(t)userMsgEl=addMessage(t,'user');if(img){userMsgEl=addMessage('صورة مرفقة','user',false,img);clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">جاري التفكير</span>';cb.appendChild(botEl);if(userMsgEl)scrollMsgToTop(userMsgEl);const payload={message:t||"مرفق",image:img||null,history:ch,conv_id:cid};let displayText='';let bufferText='';let streamDone=false;let typingTimer=null;function tick(){if(bufferText.length>0){displayText+=bufferText.slice(0,1);bufferText=bufferText.slice(1);botEl.innerHTML=formatBotText(displayText);}if(bufferText.length===0&&streamDone){clearInterval(typingTimer);typingTimer=null;botEl.innerHTML=formatBotText(displayText);if(displayText&&displayText.trim().length>0){attachBotActions(botEl,displayText);}iw=false;if(voiceOn&&displayText&&displayText.length<1500){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:displayText})}).then(r=>r.json()).then(v=>{if(v.audio){if(ca){ca.pause();ca.currentTime=0;}const src='data:audio/mp3;base64,'+v.audio;ca=new Audio(src);ca.onended=function(){ca=null;};const savedLvl=localStorage.getItem('nibras-voice-level');if(savedLvl)ca.volume=savedLvl/100;ca.play();}}).catch(()=>{});}}}typingTimer=setInterval(tick,15);try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}clearInterval(typingTimer);botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let sseBuffer='';let firstToken=true;while(true){const {done,value}=await reader.read();if(done)break;sseBuffer+=decoder.decode(value,{stream:true});const parts=sseBuffer.split('\n\n');sseBuffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(firstToken){botEl.innerHTML='';firstToken=false;}bufferText+=data.token;}else if(data.done){if(data.conv_id)cid=data.conv_id;}else if(data.error){bufferText+='\n\nخطأ: '+data.error;}}catch(e){}}}streamDone=true;}catch(e){clearInterval(typingTimer);if(botEl.parentNode)botEl.remove();addMessage('تعذر الاتصال','error');iw=false;}}
 sb.addEventListener('click',sendMessage);
 ui.addEventListener('keypress',function(e){if(e.key==='Enter'){e.preventDefault();sendMessage()}});
 document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
