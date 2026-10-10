@@ -673,6 +673,59 @@ zone.onclick=()=>fi.click();fi.onchange=(e)=>{if(e.target.files.length>0)uploadF
 
 LH = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>دخول - نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;margin:0;padding:20px}.box{background:#fff;padding:44px 32px;border-radius:24px;box-shadow:0 4px 30px rgba(0,0,0,0.06);width:100%;max-width:420px;text-align:center}.logo{width:64px;height:64px;background:#4a6a8a;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:#fff;font-size:26px;font-weight:700}h2{font-size:24px;color:#1a2b3c;margin-bottom:8px;font-weight:700}.subtitle{color:#8b949e;font-size:14px;margin-bottom:28px}.tabs{display:flex;justify-content:center;gap:26px;border-bottom:1px solid #eaeef2;margin-bottom:26px}.tabs button{background:0 0;border:none;padding:12px 0;font-size:15px;font-weight:600;color:#8b949e;cursor:pointer;position:relative;font-family:inherit;transition:color .2s}.tabs button.active{color:#4a6a8a}.tabs button.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:#4a6a8a;border-radius:2px}.section{display:none}.section.active{display:block}.field{margin:12px 0}.field input{width:100%;padding:15px 18px;border:1.5px solid #e5e9ef;border-radius:14px;font-size:15px;background:#fafbfc;box-sizing:border-box;font-family:inherit;transition:all .2s;color:#1a2b3c}.field input:focus{outline:0;border-color:#4a6a8a;background:#fff;box-shadow:0 0 0 4px rgba(74,106,138,0.1)}.field input::placeholder{color:#a5b0be}button.submit{width:100%;padding:15px;background:#4a6a8a;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;font-family:inherit;transition:all .2s}button.submit:hover{background:#3a5a7a}button.submit:active{transform:scale(0.98)}a{color:#4a6a8a;text-decoration:none;font-size:14px;display:inline-block;margin-top:18px;font-weight:600}a:hover{color:#3a5a7a}.error{color:#d63031;background:#ffe8e8;padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px;font-weight:600;text-align:right}.success{color:#00b894;background:#e6fff5;padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px;font-weight:600;text-align:right}.divider{margin:22px 0 0;padding-top:18px;border-top:1px solid #eef1f6}.privacy-link{font-size:12px;color:#a5b0be;margin-top:6px;text-decoration:underline;font-weight:500}@media(max-width:420px){.box{padding:34px 24px}h2{font-size:22px}}</style></head><body><div class="box"><div class="logo">🔐</div><h2>نبراس</h2><p class="subtitle">مساعدك الذكي الشخصي</p>{% if error %}<div class="error">{{ error }}</div>{% endif %}{% if success %}<div class="success">{{ success }}</div>{% endif %}<div class="tabs"><button type="button" class="tab-btn active" data-tab="login">دخول</button><button type="button" class="tab-btn" data-tab="signup">حساب جديد</button><button type="button" class="tab-btn" data-tab="recover">استعادة</button></div><div class="section active" id="tab-login"><form method="POST" action="/login"><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><div class="field"><input type="password" name="password" placeholder="كلمة المرور" required></div><button type="submit" class="submit">تسجيل الدخول</button></form></div><div class="section" id="tab-signup"><form method="POST" action="/signup"><div class="field"><input type="text" name="name" placeholder="الاسم الكامل" required minlength="2"></div><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><div class="field"><input type="password" name="password" placeholder="كلمة المرور (8 أحرف +)" minlength="8" required></div><button type="submit" class="submit">إنشاء حساب جديد</button></form></div><div class="section" id="tab-recover"><form method="POST" action="/recover"><div class="field"><input type="email" name="email" placeholder="البريد الإلكتروني" required></div><button type="submit" class="submit">إرسال رابط الاستعادة</button></form></div><div class="divider" style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;"><a href="/" style="margin-top:0;">العودة للرئيسية</a><span style="color:#dce1e8;">|</span><a href="https://abod724.github.io/nibras-privacy/terms.html" target="_blank" class="privacy-link" style="margin-top:0;">شروط الاستخدام</a><span style="color:#dce1e8;">|</span><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="privacy-link" style="margin-top:0;">سياسة الخصوصية</a></div></div><script>document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));this.classList.add('active');document.getElementById('tab-'+this.dataset.tab).classList.add('active')})});</script></body></html>"""
 
+RESET_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>تعيين كلمة مرور جديدة</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:center;min-height:100dvh;padding:20px}.box{background:#fff;padding:44px 32px;border-radius:24px;box-shadow:0 4px 30px rgba(0,0,0,0.06);width:100%;max-width:420px;text-align:center}.logo{width:64px;height:64px;background:#4a6a8a;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:#fff;font-size:26px}h2{font-size:22px;color:#1a2b3c;margin-bottom:8px}.subtitle{color:#8b949e;font-size:14px;margin-bottom:26px}.field{margin:12px 0}.field input{width:100%;padding:15px 18px;border:1.5px solid #e5e9ef;border-radius:14px;font-size:15px;background:#fafbfc;font-family:inherit;color:#1a2b3c}.field input:focus{outline:0;border-color:#4a6a8a;background:#fff;box-shadow:0 0 0 4px rgba(74,106,138,0.1)}button.submit{width:100%;padding:15px;background:#4a6a8a;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;font-family:inherit}button.submit:hover{background:#3a5a7a}.msg{padding:13px 16px;border-radius:12px;margin-bottom:18px;font-size:14px;font-weight:600;text-align:right;display:none}.msg.err{display:block;color:#d63031;background:#ffe8e8}.msg.ok{display:block;color:#00b894;background:#e6fff5}</style></head><body><div class="box"><div class="logo">🔑</div><h2>كلمة مرور جديدة</h2><p class="subtitle">اكتب كلمة مرورك الجديدة</p><div id="msg" class="msg"></div><form id="resetForm"><div class="field"><input type="password" id="newPass" placeholder="كلمة المرور الجديدة (8 أحرف +)" minlength="8" required></div><div class="field"><input type="password" id="confirmPass" placeholder="تأكيد كلمة المرور" minlength="8" required></div><button type="submit" class="submit">حفظ كلمة المرور</button></form></div><script>
+(function(){
+    var msgEl=document.getElementById('msg');
+    var formEl=document.getElementById('resetForm');
+    var accessToken=null;
+    try{
+        var hash=window.location.hash.substring(1);
+        var qs=window.location.search.substring(1);
+        var params=new URLSearchParams(hash||qs);
+        accessToken=params.get('access_token');
+        if(!accessToken){
+            msgEl.className='msg err';
+            msgEl.textContent='❌ الرابط غير صالح أو منتهي. اطلب رابط استعادة جديد.';
+            formEl.style.display='none';
+        }
+    }catch(e){
+        msgEl.className='msg err';
+        msgEl.textContent='❌ خطأ في قراءة الرابط.';
+        formEl.style.display='none';
+    }
+    formEl.addEventListener('submit',async function(ev){
+        ev.preventDefault();
+        var p1=document.getElementById('newPass').value;
+        var p2=document.getElementById('confirmPass').value;
+        if(p1.length<8){
+            msgEl.className='msg err';msgEl.textContent='كلمة المرور لازم 8 أحرف على الأقل';return;
+        }
+        if(p1!==p2){
+            msgEl.className='msg err';msgEl.textContent='كلمتا المرور ما تتطابقان';return;
+        }
+        msgEl.className='msg';msgEl.textContent='جاري الحفظ...';
+        try{
+            var r=await fetch('/update_password',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({access_token:accessToken,new_password:p1})
+            });
+            var d=await r.json();
+            if(d.status==='ok'){
+                msgEl.className='msg ok';
+                msgEl.textContent='✅ تم تعيين كلمة المرور! جاري التحويل لتسجيل الدخول...';
+                setTimeout(function(){window.location.href='/login';},1500);
+            }else{
+                msgEl.className='msg err';
+                msgEl.textContent='❌ '+(d.message||'فشل التحديث');
+            }
+        }catch(e){
+            msgEl.className='msg err';msgEl.textContent='❌ تعذر الاتصال بالسيرفر';
+        }
+    });
+})();
+</script></body></html>"""
+
 
 HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><title>نبراس GP | مساعد ذكي</title><link rel="manifest" href="/static/manifest.json"><link rel="icon" href="/static/icon-192.png"><meta name="theme-color" content="#ffffff"><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a;--font-size-base:16px;--font-size-small:14px}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}html[data-font="small"]{--font-size-base:14px;--font-size-small:12.5px}html[data-font="medium"]{--font-size-base:16px;--font-size-small:14px}html[data-font="large"]{--font-size-base:18px;--font-size-small:16px}html[data-font="xlarge"]{--font-size-base:20px;--font-size-small:18px}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border-color);flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--primary-color);opacity:0.85}.btn-group{display:flex;gap:8px;align-items:center}.btn{padding:7px 16px;border-radius:20px;font-size:14px;border:none;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;font-family:inherit;font-weight:600}.btn-outline{background:0 0;border:1.5px solid var(--primary-color);color:var(--primary-color);transition:all .2s}.btn-outline:hover{background:var(--primary-color);color:#fff}.user-badge{display:flex;align-items:center;gap:6px;background:var(--bg-hover);padding:6px 12px;border-radius:20px;font-size:13px;color:var(--text-primary);font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.user-badge svg{width:16px;height:16px;stroke:var(--primary-color);stroke-width:2;fill:none;flex-shrink:0}.dropdown{position:absolute;top:68px;left:12px;right:12px;background:var(--bg-dropdown);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15),0 4px 12px rgba(0,0,0,0.08);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:78vh;overflow-y:auto;padding:10px;opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}.dropdown.show{display:flex;opacity:1;transform:translateY(0)}.dropdown::-webkit-scrollbar{width:4px}.dropdown::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.dropdown .item{display:flex;align-items:center;gap:14px;padding:13px 16px;font-size:15px;color:var(--text-primary);background:transparent;border:none;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:background .15s ease,transform .1s ease;letter-spacing:-0.2px}.dropdown .item:hover{background:var(--bg-hover)}.dropdown .item:active{transform:scale(0.98)}.dropdown .item svg{width:20px;height:20px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.dropdown .section-title{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.8px;text-transform:uppercase;opacity:.7}.dropdown .conv-item{display:flex;align-items:center;gap:8px;padding:11px 16px;border:none;background:transparent;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-size:14px;color:var(--text-primary);font-weight:500;border-radius:14px;transition:background .15s ease;letter-spacing:-0.1px;position:relative}.dropdown .conv-item:hover{background:var(--bg-hover)}.dropdown .conv-item .conv-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dropdown .conv-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary-color);opacity:.4;flex-shrink:0}.dropdown .conv-item .pin-btn{background:transparent;border:none;cursor:pointer;padding:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;opacity:0.5;transition:opacity .2s,background .2s;flex-shrink:0}.dropdown .conv-item .pin-btn:hover{opacity:1;background:var(--bg-hover)}.dropdown .conv-item .pin-btn svg{width:16px;height:16px;stroke:var(--text-primary);stroke-width:2;fill:none}.dropdown .conv-item .pin-btn.pinned svg{fill:var(--primary-color);stroke:var(--primary-color)}.dropdown .pinned-item{padding:11px 16px;display:flex;align-items:center;gap:8px;border-radius:14px;transition:background .15s ease}.dropdown .pinned-item:hover{background:var(--bg-hover)}.gender-option{flex:1;padding:9px 12px;border-radius:12px;border:1px solid var(--border-color);background:transparent;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all .2s ease;font-family:inherit}.gender-option.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color);box-shadow:0 4px 12px rgba(74,106,138,0.3)}.dropdown .item.danger{color:#d32f2f}.dropdown .item.danger svg{stroke:#d32f2f;opacity:1}.dropdown .item.danger:hover{background:rgba(211,47,47,0.08)}.settings-overlay{position:fixed;inset:0;background:var(--bg-body);z-index:99999;display:none;flex-direction:column;overflow-y:auto}.settings-overlay.show{display:flex}.settings-page{max-width:500px;width:100%;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg-body)}.settings-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-app);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border-color)}.settings-header h2{font-size:18px;color:var(--text-primary);font-weight:700;margin:0}.settings-body{padding:16px;display:flex;flex-direction:column;gap:14px}.settings-card{background:var(--bg-app);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.settings-item{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.settings-item:last-child{border-bottom:none}.settings-item:hover{background:var(--bg-hover)}.settings-item .item-right{display:flex;align-items:center;gap:14px;color:var(--text-primary);font-size:15px;font-weight:600}.settings-item .item-right svg{width:22px;height:22px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0}.settings-item .chevron{width:18px;height:18px;stroke:var(--text-secondary);stroke-width:2;fill:none}.sub-page{position:fixed;inset:0;background:var(--bg-body);z-index:100000;display:none;flex-direction:column;overflow-y:auto}.sub-page.show{display:flex}.sub-page-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-app);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border-color)}.sub-page-header h2{font-size:18px;color:var(--text-primary);font-weight:700;margin:0}.sub-page-body{padding:20px;display:flex;flex-direction:column;gap:16px;max-width:500px;margin:0 auto;width:100%}.sub-page-body .field{display:flex;flex-direction:column;gap:8px}.sub-page-body .field label{font-size:14px;color:var(--text-secondary);font-weight:600}.sub-page-body .field input,.sub-page-body .field select{padding:12px 16px;border-radius:12px;border:1px solid var(--border-color);background:var(--bg-input);color:var(--text-primary);font-size:15px;font-family:inherit;outline:none}.sub-page-body .save-btn{padding:14px;border-radius:14px;background:var(--primary-color);color:#fff;border:none;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:8px}.info-box{background:var(--bg-hover);padding:16px;border-radius:14px;font-size:14px;color:var(--text-secondary);line-height:1.8}.option-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.option-row{padding:18px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.option-row:last-child{border-bottom:none}.option-row:active{background:var(--bg-hover)}.option-label{display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--text-primary);font-weight:500}.check-icon{width:22px;height:22px;stroke:var(--primary-color);stroke-width:2.5;fill:none;opacity:0;transition:opacity .25s}.option-row.selected .check-icon{opacity:1}.color-grid{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.color-row{padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}.color-row:last-child{border-bottom:none}.color-row:active{background:var(--bg-hover)}.color-row-left{display:flex;align-items:center;gap:14px;font-size:15px;color:var(--text-primary);font-weight:500}.color-circle{width:26px;height:26px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);flex-shrink:0}.color-row .check-icon{opacity:0;transition:opacity .25s}.color-row.selected .check-icon{opacity:1}.lang-list{display:flex;flex-direction:column;gap:12px}.lang-card{display:flex;align-items:center;gap:16px;padding:18px 20px;background:var(--bg-app);border-radius:18px;cursor:pointer;border:2px solid var(--border-color);transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px var(--shadow-color)}.lang-card:hover{border-color:var(--primary-color);transform:translateY(-2px);box-shadow:0 8px 24px rgba(74,106,138,0.15)}.lang-card.selected{border-color:var(--primary-color);background:linear-gradient(135deg,var(--bg-app) 0%,rgba(74,106,138,0.06) 100%);box-shadow:0 6px 20px rgba(74,106,138,0.18)}.lang-flag{font-size:34px;line-height:1;flex-shrink:0;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))}.lang-info{flex:1;display:flex;flex-direction:column;gap:3px}.lang-name{font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:-0.2px}.lang-sub{font-size:13px;color:var(--text-secondary)}.lang-check{width:26px;height:26px;stroke:var(--primary-color);stroke-width:3;fill:none;opacity:0;transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);flex-shrink:0;transform:scale(0.5)}.lang-card.selected .lang-check{opacity:1;transform:scale(1)}
 .personality-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}
@@ -836,7 +889,22 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
     </div>
 </div>
 
-<script>(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let isMale=(localStorage.getItem('nibras-voice-gender')||'male')==='male';let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,ca=null,voiceOn=false,stickBottom=true;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
+<script>
+(function(){
+    try{
+        var hash = window.location.hash || '';
+        var search = window.location.search || '';
+        if(hash.indexOf('access_token=') !== -1 && hash.indexOf('type=recovery') !== -1){
+            window.location.replace('/reset-password' + hash);
+            return;
+        }
+        if(search.indexOf('type=recovery') !== -1 && search.indexOf('code=') !== -1){
+            window.location.replace('/reset-password' + search);
+            return;
+        }
+    }catch(e){}
+})();
+(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let isMale=(localStorage.getItem('nibras-voice-gender')||'male')==='male';let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,ca=null,voiceOn=false,stickBottom=true;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
 const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
 const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
 function tr(key){const d={thinking:{ar:'جاري التفكير',en:'Thinking'},listening:{ar:'جاري الاستماع...',en:'Listening...'},inputPlaceholder:{ar:'اكتب رسالتك...',en:'Type your message...'},micUnsupported:{ar:'المتصفح لا يدعم التعرف على الصوت.',en:'Browser does not support voice recognition.'}};return (d[key]||{})[userLang]||(d[key]||{}).ar||key;}
@@ -1631,10 +1699,57 @@ def recover():
     if not e or "@" not in e:
         return render_template_string(LH, error="أدخل بريداً صحيحاً.")
     try:
-        requests.post(f"{SUPABASE_URL}/auth/v1/recover", headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"}, json={"email": e}, timeout=15)
-        return render_template_string(LH, success="تم إرسال رابط الاستعادة.")
+        redirect_url = f"{request.host_url.rstrip('/')}/reset-password"
+        requests.post(
+            f"{SUPABASE_URL}/auth/v1/recover?redirect_to={redirect_url}",
+            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+            json={"email": e},
+            timeout=15
+        )
+        return render_template_string(LH, success="تم إرسال رابط الاستعادة على بريدك.")
     except Exception as ex:
+        print(f"RECOVER_ERROR: {type(ex).__name__}: {ex}")
         return render_template_string(LH, error=f"فشل: {ex}")
+
+
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template_string(RESET_HTML)
+
+
+@app.route('/update_password', methods=['POST'])
+def update_password():
+    try:
+        d = request.get_json(silent=True) or {}
+        token = d.get('access_token', '')
+        newp = d.get('new_password', '')
+        if not token:
+            return jsonify({"status": "error", "message": "الرابط غير صالح"}), 400
+        if not newp or len(newp) < 8:
+            return jsonify({"status": "error", "message": "كلمة المرور لازم 8 أحرف على الأقل"}), 400
+        r = requests.put(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={"password": newp},
+            timeout=15
+        )
+        print(f"update_password: status={r.status_code} body={r.text[:200]}")
+        if r.status_code == 200:
+            return jsonify({"status": "ok"})
+        msg = "تعذر تحديث كلمة المرور"
+        try:
+            e2 = r.json()
+            msg = e2.get("msg") or e2.get("message") or e2.get("error_description") or msg
+        except Exception:
+            pass
+        return jsonify({"status": "error", "message": msg}), 400
+    except Exception as e:
+        print(f"update_password error: {type(e).__name__}: {e}")
+        return jsonify({"status": "error", "message": "خطأ داخلي"}), 500
 
 
 @app.route('/logout')
@@ -1883,9 +1998,16 @@ def chat():
                 return jsonify({"reply": msg, "conv_id": cid})
             if not can_image:
                 msg = "وصلت للحد اليومي للصور." if user_lang == 'ar' else "You've reached the daily image limit."
-                nid = save_message(uid, um, msg, cid)
+                nid = save_message(uid, um, msg, cid) if is_registered else cid
                 inc_usage(uid, "chat_count")
-                return jsonify({"reply": msg, "conv_id": nid})
+                def limit_img_stream():
+                    yield f"data: {json.dumps({'token': msg}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
+                return Response(
+                    stream_with_context(limit_img_stream()),
+                    mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+                )
         user_memory = get_user_memory(user_email) if user_email else {}
         memory_context = ""
         if user_memory.get('name'):
@@ -1930,7 +2052,6 @@ def chat():
 
         msgs = [{"role": "system", "content": SP + memory_context + lang_inst + personality_inst}] + server_hist[-15:]
 
-        # ✅ التعديل: تعليمات البحث خام + role: system بدل user
         if is_registered and can_search:
             inc_usage(uid, "search_count")
             try:
