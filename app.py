@@ -804,7 +804,7 @@ async function subscribeToPush(){if(!('serviceWorker' in navigator)||!('PushMana
 async function unsubscribeFromPush(){if(!('serviceWorker' in navigator)){showToast('المتصفح ما يدعم الإشعارات');return;}try{const reg=await navigator.serviceWorker.getRegistration('/service-worker.js');if(reg){const sub=await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe();}await fetch('/remove_push_subscription',{method:'POST'});showToast('✅ تم إلغاء الإشعارات');}catch(err){console.error(err);showToast('فشل الإلغاء');}}
 function requestNotifications(){subscribeToPush();}
 function saveVoice(){const lvl=document.getElementById('sp-voice-level').value;const gender=isMale?'male':'female';localStorage.setItem('nibras-voice-level',lvl);localStorage.setItem('nibras-voice-gender',gender);fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:gender})}).then(()=>{showToast('✅ تم حفظ الإعدادات');closeSubPage();}).catch(()=>{showToast('✅ تم الحفظ محلياً');closeSubPage();});}
-function changePassword(){const o=document.getElementById('sp-old-pass').value;const n=document.getElementById('sp-new-pass').value;if(!o||!n||n.length<8){showToast('كلمة المرور 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:o,new_password:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم التغيير');closeSubPage();}else showToast('فشل');});}
+function changePassword(){const o=document.getElementById('sp-old-pass').value;const n=document.getElementById('sp-new-pass').value;if(!o){showToast('اكتب كلمة المرور الحالية');return;}if(!n||n.length<8){showToast('كلمة المرور الجديدة 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:o,new_password:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('✅ تم تغيير كلمة المرور');document.getElementById('sp-old-pass').value='';document.getElementById('sp-new-pass').value='';closeSubPage();}else{showToast('❌ '+(d.message||'فشل تغيير كلمة المرور'));}}).catch(()=>showToast('❌ تعذر الاتصال بالسيرفر'));}
 function logoutAll(){if(confirm('خروج من كل الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
 function clearCache(){if(!confirm('مسح الإعدادات المحلية؟'))return;localStorage.clear();sessionStorage.clear();document.documentElement.classList.remove('dark-mode');showToast('✅ تم المسح');setTimeout(()=>location.reload(),900);}
 function exportData(){window.location.href='/export_data';}
@@ -857,7 +857,7 @@ document.querySelector('[data-action="share"]').addEventListener('click',functio
 });
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function formatBotText(t){let s=escapeHtml(t);return s.split(/\n\s*\n/).map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');}
-function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1500);}
+function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
 function scrollToBottomSmooth(){if(!stickBottom)return;cb.scrollTop=cb.scrollHeight;}
 function scrollMsgToTop(el){if(!el)return;requestAnimationFrame(function(){const r=el.getBoundingClientRect();const c=cb.getBoundingClientRect();cb.scrollTop=cb.scrollTop+(r.top-c.top)-8;});}
 function isNearBottom(){return cb.scrollHeight-cb.scrollTop-cb.clientHeight<10;}
@@ -1242,27 +1242,108 @@ def update_language():
 def change_password():
     email = session.get('user_email')
     if not email:
-        return jsonify({"status": "error"}), 401
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
     d = request.get_json(silent=True) or {}
     oldp = d.get('old_password', '')
     newp = d.get('new_password', '')
-    if not oldp or not newp or len(newp) < 8:
-        return jsonify({"status": "error"}), 400
+    if not oldp:
+        return jsonify({"status": "error", "message": "اكتب كلمة المرور الحالية"}), 400
+    if not newp or len(newp) < 8:
+        return jsonify({"status": "error", "message": "كلمة المرور الجديدة لازم 8 أحرف على الأقل"}), 400
+
+    print(f"change_password: user={email} old_len={len(oldp)} new_len={len(newp)}")
+
+    # 1) تحقق من كلمة المرور الحالية
     try:
         r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
             headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
             json={"email": email, "password": oldp}, timeout=15)
-        if r.status_code != 200:
-            return jsonify({"status": "error", "message": "كلمة المرور الحالية خاطئة"}), 400
-        at = r.json().get('access_token')
-        r2 = requests.put(f"{SUPABASE_URL}/auth/v1/user",
-            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {at}", "Content-Type": "application/json"},
-            json={"password": newp}, timeout=15)
-        if r2.status_code == 200:
-            return jsonify({"status": "ok"}), 200
-        return jsonify({"status": "error", "message": "تعذر تغيير كلمة المرور"}), 400
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"change_password: login request error: {e}")
+        return jsonify({"status": "error", "message": "تعذر الاتصال بخدمة المصادقة"}), 500
+
+    print(f"change_password: login status={r.status_code} body={r.text[:300]}")
+
+    if r.status_code != 200:
+        msg = "كلمة المرور الحالية غير صحيحة"
+        try:
+            err = r.json()
+            raw = err.get("error_description") or err.get("msg") or err.get("error") or ""
+            rl = str(raw).lower()
+            if "rate" in rl or "too many" in rl:
+                msg = "حاولت عدة مرات — انتظر دقيقة ثم أعد المحاولة"
+            elif "email" in rl and "confirm" in rl:
+                msg = "حسابك غير مؤكد — افتح إيميلك واضغط رابط التأكيد"
+            elif "invalid" in rl and "grant" in rl:
+                msg = "البريد أو كلمة المرور الحالية غير صحيحة"
+            elif raw:
+                msg = str(raw)
+        except Exception:
+            pass
+        return jsonify({"status": "error", "message": msg}), 400
+
+    at = r.json().get('access_token')
+    if not at:
+        return jsonify({"status": "error", "message": "تعذر إنشاء الجلسة"}), 500
+
+    # 2) غيّر كلمة المرور
+    try:
+        r2 = requests.put(f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {at}",
+                "Content-Type": "application/json"
+            },
+            json={"password": newp}, timeout=15)
+        print(f"change_password: update status={r2.status_code} body={r2.text[:300]}")
+    except Exception as e:
+        print(f"change_password: update request error: {e}")
+        return jsonify({"status": "error", "message": "تعذر تحديث كلمة المرور"}), 500
+
+    if r2.status_code == 200:
+        return jsonify({"status": "ok"}), 200
+
+    # 3) Fallback: استخدم Service Role
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if service_key:
+        try:
+            auth_user_id = None
+            for page in range(1, 11):
+                ar = requests.get(
+                    f"{SUPABASE_URL}/auth/v1/admin/users",
+                    headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+                    params={"page": page, "per_page": 100}, timeout=15
+                )
+                if ar.status_code != 200:
+                    break
+                payload = ar.json()
+                users = payload.get("users", []) if isinstance(payload, dict) else []
+                for u in users:
+                    if (u.get("email") or "").lower() == email.lower():
+                        auth_user_id = u.get("id")
+                        break
+                if auth_user_id or len(users) < 100:
+                    break
+
+            if auth_user_id:
+                ur = requests.put(
+                    f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
+                    headers={"apikey": service_key, "Authorization": f"Bearer {service_key}", "Content-Type": "application/json"},
+                    json={"password": newp}, timeout=15
+                )
+                print(f"change_password: admin update status={ur.status_code} body={ur.text[:300]}")
+                if ur.status_code == 200:
+                    return jsonify({"status": "ok"}), 200
+        except Exception as e:
+            print(f"change_password: admin fallback error: {e}")
+
+    err_msg = "تعذر تغيير كلمة المرور"
+    try:
+        e2 = r2.json()
+        err_msg = e2.get("msg") or e2.get("message") or e2.get("error_description") or err_msg
+    except Exception:
+        pass
+    return jsonify({"status": "error", "message": err_msg}), 400
 
 
 @app.route('/export_data')
