@@ -1930,10 +1930,16 @@ def chat():
 
         msgs = [{"role": "system", "content": SP + memory_context + lang_inst + personality_inst}] + server_hist[-15:]
 
+        # ✅ التعديل: تعليمات البحث خام + role: system بدل user
         if is_registered and can_search:
             inc_usage(uid, "search_count")
             try:
-                sr = client.responses.create(model=OPENAI_MODEL, instructions=SP, input=f"ابحث عن أحدث المعلومات: {um}", tools=[{"type": "web_search"}])
+                sr = client.responses.create(
+                    model=OPENAI_MODEL,
+                    instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
+                    input=f"ابحث عن أحدث المعلومات: {um}",
+                    tools=[{"type": "web_search"}]
+                )
                 res = ""
                 if hasattr(sr, "output_text") and sr.output_text:
                     res = sr.output_text.strip()
@@ -1941,7 +1947,7 @@ def chat():
                     try: res = sr.output[0].content[0].text
                     except: res = ""
                 if res:
-                    msgs.append({"role": "user", "content": f"نتيجة البحث:\n{res}"})
+                    msgs.append({"role": "system", "content": f"📰 نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
                     print(f"✅ بحث ناجح - {len(res)} حرف")
             except Exception as e:
                 print(f"❌ فشل البحث ({type(e).__name__}): {e}")
