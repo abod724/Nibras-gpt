@@ -31,7 +31,9 @@ app.permanent_session_lifetime = timedelta(days=30)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_SECURE=True
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_NAME='nibras_session',
+    SESSION_COOKIE_DOMAIN=None
 )
 
 
@@ -72,8 +74,16 @@ LIMITS = {
     "admin": {"chat": 9999, "search": 9999, "image": 9999},
 }
 
+
+def get_user_ip():
+    fwd = request.headers.get('X-Forwarded-For', '')
+    if fwd:
+        return fwd.split(',')[0].strip()
+    return get_remote_address()
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_user_ip,
     default_limits=["500 per day", "300 per hour"]
 )
 limiter.init_app(app)
@@ -1573,7 +1583,8 @@ def login():
             r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
                 headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
                 json={"email": e, "password": p}, timeout=15)
-        except:
+        except Exception as ex:
+            print(f"LOGIN_EXCEPTION: {type(ex).__name__}: {ex}")
             return render_template_string(LH, error="تعذر الاتصال.")
         if r.status_code != 200:
             return render_template_string(LH, error="البريد أو كلمة المرور غير صحيحة.")
@@ -1582,8 +1593,6 @@ def login():
         session.permanent = True
         session['user_email'] = e
         session['is_admin'] = False
-        session['access_token'] = data.get('access_token')
-        session['refresh_token'] = data.get('refresh_token')
         session['user_role'] = get_user_role(e)
         touch_user(e)
         return redirect(url_for('index'))
@@ -1606,6 +1615,7 @@ def signup():
         save_user_memory(e, {"name": name})
         return render_template_string(LH, success="تم إنشاء حسابك! افتح بريدك للتأكيد.")
     except Exception as ex:
+        print(f"SIGNUP_ERROR: {type(ex).__name__}: {ex}")
         return render_template_string(LH, error=f"فشل: {ex}")
 
 
