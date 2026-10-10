@@ -878,6 +878,7 @@ function attachBotActions(el,msgText){
         this.classList.toggle('liked',!wasLiked);
         dislikeBtn.classList.remove('disliked');
         actions.classList.add('touched');
+        fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasLiked?'unlike':'like',message:msgText,conv_id:cid})}).catch(function(){});
         showToast(wasLiked?(userLang==='en'?'Like removed':'تم إلغاء الإعجاب'):(userLang==='en'?'👍 Thanks!':'👍 شكراً لتقييمك'));
     });
     dislikeBtn.addEventListener('click',function(){
@@ -885,6 +886,7 @@ function attachBotActions(el,msgText){
         this.classList.toggle('disliked',!wasDisliked);
         likeBtn.classList.remove('liked');
         actions.classList.add('touched');
+        fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasDisliked?'undislike':'dislike',message:msgText,conv_id:cid})}).catch(function(){});
         showToast(wasDisliked?(userLang==='en'?'Rating removed':'تم إلغاء التقييم'):(userLang==='en'?'👎 We will improve':'👎 رأيك مهم، بنتحسن'));
     });
     copyBtn.addEventListener('click',function(){
@@ -1296,6 +1298,30 @@ def logout_all():
 
 
 # ==========================================================
+#  Routes - تقييمات الردود
+# ==========================================================
+
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    try:
+        d = request.get_json(silent=True) or {}
+        ftype = d.get('type')
+        if ftype not in ('like', 'dislike', 'unlike', 'undislike'):
+            return jsonify({"status": "error"}), 400
+        sb.table("message_feedback").insert({
+            "user_id": get_user_id(),
+            "user_email": session.get('user_email', 'guest'),
+            "conv_id": d.get('conv_id') or '',
+            "message_text": (d.get('message') or '')[:1000],
+            "feedback": ftype
+        }).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("feedback:", e)
+        return jsonify({"status": "error"}), 500
+
+
+# ==========================================================
 #  Routes - المشاركة
 # ==========================================================
 
@@ -1456,11 +1482,34 @@ def admin_dashboard():
         users_list = (sb.table("profiles").select("email,display_name,role").order("created_at", desc=True).limit(30).execute()).data or []
         reports_list = (sb.table("bug_reports").select("*").order("created_at", desc=True).limit(30).execute()).data or []
         subs_count = len((sb.table("push_subscriptions").select("id").execute()).data or [])
+        feedback_list = (sb.table("message_feedback").select("*").order("created_at", desc=True).limit(100).execute()).data or []
     except:
-        recent, users_list, reports_list, subs_count = [], [], [], 0
+        recent, users_list, reports_list, subs_count, feedback_list = [], [], [], 0, []
+
+    likes_count = sum(1 for f in feedback_list if f.get('feedback') == 'like')
+    dislikes_count = sum(1 for f in feedback_list if f.get('feedback') == 'dislike')
+
     recent_html = "".join([f'<div class="conv-item"><b>{escape(str(r.get("title", "?")))}</b><small>{escape(str(r.get("user_id", ""))[:30])}</small></div>' for r in recent]) or "<p style='color:#8b949e;'>لا توجد</p>"
     users_html = "".join([f'<div class="conv-item"><b>{escape(str(u.get("display_name", "?")))}</b><small>{escape(str(u.get("email", "")))} ({escape(str(u.get("role", "user")))})</small></div>' for u in users_list]) or "<p style='color:#8b949e;'>لا يوجد</p>"
     reports_html = "".join([f'<div style="border-right:3px solid #e74c3c;padding:10px;margin:8px 0;background:#fff5f5;border-radius:8px;"><b>[{escape(str(r.get("type", "?")))}]</b> {escape(str(r.get("user_email", "?")))}<br><small>{escape(str(r.get("description", "")))}</small></div>' for r in reports_list]) or "<p style='color:#8b949e;'>لا توجد</p>"
+
+    feedback_html = "".join([
+        f'<div style="border-right:4px solid {"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};padding:12px;margin:10px 0;background:{"#f0fdf4" if f.get("feedback")=="like" else "#fef2f2"};border-radius:10px;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        f'<b style="color:{"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};font-size:14px;">'
+        f'{"👍 إعجاب" if f.get("feedback")=="like" else "👎 رفض"}</b>'
+        f'<small style="color:#8b949e;font-size:11px;">{escape(str(f.get("created_at",""))[:16])}</small>'
+        f'</div>'
+        f'<div style="font-size:12px;color:#5a6b7c;margin-bottom:6px;">'
+        f'👤 {escape(str(f.get("user_email","?")))}'
+        f'</div>'
+        f'<div style="font-size:13px;color:#1a2b3c;background:#fff;padding:8px 10px;border-radius:6px;line-height:1.6;">'
+        f'{escape(str(f.get("message_text",""))[:250])}'
+        f'</div>'
+        f'</div>'
+        for f in feedback_list if f.get('feedback') in ('like', 'dislike')
+    ]) or "<p style='color:#8b949e;text-align:center;padding:20px;'>لا توجد تقييمات بعد</p>"
+
     return f"""<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>لوحة الأدمن</title><style>
     *{{box-sizing:border-box}}
     body{{font-family:'Segoe UI',Tahoma,sans-serif;padding:16px;background:#f4f7fc;color:#1a2b3c;margin:0}}
@@ -1496,8 +1545,11 @@ def admin_dashboard():
         <div class="stat"><span>👥 المستخدمون</span><span class="num">{len(users_list)}</span></div>
         <div class="stat"><span>🔔 المشتركون بالإشعارات</span><span class="num">{subs_count}</span></div>
         <div class="stat"><span>📩 البلاغات</span><span class="num">{len(reports_list)}</span></div>
+        <div class="stat"><span>👍 إعجابات</span><span class="num" style="color:#27ae60;">{likes_count}</span></div>
+        <div class="stat"><span>👎 رفض</span><span class="num" style="color:#e74c3c;">{dislikes_count}</span></div>
     </div>
 
+    <div class="card"><h3>📊 تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
     <div class="card"><h3>📩 البلاغات</h3>{reports_html}</div>
     <div class="card"><h3>👥 المستخدمون</h3>{users_html}</div>
     <div class="card"><h3>💬 آخر المحادثات</h3>{recent_html}</div>
