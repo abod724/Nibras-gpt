@@ -1327,13 +1327,11 @@ def feedback():
 
 @app.route('/share/view')
 def shared_view():
-    """صفحة عرض المحادثة المشفّرة داخل الرابط (بدون قاعدة بيانات)"""
     return render_template_string(SHARED_VIEW_HTML)
 
 
 @app.route('/share/<cid>')
 def shared_conversation(cid):
-    """رابط مشاركة عام: أي شخص لديه الرابط يمكنه عرض المحادثة"""
     rows = load_conversation_public(cid)
     if not rows:
         return "المحادثة غير موجودة.", 404
@@ -1689,7 +1687,10 @@ def chat():
 
         lang_inst = LANG_INSTRUCTION.get(user_lang, "")
         msgs = [{"role": "system", "content": SP + memory_context + lang_inst}] + server_hist[-15:]
+
+        # ✅ البحث: العداد يزيد قبل المحاولة، فما يفرق نجح أو فشل
         if is_registered and can_search:
+            inc_usage(uid, "search_count")
             try:
                 sr = client.responses.create(model=OPENAI_MODEL, instructions=SP, input=f"ابحث عن أحدث المعلومات: {um}", tools=[{"type": "web_search"}])
                 res = ""
@@ -1701,7 +1702,6 @@ def chat():
                 if res:
                     msgs.append({"role": "user", "content": f"نتيجة البحث:\n{res}"})
                     print(f"✅ بحث ناجح - {len(res)} حرف")
-                inc_usage(uid, "search_count")
             except Exception as e:
                 print(f"❌ فشل البحث ({type(e).__name__}): {e}")
 
