@@ -1,7 +1,7 @@
 {
   "name": "نبراس GP",
   "short_name": "نبراس GP",
-  "description": "مساعد ذكي سعودي يتحدث ويكتب بصوت بشري",
+  "description": "مساعد ذكي سعودي ودود يتحدث بصوت بشري",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
