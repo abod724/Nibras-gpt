@@ -1680,9 +1680,28 @@ def chat():
         memory_context = ""
         if user_memory.get('name'):
             memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
-        server_hist = load_conversation(uid, cid) if (cid and is_registered) else []
-        if not server_hist:
+
+        # ✅ ذاكرة المحادثة: المسجّل من DB / الضيف من الـ history اللي يرسله المتصفح
+        if is_registered:
+            server_hist = load_conversation(uid, cid) or []
+        else:
             server_hist = []
+            client_hist = d.get("history") or []
+            if isinstance(client_hist, list):
+                items = client_hist
+                # تجاهل آخر رسالة (لأنها نفس um اللي راح نضيفها الآن)
+                if items and isinstance(items[-1], dict) and items[-1].get("role") == "user":
+                    items = items[:-1]
+                # آخر 15 رسالة فقط + تحقق من الصيغة
+                for h in items[-15:]:
+                    if (isinstance(h, dict)
+                        and h.get("role") in ("user", "assistant")
+                        and isinstance(h.get("content"), str)):
+                        server_hist.append({
+                            "role": h["role"],
+                            "content": h["content"][:2000]
+                        })
+
         if img_data and is_registered and can_image:
             user_content = [
                 {"type": "text", "text": um or "حلل الصورة"},
