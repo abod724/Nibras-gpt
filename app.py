@@ -301,12 +301,16 @@ def summarize_old_conversation(uid, cid):
 
 
 def get_user_id():
+    # ✅ جلسة دائمة للجميع (30 يوم) — عشان العداد ما يتصفّر بإغلاق المتصفح
     if session.get('is_admin'):
+        session.permanent = True
         return "admin_page"
     if session.get('user_email'):
+        session.permanent = True
         return "user_" + session['user_email']
     if 'guest_id' not in session:
         session['guest_id'] = "guest_" + secrets.token_hex(8)
+    session.permanent = True
     return session['guest_id']
 
 
@@ -1689,10 +1693,8 @@ def chat():
             client_hist = d.get("history") or []
             if isinstance(client_hist, list):
                 items = client_hist
-                # تجاهل آخر رسالة (لأنها نفس um اللي راح نضيفها الآن)
                 if items and isinstance(items[-1], dict) and items[-1].get("role") == "user":
                     items = items[:-1]
-                # آخر 15 رسالة فقط + تحقق من الصيغة
                 for h in items[-15:]:
                     if (isinstance(h, dict)
                         and h.get("role") in ("user", "assistant")
