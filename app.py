@@ -1645,9 +1645,16 @@ def chat():
 
         usage, limits, can_chat, can_search, can_image = check_limits(uid, user_role if not is_admin else 'admin')
         if not can_chat:
-            reply_limit = "وصلت للحد اليومي (15)." if user_lang == 'ar' else "You've reached the daily limit (15)."
+            reply_limit = "وصل محادثاتك للحد اليومي المسموح به، شكراً لك، غداً نلتقي 🌹" if user_lang == 'ar' else "You've reached the daily limit. Thank you, see you tomorrow 🌹"
             nid = save_message(uid, um, reply_limit, cid) if is_registered else cid
-            return jsonify({"reply": reply_limit, "conv_id": nid, "audio": None})
+            def limit_stream():
+                yield f"data: {json.dumps({'token': reply_limit}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
+            return Response(
+                stream_with_context(limit_stream()),
+                mimetype='text/event-stream',
+                headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+            )
         if is_registered and user_email:
             try: touch_user(user_email)
             except: pass
