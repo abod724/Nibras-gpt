@@ -65,6 +65,8 @@ VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
 VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", f"mailto:{ADMIN_EMAIL}")
 
+CRON_SECRET = os.environ.get("CRON_SECRET", "")
+
 
 # ==========================================================
 # الحدود والـ Rate Limiter
@@ -506,7 +508,7 @@ def delete_user_image(uid, image_id):
 
 def send_push_to_user(user_id, title, body, url="/"):
     if not VAPID_PRIVATE_KEY or not VAPID_SUBJECT:
-        print("⚠️ VAPID غير مُعَد")
+        print("VAPID غير مُعَد")
         return 0
     sent_count = 0
     try:
@@ -523,13 +525,13 @@ def send_push_to_user(user_id, title, body, url="/"):
                     vapid_claims={"sub": VAPID_SUBJECT}
                 )
                 sent_count += 1
-                print(f"✅ إشعار Push أُرسل لـ {user_id}")
+                print(f"إشعار Push أُرسل لـ {user_id}")
             except WebPushException as ex:
                 if ex.response and ex.response.status_code in (404, 410):
                     sb.table("push_subscriptions").delete().eq("id", sub["id"]).execute()
-                    print("🗑️ حذف اشتراك منتهي")
+                    print("حذف اشتراك منتهي")
                 else:
-                    print(f"❌ فشل إرسال Push: {ex}")
+                    print(f"فشل إرسال Push: {ex}")
     except Exception as e:
         print("send_push_to_user:", e)
     return sent_count
@@ -572,38 +574,38 @@ SP = f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث بالله�
 **ملف المعرفة:**
 {kc}
 
-**⚠️ قاعدة التنسيق:**
+**قاعدة التنسيق:**
 - اكتب ردودك في فقرات متصلة (2-4 جمل).
 - لا تضع كل جملة في سطر منفصل.
 - الفاصل الوحيد هو سطر فارغ بين الفقرات.
 
-**⚠️ أسلوب الحديث:**
+**أسلوب الحديث:**
 - سولف بشكل طبيعي وعفوي.
 - لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
 - رد بشكل مباشر بدون مقدمات فلسفية."""
 
 
 # ==========================================================
-#  تعليمات اللغة (تُضاف للـ System Prompt)
+#  تعليمات اللغة
 # ==========================================================
 
 LANG_INSTRUCTION = {
-    "ar": "\n\n**⚠️ اللغة:** رد دائماً بالعربية، بأسلوبك العامي المعتاد.",
-    "en": "\n\n**⚠️ Language:** ALWAYS respond in English, regardless of the language the user writes in. Keep the same friendly, casual tone."
+    "ar": "\n\n**اللغة:** رد دائماً بالعربية، بأسلوبك العامي المعتاد.",
+    "en": "\n\n**Language:** ALWAYS respond in English, regardless of the language the user writes in. Keep the same friendly, casual tone."
 }
 
 
 # ==========================================================
-#  شخصيات المساعد (تُضاف للـ System Prompt)
+#  شخصيات المساعد
 # ==========================================================
 
 PERSONALITY_INSTRUCTIONS = {
     "friendly": "",
-    "concise": "\n\n**⚠️ الأسلوب:** كن موجزاً جداً — 1-2 جملة كحد أقصى. بدون مقدمات أو حشو أو شرح زائد.",
-    "detailed": "\n\n**⚠️ الأسلوب:** قدّم شرحاً مفصلاً مع أمثلة عملية وخطوات واضحة. لا تختصر.",
-    "formal": "\n\n**⚠️ الأسلوب:** استخدم اللغة العربية الفصحى الرسمية، بدون أي عامية أو مزح. كن مهنياً.",
-    "teacher": "\n\n**⚠️ الأسلوب:** اشرح خطوة بخطوة كأنك معلم — مقدمة، تفصيل، خلاصة. وضّح بمثال.",
-    "playful": "\n\n**⚠️ الأسلوب:** كن مرحاً وأضف لمسات دعابة خفيفة (بدون أي إساءة أو تجاوز). خفيف الظل."
+    "concise": "\n\n**الأسلوب:** كن موجزاً جداً — 1-2 جملة كحد أقصى. بدون مقدمات أو حشو أو شرح زائد.",
+    "detailed": "\n\n**الأسلوب:** قدّم شرحاً مفصلاً مع أمثلة عملية وخطوات واضحة. لا تختصر.",
+    "formal": "\n\n**الأسلوب:** استخدم اللغة العربية الفصحى الرسمية، بدون أي عامية أو مزح. كن مهنياً.",
+    "teacher": "\n\n**الأسلوب:** اشرح خطوة بخطوة كأنك معلم — مقدمة، تفصيل، خلاصة. وضّح بمثال.",
+    "playful": "\n\n**الأسلوب:** كن مرحاً وأضف لمسات دعابة خفيفة (بدون أي إساءة أو تجاوز). خفيف الظل."
 }
 
 
@@ -737,12 +739,12 @@ RESET_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UT
         accessToken=params.get('access_token');
         if(!accessToken){
             msgEl.className='msg err';
-            msgEl.textContent='❌ الرابط غير صالح أو منتهي. اطلب رابط استعادة جديد.';
+            msgEl.textContent='الرابط غير صالح أو منتهي. اطلب رابط استعادة جديد.';
             formEl.style.display='none';
         }
     }catch(e){
         msgEl.className='msg err';
-        msgEl.textContent='❌ خطأ في قراءة الرابط.';
+        msgEl.textContent='خطأ في قراءة الرابط.';
         formEl.style.display='none';
     }
     formEl.addEventListener('submit',async function(ev){
@@ -765,14 +767,14 @@ RESET_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UT
             var d=await r.json();
             if(d.status==='ok'){
                 msgEl.className='msg ok';
-                msgEl.textContent='✅ تم تعيين كلمة المرور! جاري التحويل لتسجيل الدخول...';
+                msgEl.textContent='تم تعيين كلمة المرور! جاري التحويل لتسجيل الدخول...';
                 setTimeout(function(){window.location.href='/login';},1500);
             }else{
                 msgEl.className='msg err';
-                msgEl.textContent='❌ '+(d.message||'فشل التحديث');
+                msgEl.textContent=(d.message||'فشل التحديث');
             }
         }catch(e){
-            msgEl.className='msg err';msgEl.textContent='❌ تعذر الاتصال بالسيرفر';
+            msgEl.className='msg err';msgEl.textContent='تعذر الاتصال بالسيرفر';
         }
     });
 })();
@@ -818,7 +820,20 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
 .memory-key{font-size:14px;color:var(--text-secondary);font-weight:500;flex-shrink:0}
 .memory-val{font-size:14.5px;color:var(--text-primary);font-weight:600;text-align:left;word-wrap:break-word;overflow-wrap:anywhere;max-width:60%}
 .memory-empty{padding:24px 18px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:1.8}
-.memory-note{padding:14px 18px;background:var(--bg-hover);font-size:13px;color:var(--text-secondary);line-height:1.8;border-radius:0 0 16px 16px;margin-top:-14px;margin-bottom:14px}#chat{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px;background:var(--bg-app);font-size:var(--font-size-base);min-height:0}.msg{max-width:90%;padding:12px 20px;border-radius:20px;font-size:var(--font-size-base);font-weight:500;line-height:1.7;word-wrap:break-word;color:var(--text-primary);position:relative}.msg.user{align-self:flex-end;background:var(--msg-user-bg,var(--bg-user-msg));color:var(--msg-user-text,#111);border-bottom-left-radius:6px}.msg.bot{align-self:flex-start;background:var(--bg-bot-msg);border-bottom-right-radius:6px}.msg .time{font-size:10px;opacity:.5;display:block;margin-top:4px;color:var(--text-secondary)}.msg.error{background:var(--danger-bg);color:var(--danger-color);align-self:center;max-width:90%}.msg .image-upload{max-width:100%;max-height:200px;border-radius:12px;margin:4px 0;border:1px solid var(--border-color);display:block}.msg .generated-image{max-width:100%;border-radius:12px;margin:8px 0;border:1px solid var(--border-color);display:block}.typing-indicator{align-self:flex-start;background:var(--bg-bot-msg);padding:12px 18px;border-radius:20px;font-size:16px;color:var(--text-secondary)}.typing-dots::after{content:'...';animation:dotAnimation 1.2s steps(4,end) infinite}@keyframes dotAnimation{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}#imagePreviewContainer{display:none;padding:6px 18px;align-items:center;gap:10px;background:var(--bg-input);margin:0 14px;border-radius:20px 20px 0 0;border:1px solid var(--border-color);border-bottom:none;flex-wrap:wrap;flex-shrink:0}#imagePreviewContainer img{max-height:60px;border-radius:8px;border:1px solid var(--border-color)}#imagePreviewContainer .label{font-size:13px;color:var(--text-secondary)}#removeImageBtn{background:0 0;border:none;color:var(--danger-color);font-size:13px;cursor:pointer;padding:4px 10px;border-radius:10px;font-family:inherit;font-weight:600}.input-area{display:flex;align-items:flex-end;justify-content:center;gap:6px;padding:8px 12px;margin:8px 14px 16px;background:var(--bg-input);border-radius:40px;border:1px solid var(--border-color);flex-shrink:0;min-height:56px;position:relative}.input-area textarea{flex:1;border:none;background:0 0;padding:12px 0;font-size:var(--font-size-base);font-weight:500;outline:0;color:var(--text-primary);direction:rtl;resize:none;overflow:hidden;min-height:22px;max-height:80px;font-family:inherit;line-height:1.4}.input-area textarea::placeholder{color:var(--placeholder-color)}.input-area .btn-icon{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:0;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s}.input-area .btn-icon:hover{background:var(--bg-hover)}.input-area .btn-icon svg{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.input-area .mic-btn{color:var(--primary-color)}.input-area .mic-btn.listening{color:#c33;background:#fde8e8}.input-area .send{background:var(--send-bg);color:#fff;border:none;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(74,106,138,0.35);transition:background .2s,transform .15s}.input-area .send:hover{background:var(--send-hover);transform:scale(1.05)}.input-area .send svg{width:20px;height:20px;stroke:#fff;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round}.plus-btn{background:0 0;border:none;color:var(--primary-color);cursor:pointer;padding:0;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .3s}.plus-btn:hover{background:var(--bg-hover)}.plus-btn svg{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.plus-btn.rotate{transform:rotate(45deg)}.plus-options{display:none;position:absolute;bottom:70px;right:0;background:var(--bg-dropdown);border-radius:20px;box-shadow:0 8px 30px var(--shadow-color);padding:8px;gap:8px;flex-direction:row;border:1px solid var(--border-color);z-index:50}.plus-options.show{display:flex}.plus-options .option-btn{background:var(--bg-hover);border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-primary)}.plus-options .option-btn:hover{background:var(--border-color)}.plus-options .option-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 24px;border-radius:30px;font-size:14px;z-index:99999}.share-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--modal-bg);z-index:9999;justify-content:center;align-items:center;padding:20px}.share-modal.show{display:flex}.share-modal .box{background:var(--bg-app);padding:28px 24px;border-radius:24px;max-width:360px;width:100%;text-align:center;border:1px solid var(--border-color)}.share-modal .box h3{font-size:20px;color:var(--text-primary);margin-bottom:18px}.share-modal .box .share-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:18px}.share-modal .box .share-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:14px;text-decoration:none;font-size:14px;font-weight:600;border:none;cursor:pointer;flex:1 0 auto;justify-content:center;min-width:70px;color:#fff;font-family:inherit}.share-modal .box .share-btn.whatsapp{background:#25D366}.share-modal .box .share-btn.facebook{background:#1877F2}.share-modal .box .share-btn.twitter{background:#000}.share-modal .box .share-btn.snapchat{background:#FFFC00;color:#000}.share-modal .box .close-btn{background:var(--bg-hover);border:none;padding:10px 30px;border-radius:14px;font-size:15px;color:var(--text-primary);cursor:pointer;margin-top:4px;width:100%;font-weight:600;font-family:inherit}.copy-btn{background:0 0;border:none;color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:8px;opacity:.75;display:flex;align-items:center;transition:opacity .2s}.copy-btn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none}.copy-btn:hover{opacity:1;background:var(--bg-hover)}.copy-btn.copied{color:#28a745;opacity:1}.msg .content-wrapper{display:flex;flex-direction:column;width:100%}.msg .content-text{width:100%}.msg .actions{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}.msg .actions .del-msg-btn{background:0 0;border:none;color:#e74c3c;cursor:pointer;padding:4px 8px;border-radius:8px;opacity:.75;display:flex;align-items:center}.msg .actions .del-msg-btn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none}.msg .actions .del-msg-btn:hover{opacity:1;background:rgba(231,76,60,0.1)}.msg-actions{display:flex;gap:2px;margin-top:12px;align-items:center;opacity:0.5;transition:opacity .3s ease}.msg:hover .msg-actions,.msg-actions.touched{opacity:1}.msg-actions button{background:transparent;border:none;cursor:pointer;width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background .2s ease,color .2s ease,transform .15s cubic-bezier(.4,0,.2,1)}.msg-actions button:hover{background:var(--bg-hover);color:var(--text-primary)}.msg-actions button:active{transform:scale(0.88)}.msg-actions button svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:fill .2s ease,stroke .2s ease,transform .2s cubic-bezier(.34,1.56,.64,1)}.msg-actions button.liked{color:#10b981;background:rgba(16,185,129,0.1)}.msg-actions button.liked svg{fill:#10b981;stroke:#10b981;transform:scale(1.08)}.msg-actions button.disliked{color:#ef4444;background:rgba(239,68,68,0.1)}.msg-actions button.disliked svg{fill:#ef4444;stroke:#ef4444;transform:scale(1.08)}.msg-actions button.copied{color:#10b981;background:rgba(16,185,129,0.1)}.msg-actions button.copied svg{stroke:#10b981}.msg-actions button.speaking{color:var(--primary-color);background:var(--bg-hover)}.msg-actions button.speaking svg{fill:currentColor}.msg-actions button.speaking svg polygon{animation:speakerPulse 0.9s ease-in-out infinite}@keyframes speakerPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}@media(max-width:420px){.header{padding:12px 14px}.btn{font-size:12px;padding:5px 12px}#chat{padding:14px 16px}.input-area{margin:6px 10px 12px;padding:6px 10px;min-height:50px}.input-area textarea{font-size:14px}.input-area .send{width:38px;height:38px}.input-area .btn-icon{width:32px;height:32px}.plus-btn{width:32px;height:32px}}#oauth-overlay{position:fixed;inset:0;background:var(--bg-body);z-index:999999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:20px}#oauth-overlay.show{display:flex}#oauth-overlay .oauth-spinner{width:52px;height:52px;border:4px solid var(--border-color);border-top-color:var(--primary-color);border-radius:50%;animation:oauthSpin 1s linear infinite}@keyframes oauthSpin{to{transform:rotate(360deg)}}#oauth-overlay .oauth-title{font-size:19px;color:var(--text-primary);font-weight:700}#oauth-overlay .oauth-msg{font-size:14px;color:var(--text-secondary);line-height:1.7}#oauth-overlay .oauth-title.ok{color:#00b894}#oauth-overlay .oauth-title.err{color:#d63031}</style></head><body>
+.memory-note{padding:14px 18px;background:var(--bg-hover);font-size:13px;color:var(--text-secondary);line-height:1.8;border-radius:0 0 16px 16px;margin-top:-14px;margin-bottom:14px}
+.reminders-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}
+.reminder-row{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border-color);gap:12px}
+.reminder-row:last-child{border-bottom:none}
+.reminder-info{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.reminder-title{font-size:15px;color:var(--text-primary);font-weight:600;letter-spacing:-0.1px;word-wrap:break-word;overflow-wrap:anywhere}
+.reminder-time{font-size:12.5px;color:var(--text-secondary);letter-spacing:-0.1px}
+.reminder-del{background:transparent;border:none;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:color .2s;flex-shrink:0;padding:0;font-family:inherit;-webkit-tap-highlight-color:transparent}
+.reminder-del:hover{color:#ef4444;background:transparent}
+.reminder-del:active{transform:scale(0.92)}
+.reminder-del svg{width:18px;height:18px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.reminders-empty{padding:40px 20px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:1.8}
+.reminders-hint{padding:14px 18px;background:var(--bg-hover);font-size:13px;color:var(--text-secondary);line-height:1.8;border-radius:0 0 16px 16px;margin-top:-14px;margin-bottom:14px}
+#chat{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px;background:var(--bg-app);font-size:var(--font-size-base);min-height:0}.msg{max-width:90%;padding:12px 20px;border-radius:20px;font-size:var(--font-size-base);font-weight:500;line-height:1.7;word-wrap:break-word;color:var(--text-primary);position:relative}.msg.user{align-self:flex-end;background:var(--msg-user-bg,var(--bg-user-msg));color:var(--msg-user-text,#111);border-bottom-left-radius:6px}.msg.bot{align-self:flex-start;background:var(--bg-bot-msg);border-bottom-right-radius:6px}.msg .time{font-size:10px;opacity:.5;display:block;margin-top:4px;color:var(--text-secondary)}.msg.error{background:var(--danger-bg);color:var(--danger-color);align-self:center;max-width:90%}.msg .image-upload{max-width:100%;max-height:200px;border-radius:12px;margin:4px 0;border:1px solid var(--border-color);display:block}.msg .generated-image{max-width:100%;border-radius:12px;margin:8px 0;border:1px solid var(--border-color);display:block}.typing-indicator{align-self:flex-start;background:var(--bg-bot-msg);padding:12px 18px;border-radius:20px;font-size:16px;color:var(--text-secondary)}.typing-dots::after{content:'...';animation:dotAnimation 1.2s steps(4,end) infinite}@keyframes dotAnimation{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}#imagePreviewContainer{display:none;padding:6px 18px;align-items:center;gap:10px;background:var(--bg-input);margin:0 14px;border-radius:20px 20px 0 0;border:1px solid var(--border-color);border-bottom:none;flex-wrap:wrap;flex-shrink:0}#imagePreviewContainer img{max-height:60px;border-radius:8px;border:1px solid var(--border-color)}#imagePreviewContainer .label{font-size:13px;color:var(--text-secondary)}#removeImageBtn{background:0 0;border:none;color:var(--danger-color);font-size:13px;cursor:pointer;padding:4px 10px;border-radius:10px;font-family:inherit;font-weight:600}.input-area{display:flex;align-items:flex-end;justify-content:center;gap:6px;padding:8px 12px;margin:8px 14px 16px;background:var(--bg-input);border-radius:40px;border:1px solid var(--border-color);flex-shrink:0;min-height:56px;position:relative}.input-area textarea{flex:1;border:none;background:0 0;padding:12px 0;font-size:var(--font-size-base);font-weight:500;outline:0;color:var(--text-primary);direction:rtl;resize:none;overflow:hidden;min-height:22px;max-height:80px;font-family:inherit;line-height:1.4}.input-area textarea::placeholder{color:var(--placeholder-color)}.input-area .btn-icon{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:0;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s}.input-area .btn-icon:hover{background:var(--bg-hover)}.input-area .btn-icon svg{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.input-area .mic-btn{color:var(--primary-color)}.input-area .mic-btn.listening{color:#c33;background:#fde8e8}.input-area .send{background:var(--send-bg);color:#fff;border:none;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(74,106,138,0.35);transition:background .2s,transform .15s}.input-area .send:hover{background:var(--send-hover);transform:scale(1.05)}.input-area .send svg{width:20px;height:20px;stroke:#fff;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round}.plus-btn{background:0 0;border:none;color:var(--primary-color);cursor:pointer;padding:0;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .3s}.plus-btn:hover{background:var(--bg-hover)}.plus-btn svg{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.plus-btn.rotate{transform:rotate(45deg)}.plus-options{display:none;position:absolute;bottom:70px;right:0;background:var(--bg-dropdown);border-radius:20px;box-shadow:0 8px 30px var(--shadow-color);padding:8px;gap:8px;flex-direction:row;border:1px solid var(--border-color);z-index:50}.plus-options.show{display:flex}.plus-options .option-btn{background:var(--bg-hover);border:none;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-primary)}.plus-options .option-btn:hover{background:var(--border-color)}.plus-options .option-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 24px;border-radius:30px;font-size:14px;z-index:99999}.share-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--modal-bg);z-index:9999;justify-content:center;align-items:center;padding:20px}.share-modal.show{display:flex}.share-modal .box{background:var(--bg-app);padding:28px 24px;border-radius:24px;max-width:360px;width:100%;text-align:center;border:1px solid var(--border-color)}.share-modal .box h3{font-size:20px;color:var(--text-primary);margin-bottom:18px}.share-modal .box .share-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:18px}.share-modal .box .share-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:14px;text-decoration:none;font-size:14px;font-weight:600;border:none;cursor:pointer;flex:1 0 auto;justify-content:center;min-width:70px;color:#fff;font-family:inherit}.share-modal .box .share-btn.whatsapp{background:#25D366}.share-modal .box .share-btn.facebook{background:#1877F2}.share-modal .box .share-btn.twitter{background:#000}.share-modal .box .share-btn.snapchat{background:#FFFC00;color:#000}.share-modal .box .close-btn{background:var(--bg-hover);border:none;padding:10px 30px;border-radius:14px;font-size:15px;color:var(--text-primary);cursor:pointer;margin-top:4px;width:100%;font-weight:600;font-family:inherit}.copy-btn{background:0 0;border:none;color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:8px;opacity:.75;display:flex;align-items:center;transition:opacity .2s}.copy-btn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none}.copy-btn:hover{opacity:1;background:var(--bg-hover)}.copy-btn.copied{color:#28a745;opacity:1}.msg .content-wrapper{display:flex;flex-direction:column;width:100%}.msg .content-text{width:100%}.msg .actions{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}.msg .actions .del-msg-btn{background:0 0;border:none;color:#e74c3c;cursor:pointer;padding:4px 8px;border-radius:8px;opacity:.75;display:flex;align-items:center}.msg .actions .del-msg-btn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none}.msg .actions .del-msg-btn:hover{opacity:1;background:rgba(231,76,60,0.1)}.msg-actions{display:flex;gap:2px;margin-top:12px;align-items:center;opacity:0.5;transition:opacity .3s ease}.msg:hover .msg-actions,.msg-actions.touched{opacity:1}.msg-actions button{background:transparent;border:none;cursor:pointer;width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background .2s ease,color .2s ease,transform .15s cubic-bezier(.4,0,.2,1)}.msg-actions button:hover{background:var(--bg-hover);color:var(--text-primary)}.msg-actions button:active{transform:scale(0.88)}.msg-actions button svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:fill .2s ease,stroke .2s ease,transform .2s cubic-bezier(.34,1.56,.64,1)}.msg-actions button.liked{color:#10b981;background:rgba(16,185,129,0.1)}.msg-actions button.liked svg{fill:#10b981;stroke:#10b981;transform:scale(1.08)}.msg-actions button.disliked{color:#ef4444;background:rgba(239,68,68,0.1)}.msg-actions button.disliked svg{fill:#ef4444;stroke:#ef4444;transform:scale(1.08)}.msg-actions button.copied{color:#10b981;background:rgba(16,185,129,0.1)}.msg-actions button.copied svg{stroke:#10b981}.msg-actions button.speaking{color:var(--primary-color);background:var(--bg-hover)}.msg-actions button.speaking svg{fill:currentColor}.msg-actions button.speaking svg polygon{animation:speakerPulse 0.9s ease-in-out infinite}@keyframes speakerPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}@media(max-width:420px){.header{padding:12px 14px}.btn{font-size:12px;padding:5px 12px}#chat{padding:14px 16px}.input-area{margin:6px 10px 12px;padding:6px 10px;min-height:50px}.input-area textarea{font-size:14px}.input-area .send{width:38px;height:38px}.input-area .btn-icon{width:32px;height:32px}.plus-btn{width:32px;height:32px}}#oauth-overlay{position:fixed;inset:0;background:var(--bg-body);z-index:999999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:20px}#oauth-overlay.show{display:flex}#oauth-overlay .oauth-spinner{width:52px;height:52px;border:4px solid var(--border-color);border-top-color:var(--primary-color);border-radius:50%;animation:oauthSpin 1s linear infinite}@keyframes oauthSpin{to{transform:rotate(360deg)}}#oauth-overlay .oauth-title{font-size:19px;color:var(--text-primary);font-weight:700}#oauth-overlay .oauth-msg{font-size:14px;color:var(--text-secondary);line-height:1.7}#oauth-overlay .oauth-title.ok{color:#00b894}#oauth-overlay .oauth-title.err{color:#d63031}</style></head><body>
 <div class="app"><div class="header"><div class="header-right"><button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button><button class="icon-btn" id="menuToggle" title="القائمة"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div><div class="header-left"><div class="btn-group">{% if session.get('user_email') or session.get('is_admin') %}{% if user_name %}<div class="user-badge" title="{{ session.get('user_email') }}"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ user_name }}</div>{% endif %}<a href="/logout" class="btn btn-outline">خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div>
 
 <div class="dropdown" id="dropdown">
@@ -890,6 +905,7 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
             <div class="settings-card">
                 <div class="settings-item" onclick="openSubPage('general')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>عام</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
                 <div class="settings-item" onclick="openSubPage('memory')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg><span>الذاكرة</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('reminders')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="13" x2="15" y2="15"/><line x1="5" y1="3" x2="2" y2="6"/><line x1="19" y1="3" x2="22" y2="6"/></svg><span>التذكير</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
                 <div class="settings-item" onclick="openSubPage('notifications')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span>الإشعارات</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
                 <div class="settings-item" onclick="openSubPage('voice')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg><span>الصوت</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
                 <div class="settings-item" onclick="openSubPage('safety')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>السلامة</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
@@ -960,7 +976,6 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
         var params = new URLSearchParams(hash.replace(/^#/, ''));
         var at = params.get('access_token');
         var codeP = new URLSearchParams(search).get('code');
-        console.log('[Nibras OAuth] hash_len=', hash.length, 'has_at=', !!at, 'has_code=', !!codeP);
         if(at || codeP){
             var rt = params.get('refresh_token') || '';
             try{ history.replaceState(null, '', window.location.pathname); }catch(e){}
@@ -976,7 +991,7 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
                 var title = document.getElementById('oauth-title');
                 var msgEl = document.getElementById('oauth-msg');
                 if(spin) spin.style.display = 'none';
-                if(title){ title.textContent = isOk ? 'تم تسجيل الدخول ✓' : 'تعذر تسجيل الدخول'; title.classList.add(isOk ? 'ok' : 'err'); }
+                if(title){ title.textContent = isOk ? 'تم تسجيل الدخول' : 'تعذر تسجيل الدخول'; title.classList.add(isOk ? 'ok' : 'err'); }
                 if(msgEl) msgEl.textContent = msg;
                 setTimeout(function(){ window.location.replace(isOk ? '/' : '/login'); }, isOk ? 700 : 2500);
             }
@@ -1010,7 +1025,7 @@ function compressImage(file,maxWidth,callback){var reader=new FileReader();reade
 function playAudioWithSpeed(audioEl){audioEl.playbackRate=voiceSpeed;audioEl.play().catch(function(){});}
 function getPinnedLocal(){try{return JSON.parse(localStorage.getItem('nibras_pinned')||'[]');}catch(e){return [];}}
 function savePinnedLocal(arr){try{localStorage.setItem('nibras_pinned',JSON.stringify(arr));}catch(e){}}
-async function togglePin(cid,wasPinned,btnEl){if(IS_REGISTERED){const url=wasPinned?'/unpin_conversation':'/pin_conversation';try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid})});if(r.ok){btnEl.classList.toggle('pinned',!wasPinned);showToast(wasPinned?(userLang==='en'?'Unpinned':'تم إلغاء التثبيت'):(userLang==='en'?'📌 Pinned':'📌 تم التثبيت'));loadPinned();}}catch(e){showToast(userLang==='en'?'Connection failed':'فشل الاتصال');}}else{let arr=getPinnedLocal();if(wasPinned){arr=arr.filter(x=>x!==cid);showToast(userLang==='en'?'Unpinned':'تم إلغاء التثبيت');}else{if(!arr.includes(cid))arr.push(cid);showToast(userLang==='en'?'📌 Pinned locally':'📌 تم التثبيت محلياً');}savePinnedLocal(arr);btnEl.classList.toggle('pinned',!wasPinned);loadPinned();}}
+async function togglePin(cid,wasPinned,btnEl){if(IS_REGISTERED){const url=wasPinned?'/unpin_conversation':'/pin_conversation';try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid})});if(r.ok){btnEl.classList.toggle('pinned',!wasPinned);showToast(wasPinned?(userLang==='en'?'Unpinned':'تم إلغاء التثبيت'):(userLang==='en'?'Pinned':'تم التثبيت'));loadPinned();}}catch(e){showToast(userLang==='en'?'Connection failed':'فشل الاتصال');}}else{let arr=getPinnedLocal();if(wasPinned){arr=arr.filter(x=>x!==cid);showToast(userLang==='en'?'Unpinned':'تم إلغاء التثبيت');}else{if(!arr.includes(cid))arr.push(cid);showToast(userLang==='en'?'Pinned locally':'تم التثبيت محلياً');}savePinnedLocal(arr);btnEl.classList.toggle('pinned',!wasPinned);loadPinned();}}
 mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();loadPinned();}});
 function openSettings(){document.getElementById('settingsModal').classList.add('show');document.getElementById('dropdown').classList.remove('show');}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
@@ -1028,22 +1043,23 @@ const subPagesContent={
     language:'<div class="lang-list"><div class="lang-card" data-lang="ar" onclick="selectLanguage(\'ar\')"><div class="lang-flag">🇸🇦</div><div class="lang-info"><div class="lang-name">العربية</div><div class="lang-sub">Arabic</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="lang-card" data-lang="en" onclick="selectLanguage(\'en\')"><div class="lang-flag">🇬🇧</div><div class="lang-info"><div class="lang-name">English</div><div class="lang-sub">الإنجليزية</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
     general:'<div class="field"><label>الاسم الكامل</label><input type="text" id="sp-name" value="{{ user_name or '' }}" placeholder="اكتب اسمك"></div>',
     memory:'<div id="memoryContent"><div class="info-box" style="text-align:center;">جاري تحميل الذاكرة...</div></div>',
+    reminders:'<div id="remindersContent"><div class="info-box" style="text-align:center;">جاري تحميل التذكيرات...</div></div>',
     notifications:'<div class="info-box">الإشعارات تسمح لك بتلقي تنبيهات فورية عند وصول ردود جديدة من نبراس.</div><div style="display:flex;gap:10px;margin-top:14px;"><button class="save-btn" style="flex:1;background:var(--primary-color);" onclick="requestNotifications()">تفعيل</button><button class="save-btn" style="flex:1;background:#d32f2f;" onclick="unsubscribeFromPush()">إلغاء</button></div>',
     voice:'<div style="display:flex;flex-direction:column;gap:16px;"><div><div style="font-size:12px;color:var(--text-secondary);font-weight:700;padding:0 4px 8px;letter-spacing:.5px;">جنس الصوت</div><div class="personality-list"><div class="personality-row" data-vg="male" onclick="selectVoiceGender(\'male\')"><div class="personality-text"><div class="personality-name">ذكر</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vg="female" onclick="selectVoiceGender(\'female\')"><div class="personality-text"><div class="personality-name">أنثى</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div style="font-size:12px;color:var(--text-secondary);font-weight:700;padding:0 4px 8px;letter-spacing:.5px;">سرعة الصوت</div><div class="personality-list"><div class="personality-row" data-vs="0.75" onclick="selectVoiceSpeed(0.75)"><div class="personality-text"><div class="personality-name">بطيء</div><div class="personality-sub">0.75×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1" onclick="selectVoiceSpeed(1)"><div class="personality-text"><div class="personality-name">عادي</div><div class="personality-sub">1×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.25" onclick="selectVoiceSpeed(1.25)"><div class="personality-text"><div class="personality-name">سريع</div><div class="personality-sub">1.25×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.5" onclick="selectVoiceSpeed(1.5)"><div class="personality-text"><div class="personality-name">سريع جداً</div><div class="personality-sub">1.5×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div style="font-size:12px;color:var(--text-secondary);font-weight:700;padding:0 4px 8px;letter-spacing:.5px;">مستوى الصوت</div><div class="personality-list"><div class="personality-row" data-vl="25" onclick="selectVoiceLevel(25)"><div class="personality-text"><div class="personality-name">هادئ</div><div class="personality-sub">25%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="50" onclick="selectVoiceLevel(50)"><div class="personality-text"><div class="personality-name">متوسط</div><div class="personality-sub">50%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="75" onclick="selectVoiceLevel(75)"><div class="personality-text"><div class="personality-name">عالي</div><div class="personality-sub">75%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="100" onclick="selectVoiceLevel(100)"><div class="personality-text"><div class="personality-name">كامل</div><div class="personality-sub">100%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div></div>',
     safety:'<div class="info-box"><b>إرشادات السلامة:</b><br>• لا تشارك معلوماتك الشخصية الحساسة.<br>• نبراس مساعد ذكي، وليس بديلاً عن الاستشارة المتخصصة.<br>• أبلغ عن أي محتوى غير لائق.</div>',
     security:'<div class="field"><label>البريد الإلكتروني</label><input type="email" value="{{ session.get('user_email','') }}" disabled></div><div class="field"><label>كلمة المرور الحالية</label><input type="password" id="sp-old-pass" placeholder="••••••••"></div><div class="field"><label>كلمة المرور الجديدة</label><input type="password" id="sp-new-pass" placeholder="••••••••"></div>',
     remote:'<div class="info-box"><b>الأجهزة المتصلة:</b><br>هذا الجهاز (المتصفح الحالي) - الآن<br><br>لتسجيل الخروج من جميع الأجهزة، اضغط الزر أدناه.</div><div style="margin-top:14px;"><button class="save-btn" style="width:100%;background:#d32f2f;" onclick="logoutAll()">تسجيل الخروج من كل الأجهزة</button></div>',
     storage:'<div class="info-box"><b>التخزين المستخدم:</b><br>المحادثات: <span id="sp-conv-count">0</span><br>الصور: <span id="sp-img-count">0</span><br><br>لتفريغ الكاش المحلي:</div><div style="margin-top:14px;"><button class="save-btn" style="width:100%;background:#d32f2f;" onclick="clearCache()">مسح الكاش</button></div>',
-    privacy:'<div class="info-box"><b>سياسة الخصوصية:</b><br>• نحتفظ بمحادثاتك لتقديم خدمة أفضل.<br>• لا نشارك بياناتك مع أطراف ثالثة.<br>• يمكنك حذف بياناتك في أي وقت من "التحكم في البيانات".<br><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:block; padding:12px; background:var(--primary-color); color:#fff; text-decoration:none; border-radius:10px; font-weight:600; text-align:center;">📄 قراءة سياسة الخصوصية كاملة</a></div>',
+    privacy:'<div class="info-box"><b>سياسة الخصوصية:</b><br>• نحتفظ بمحادثاتك لتقديم خدمة أفضل.<br>• لا نشارك بياناتك مع أطراف ثالثة.<br>• يمكنك حذف بياناتك في أي وقت من "التحكم في البيانات".<br><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:block; padding:12px; background:var(--primary-color); color:#fff; text-decoration:none; border-radius:10px; font-weight:600; text-align:center;">قراءة سياسة الخصوصية كاملة</a></div>',
     data:'<div class="info-box">يمكنك تصدير جميع بياناتك أو حذفها نهائياً.</div><div style="display:flex;gap:10px;margin-top:14px;"><button class="save-btn" style="flex:1;background:var(--primary-color);" onclick="exportData()">تصدير</button><button class="save-btn" style="flex:1;background:#d32f2f;" onclick="deleteMyAccount()">حذف</button></div>',
     ads:'<div class="field"><label>تخصيص الإعلانات</label><select id="sp-ads"><option value="personalized">مخصصة</option><option value="non-personalized">غير مخصصة</option></select></div>',
     report:'<div class="field"><label>نوع المشكلة</label><select id="sp-report-type"><option>خطأ تقني</option><option>محتوى غير لائق</option><option>اقتراح</option><option>أخرى</option></select></div><div class="field"><label>الوصف</label><input type="text" id="sp-report-desc" placeholder="اشرح المشكلة..."></div>',
-    about:'<div class="info-box"><b>نبراس GP</b><br>الإصدار 1.0<br><br>مساعد ذكي شخصي باللهجة العربية العامية.<br><br>© 2026 جميع الحقوق محفوظة.</div><a href="https://abod724.github.io/nibras-privacy/terms.html" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:linear-gradient(135deg,var(--primary-color) 0%,var(--primary-hover) 100%);color:#fff;text-decoration:none;border-radius:50px;font-weight:600;text-align:center;margin-top:14px;box-shadow:0 6px 18px rgba(74,106,138,0.25);font-size:14px;">📜 شروط الاستخدام</a><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:linear-gradient(135deg,var(--primary-color) 0%,var(--primary-hover) 100%);color:#fff;text-decoration:none;border-radius:50px;font-weight:600;text-align:center;margin-top:10px;box-shadow:0 6px 18px rgba(74,106,138,0.25);font-size:14px;">🔒 سياسة الخصوصية</a>'
+    about:'<div class="info-box"><b>نبراس GP</b><br>الإصدار 1.0<br><br>مساعد ذكي شخصي باللهجة العربية العامية.<br><br>© 2026 جميع الحقوق محفوظة.</div><a href="https://abod724.github.io/nibras-privacy/terms.html" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:linear-gradient(135deg,var(--primary-color) 0%,var(--primary-hover) 100%);color:#fff;text-decoration:none;border-radius:50px;font-weight:600;text-align:center;margin-top:14px;box-shadow:0 6px 18px rgba(74,106,138,0.25);font-size:14px;">شروط الاستخدام</a><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:linear-gradient(135deg,var(--primary-color) 0%,var(--primary-hover) 100%);color:#fff;text-decoration:none;border-radius:50px;font-weight:600;text-align:center;margin-top:10px;box-shadow:0 6px 18px rgba(74,106,138,0.25);font-size:14px;">سياسة الخصوصية</a>'
 };
 let currentSubKey=null;
 function openSubPage(key){
     currentSubKey=key;
-    const titleMap={general:'عام',notifications:'الإشعارات',voice:'الصوت',safety:'السلامة',security:'الأمان وتسجيل الدخول',remote:'التحكم عن بُعد',storage:'التخزين',privacy:'مركز الخصوصية',data:'التحكم في البيانات',ads:'التحكم في الإعلانات',report:'الإبلاغ عن خطأ',about:'حول',theme:'المظهر',color:'لون التمييز',language:'اللغة / Language',personality:'شخصية المساعد',fontSize:'حجم الخط',memory:'الذاكرة'};
+    const titleMap={general:'عام',notifications:'الإشعارات',voice:'الصوت',safety:'السلامة',security:'الأمان وتسجيل الدخول',remote:'التحكم عن بُعد',storage:'التخزين',privacy:'مركز الخصوصية',data:'التحكم في البيانات',ads:'التحكم في الإعلانات',report:'الإبلاغ عن خطأ',about:'حول',theme:'المظهر',color:'لون التمييز',language:'اللغة / Language',personality:'شخصية المساعد',fontSize:'حجم الخط',memory:'الذاكرة',reminders:'التذكير'};
     document.getElementById('subPageTitle').textContent=titleMap[key]||'إعدادات';
     document.getElementById('subPageBody').innerHTML=subPagesContent[key]||'<div class="info-box">قريباً</div>';
     document.getElementById('subPage').classList.add('show');
@@ -1055,6 +1071,7 @@ function openSubPage(key){
         if(key==='language'){document.querySelectorAll('.lang-card').forEach(function(el){el.classList.toggle('selected',el.dataset.lang===userLang);});}
         if(key==='voice'){markVoiceSelections();}
         if(key==='memory'){loadMemory();}
+        if(key==='reminders'){loadReminders();}
         if(key==='storage'){loadStorageInfo();}
     },60);
 }
@@ -1067,7 +1084,7 @@ function confirmSubPage(){
     else if(currentSubKey==='general'){saveGeneral();}
     else if(currentSubKey==='security'){changePassword();}
     else if(currentSubKey==='ads'){saveAds();}
-    else if(currentSubKey==='notifications'||currentSubKey==='remote'||currentSubKey==='storage'||currentSubKey==='privacy'||currentSubKey==='data'||currentSubKey==='safety'||currentSubKey==='about'||currentSubKey==='memory'){closeSubPage();}
+    else if(currentSubKey==='notifications'||currentSubKey==='remote'||currentSubKey==='storage'||currentSubKey==='privacy'||currentSubKey==='data'||currentSubKey==='safety'||currentSubKey==='about'||currentSubKey==='memory'||currentSubKey==='reminders'){closeSubPage();}
     else{closeSubPage();}
 }
 function pickVoiceGender(g){isMale=(g==='male');}
@@ -1083,20 +1100,76 @@ function markSelectedTheme(t){document.querySelectorAll('.option-row').forEach(e
 function selectColor(color,name){setAccentColor(color,name);markSelectedColor(color);}
 function markSelectedColor(color){document.querySelectorAll('.color-row').forEach(el=>{if(el.dataset.color===color)el.classList.add('selected');else el.classList.remove('selected');});}
 async function loadMemory(){const c=document.getElementById('memoryContent');if(!c)return;if(!IS_REGISTERED){c.innerHTML='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div><div class="memory-empty">أنت تستخدم التطبيق كضيف.<br>سجّل دخولك لحفظ ذاكرتك بشكل دائم.</div></div>';return;}try{const r=await fetch('/get_memory');const d=await r.json();const items=[];if(d.name)items.push({k:'الاسم',v:d.name});if(d.lang)items.push({k:'اللغة',v:d.lang==='en'?'English':'العربية'});if(d.personality){const pMap={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};items.push({k:'شخصية المساعد',v:pMap[d.personality]||d.personality});}if(d.email)items.push({k:'البريد الإلكتروني',v:d.email});let html='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div>';if(items.length===0){html+='<div class="memory-empty">لا توجد معلومات محفوظة بعد.</div>';}else{items.forEach(i=>{html+='<div class="memory-item"><span class="memory-key">'+i.k+'</span><span class="memory-val">'+escapeHtml(i.v)+'</span></div>';});}html+='</div>';html+='<div class="memory-note">نبراس يستخدم هذي المعلومات لتخصيص ردوده. لا يشاركها مع أي طرف ثالث.</div>';c.innerHTML=html;}catch(e){c.innerHTML='<div class="info-box" style="text-align:center;">تعذر تحميل الذاكرة.</div>';}}
+function formatReminderTime(dueAtIso){
+    try{
+        const due=new Date(dueAtIso);
+        const now=new Date();
+        const diffMs=due-now;
+        const diffMin=Math.round(diffMs/60000);
+        const diffHours=Math.round(diffMs/3600000);
+        const diffDays=Math.round(diffMs/86400000);
+        if(diffMs<0)return 'فائت';
+        if(diffMin<1)return 'الآن';
+        if(diffMin<60)return 'بعد '+diffMin+' دقيقة';
+        if(diffHours<24)return 'بعد '+diffHours+' ساعة';
+        if(diffDays<7)return 'بعد '+diffDays+' يوم';
+        const y=due.getFullYear();
+        const mo=String(due.getMonth()+1).padStart(2,'0');
+        const d=String(due.getDate()).padStart(2,'0');
+        const h=String(due.getHours()).padStart(2,'0');
+        const mi=String(due.getMinutes()).padStart(2,'0');
+        return y+'-'+mo+'-'+d+' '+h+':'+mi;
+    }catch(e){return dueAtIso;}
+}
+async function loadReminders(){
+    const c=document.getElementById('remindersContent');
+    if(!c)return;
+    if(!IS_REGISTERED){
+        c.innerHTML='<div class="reminders-empty">أنت تستخدم التطبيق كضيف.<br>سجّل دخولك لاستخدام ميزة التذكير.</div>';
+        return;
+    }
+    try{
+        const r=await fetch('/get_reminders');
+        const d=await r.json();
+        const items=d.reminders||[];
+        if(items.length===0){
+            c.innerHTML='<div class="reminders-empty">لا توجد تذكيرات حالياً.<br><br>اكتب في الشات: "ذكرني بـ..."</div>';
+            return;
+        }
+        let html='<div class="reminders-list">';
+        items.forEach(rem=>{
+            html+='<div class="reminder-row"><div class="reminder-info"><div class="reminder-title">'+escapeHtml(rem.title)+'</div><div class="reminder-time">'+escapeHtml(formatReminderTime(rem.due_at))+'</div></div><button class="reminder-del" type="button" title="حذف" onclick="deleteReminder('+rem.id+')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
+        });
+        html+='</div>';
+        html+='<div class="reminders-hint">يمكنك كتابة "ذكرني بـ..." في الشات لإنشاء تذكير جديد.</div>';
+        c.innerHTML=html;
+    }catch(e){
+        c.innerHTML='<div class="info-box" style="text-align:center;">تعذر تحميل التذكيرات.</div>';
+    }
+}
+async function deleteReminder(id){
+    if(!confirm('حذف هذا التذكير؟'))return;
+    try{
+        const r=await fetch('/delete_reminder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+        const d=await r.json();
+        if(d.status==='ok'){showToast('تم الحذف');loadReminders();}
+        else showToast('فشل الحذف');
+    }catch(e){showToast('خطأ في الاتصال');}
+}
 async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
-function saveGeneral(){const n=(document.getElementById('sp-name').value||'').trim();if(!n||n.length<2){showToast('اكتب اسم صحيح');return;}fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,lang:userLang})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('✅ تم الحفظ');closeSubPage();setTimeout(()=>location.reload(),500);}else showToast('فشل');});}
+function saveGeneral(){const n=(document.getElementById('sp-name').value||'').trim();if(!n||n.length<2){showToast('اكتب اسم صحيح');return;}fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,lang:userLang})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم الحفظ');closeSubPage();setTimeout(()=>location.reload(),500);}else showToast('فشل');});}
 function urlBase64ToUint8Array(s){const p='='.repeat((4-s.length%4)%4);const b=(s+p).replace(/-/g,'+').replace(/_/g,'/');const r=window.atob(b);return Uint8Array.from([...r].map(c=>c.charCodeAt(0)));}
-async function subscribeToPush(){if(!('serviceWorker' in navigator)||!('PushManager' in window)){showToast('المتصفح لا يدعم الإشعارات');return;}try{const reg=await navigator.serviceWorker.register('/service-worker.js');const perm=await Notification.requestPermission();if(perm!=='granted'){showToast('تم رفض الإشعارات');return;}const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array('BLHwJhdfs5Gv_sPwVbbdct2kqOXF5uJo7CiCPawCs2GwaKf9P2-1pHvFfzCjmK4PEaqaE9OA5c_LyRhKtfpQ3q8')});const res=await fetch('/save_push_subscription',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub)});if(res.ok)showToast('✅ تم تفعيل الإشعارات');else showToast('فشل الحفظ');}catch(err){console.error(err);showToast('فشل: '+err.message);}}
-async function unsubscribeFromPush(){if(!('serviceWorker' in navigator)){showToast('المتصفح ما يدعم الإشعارات');return;}try{const reg=await navigator.serviceWorker.getRegistration('/service-worker.js');if(reg){const sub=await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe();}await fetch('/remove_push_subscription',{method:'POST'});showToast('✅ تم إلغاء الإشعارات');}catch(err){console.error(err);showToast('فشل الإلغاء');}}
+async function subscribeToPush(){if(!('serviceWorker' in navigator)||!('PushManager' in window)){showToast('المتصفح لا يدعم الإشعارات');return;}try{const reg=await navigator.serviceWorker.register('/service-worker.js');const perm=await Notification.requestPermission();if(perm!=='granted'){showToast('تم رفض الإشعارات');return;}const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array('BLHwJhdfs5Gv_sPwVbbdct2kqOXF5uJo7CiCPawCs2GwaKf9P2-1pHvFfzCjmK4PEaqaE9OA5c_LyRhKtfpQ3q8')});const res=await fetch('/save_push_subscription',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub)});if(res.ok)showToast('تم تفعيل الإشعارات');else showToast('فشل الحفظ');}catch(err){console.error(err);showToast('فشل: '+err.message);}}
+async function unsubscribeFromPush(){if(!('serviceWorker' in navigator)){showToast('المتصفح ما يدعم الإشعارات');return;}try{const reg=await navigator.serviceWorker.getRegistration('/service-worker.js');if(reg){const sub=await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe();}await fetch('/remove_push_subscription',{method:'POST'});showToast('تم إلغاء الإشعارات');}catch(err){console.error(err);showToast('فشل الإلغاء');}}
 function requestNotifications(){subscribeToPush();}
-function saveVoice(){var lvlEl=document.querySelector('[data-vl].selected');var lvl=lvlEl?lvlEl.dataset.vl:'100';var gender=isMale?'male':'female';var speedEl=document.querySelector('[data-vs].selected');var speed=speedEl?parseFloat(speedEl.dataset.vs):1;voiceSpeed=speed;localStorage.setItem('nibras-voice-level',lvl);localStorage.setItem('nibras-voice-gender',gender);localStorage.setItem('nibras-voice-speed',speed);fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:gender})}).then(function(){showToast('✅ تم حفظ الإعدادات');closeSubPage();}).catch(function(){showToast('✅ تم الحفظ محلياً');closeSubPage();});}
-function changePassword(){const o=document.getElementById('sp-old-pass').value;const n=document.getElementById('sp-new-pass').value;if(!o){showToast('اكتب كلمة المرور الحالية');return;}if(!n||n.length<8){showToast('كلمة المرور الجديدة 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:o,new_password:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('✅ تم تغيير كلمة المرور');document.getElementById('sp-old-pass').value='';document.getElementById('sp-new-pass').value='';closeSubPage();}else{showToast('❌ '+(d.message||'فشل تغيير كلمة المرور'));}}).catch(()=>showToast('❌ تعذر الاتصال بالسيرفر'));}
+function saveVoice(){var lvlEl=document.querySelector('[data-vl].selected');var lvl=lvlEl?lvlEl.dataset.vl:'100';var gender=isMale?'male':'female';var speedEl=document.querySelector('[data-vs].selected');var speed=speedEl?parseFloat(speedEl.dataset.vs):1;voiceSpeed=speed;localStorage.setItem('nibras-voice-level',lvl);localStorage.setItem('nibras-voice-gender',gender);localStorage.setItem('nibras-voice-speed',speed);fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:gender})}).then(function(){showToast('تم حفظ الإعدادات');closeSubPage();}).catch(function(){showToast('تم الحفظ محلياً');closeSubPage();});}
+function changePassword(){const o=document.getElementById('sp-old-pass').value;const n=document.getElementById('sp-new-pass').value;if(!o){showToast('اكتب كلمة المرور الحالية');return;}if(!n||n.length<8){showToast('كلمة المرور الجديدة 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:o,new_password:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');document.getElementById('sp-old-pass').value='';document.getElementById('sp-new-pass').value='';closeSubPage();}else{showToast((d.message||'فشل تغيير كلمة المرور'));}}).catch(()=>showToast('تعذر الاتصال بالسيرفر'));}
 function logoutAll(){if(confirm('خروج من كل الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
-function clearCache(){if(!confirm('مسح الإعدادات المحلية؟'))return;localStorage.clear();sessionStorage.clear();document.documentElement.classList.remove('dark-mode');showToast('✅ تم المسح');setTimeout(()=>location.reload(),900);}
+function clearCache(){if(!confirm('مسح الإعدادات المحلية؟'))return;localStorage.clear();sessionStorage.clear();document.documentElement.classList.remove('dark-mode');showToast('تم المسح');setTimeout(()=>location.reload(),900);}
 function exportData(){window.location.href='/export_data';}
-function saveAds(){showToast('✅ تم حفظ التفضيلات');closeSubPage();}
-function sendReport(){const d=document.getElementById('sp-report-desc').value;if(!d||d.trim().length<3){showToast('اكتب وصف');return;}fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(r=>r.json()).then(res=>{if(res.status==='ok'){showToast('✅ تم الإرسال');setTimeout(()=>closeSubPage(),800);}});}
-async function loadPinned(){try{let pinned=[];if(IS_REGISTERED){const r=await fetch('/pinned_conversations');const d=await r.json();pinned=d.pinned||[];}else{const ids=getPinnedLocal();if(ids.length){const hr=await fetch('/history');const hd=await hr.json();pinned=(hd.conversations||[]).filter(c=>ids.includes(c.id));}}pl.innerHTML='';if(!pinned||pinned.length===0){pl.innerHTML='<div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;">'+(userLang==='en'?'No pinned conversations':'لا توجد محادثات مثبتة')+'</div>';if(!IS_REGISTERED){const hint=document.createElement('div');hint.style.cssText='padding:8px 16px 12px;font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.6;';hint.innerHTML=userLang==='en'?'💡 <a href="/login" style="color:var(--primary-color);font-weight:600;text-decoration:none;">Sign in</a> to save pins permanently':'💡 <a href="/login" style="color:var(--primary-color);font-weight:600;text-decoration:none;">سجّل دخولك</a> لحفظ التثبيتات بشكل دائم';pl.appendChild(hint);}return;}pinned.forEach(c=>{const btn=document.createElement('button');btn.className='conv-item pinned-item';btn.innerHTML='<span class="conv-title">'+c.title+'</span>';btn.onclick=()=>loadConversation(c.id);pl.appendChild(btn);});}catch(e){}}
+function saveAds(){showToast('تم حفظ التفضيلات');closeSubPage();}
+function sendReport(){const d=document.getElementById('sp-report-desc').value;if(!d||d.trim().length<3){showToast('اكتب وصف');return;}fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(r=>r.json()).then(res=>{if(res.status==='ok'){showToast('تم الإرسال');setTimeout(()=>closeSubPage(),800);}});}
+async function loadPinned(){try{let pinned=[];if(IS_REGISTERED){const r=await fetch('/pinned_conversations');const d=await r.json();pinned=d.pinned||[];}else{const ids=getPinnedLocal();if(ids.length){const hr=await fetch('/history');const hd=await hr.json();pinned=(hd.conversations||[]).filter(c=>ids.includes(c.id));}}pl.innerHTML='';if(!pinned||pinned.length===0){pl.innerHTML='<div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;">'+(userLang==='en'?'No pinned conversations':'لا توجد محادثات مثبتة')+'</div>';if(!IS_REGISTERED){const hint=document.createElement('div');hint.style.cssText='padding:8px 16px 12px;font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.6;';hint.innerHTML=userLang==='en'?'Sign in to save pins permanently':'سجّل دخولك لحفظ التثبيتات بشكل دائم';pl.appendChild(hint);}return;}pinned.forEach(c=>{const btn=document.createElement('button');btn.className='conv-item pinned-item';btn.innerHTML='<span class="conv-title">'+c.title+'</span>';btn.onclick=()=>loadConversation(c.id);pl.appendChild(btn);});}catch(e){}}
 async function loadHistory(){try{const r=await fetch('/history');const d=await r.json();hl.innerHTML='';const localPinned=getPinnedLocal();if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const isPinned=IS_REGISTERED?c.pinned:localPinned.includes(c.id);const b=document.createElement('div');b.className='conv-item';b.style.cursor='pointer';b.innerHTML='<span class="conv-title">'+((c.title&&c.title.trim())?c.title:'محادثة')+'</span><button class="pin-btn '+(isPinned?'pinned':'')+'" title="'+(isPinned?'إلغاء التثبيت':'تثبيت')+'"><svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></button>';b.onclick=(e)=>{if(e.target.closest('.pin-btn'))return;loadConversation(c.id);};b.querySelector('.pin-btn').onclick=async(e)=>{e.stopPropagation();await togglePin(c.id,isPinned,e.currentTarget);};hl.appendChild(b);});}else{const e=document.createElement('div');e.className='item';e.style.color='var(--text-secondary)';e.style.fontSize='13px';e.style.justifyContent='center';e.textContent=userLang==='en'?'No conversations':'لا توجد محادثات';hl.appendChild(e);}}catch(e){}}
 async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.slice(-50).forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){}}
 document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.style.display='none';ui.value=''});
@@ -1117,7 +1190,7 @@ document.querySelector('[data-action="share"]').addEventListener('click',functio
         document.getElementById('shareFacebook').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(dbUrl);
         document.getElementById('shareTwitter').href  = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(dbUrl) + '&text=' + encodeURIComponent(text);
         document.getElementById('shareSnapchat').onclick = function(){
-            navigator.clipboard.writeText(dbUrl).then(function(){ showToast(userLang==='en'?'✅ Link copied':'✅ تم نسخ الرابط'); }).catch(function(){ showToast(userLang==='en'?'Copy failed':'فشل النسخ'); });
+            navigator.clipboard.writeText(dbUrl).then(function(){ showToast(userLang==='en'?'Link copied':'تم نسخ الرابط'); }).catch(function(){ showToast(userLang==='en'?'Copy failed':'فشل النسخ'); });
         };
         sm.classList.add('show');
     } else {
@@ -1137,7 +1210,7 @@ document.querySelector('[data-action="share"]').addEventListener('click',functio
         if(navigator.share){
             navigator.share({ title: userLang==='en'?'Nibras Conversation':'محادثة نبراس', text: text, url: url }).catch(function(){});
         } else {
-            navigator.clipboard.writeText(url).then(function(){ showToast(userLang==='en'?'✅ Link copied':'✅ تم نسخ الرابط'); }).catch(function(){ showToast(userLang==='en'?'Copy failed':'فشل النسخ'); });
+            navigator.clipboard.writeText(url).then(function(){ showToast(userLang==='en'?'Link copied':'تم نسخ الرابط'); }).catch(function(){ showToast(userLang==='en'?'Copy failed':'فشل النسخ'); });
         }
     }
 });
@@ -1169,7 +1242,7 @@ function attachBotActions(el,msgText){
         dislikeBtn.classList.remove('disliked');
         actions.classList.add('touched');
         fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasLiked?'unlike':'like',message:msgText,conv_id:cid})}).catch(function(){});
-        showToast(wasLiked?(userLang==='en'?'Like removed':'تم إلغاء الإعجاب'):(userLang==='en'?'👍 Thanks!':'👍 شكراً لتقييمك'));
+        showToast(wasLiked?(userLang==='en'?'Like removed':'تم إلغاء الإعجاب'):(userLang==='en'?'Thanks!':'شكراً لتقييمك'));
     });
     dislikeBtn.addEventListener('click',function(){
         const wasDisliked=this.classList.contains('disliked');
@@ -1177,12 +1250,12 @@ function attachBotActions(el,msgText){
         likeBtn.classList.remove('liked');
         actions.classList.add('touched');
         fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasDisliked?'undislike':'dislike',message:msgText,conv_id:cid})}).catch(function(){});
-        showToast(wasDisliked?(userLang==='en'?'Rating removed':'تم إلغاء التقييم'):(userLang==='en'?'👎 We will improve':'👎 رأيك مهم، بنتحسن'));
+        showToast(wasDisliked?(userLang==='en'?'Rating removed':'تم إلغاء التقييم'):(userLang==='en'?'We will improve':'رأيك مهم، بنتحسن'));
     });
     copyBtn.addEventListener('click',function(){
         navigator.clipboard.writeText(msgText).then(()=>{
             this.classList.add('copied');
-            showToast(userLang==='en'?'✅ Copied':'✅ تم النسخ');
+            showToast(userLang==='en'?'Copied':'تم النسخ');
             const b=this;setTimeout(()=>b.classList.remove('copied'),1500);
         }).catch(()=>showToast(userLang==='en'?'Copy failed':'فشل النسخ'));
     });
@@ -1241,7 +1314,7 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
-window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.requestNotifications=requestNotifications;window.subscribeToPush=subscribeToPush;window.unsubscribeFromPush=unsubscribeFromPush;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.loadMemory=loadMemory;window.getContrastColor=getContrastColor;
+window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.requestNotifications=requestNotifications;window.subscribeToPush=subscribeToPush;window.unsubscribeFromPush=unsubscribeFromPush;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.loadMemory=loadMemory;window.loadReminders=loadReminders;window.deleteReminder=deleteReminder;window.getContrastColor=getContrastColor;
 applyLang();
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 })();</script></body></html>"""
@@ -1361,6 +1434,69 @@ def remove_push_subscription():
     except Exception as e:
         print("remove_push_subscription:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ==========================================================
+#  Routes - التذكيرات
+# ==========================================================
+
+@app.route('/get_reminders')
+def get_reminders():
+    email = session.get('user_email')
+    is_admin = session.get('is_admin')
+    if not email and not is_admin:
+        return jsonify({"reminders": []})
+    uid = get_user_id()
+    try:
+        r = (sb.table("reminders").select("id,title,due_at,created_at")
+             .eq("user_id", uid).eq("sent", False)
+             .order("due_at", desc=False).limit(100).execute())
+        rows = r.data or []
+    except Exception as e:
+        print("get_reminders:", e)
+        return jsonify({"reminders": [], "error": str(e)})
+    return jsonify({"reminders": rows})
+
+
+@app.route('/delete_reminder', methods=['POST'])
+def delete_reminder():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    try:
+        d = request.get_json(silent=True) or {}
+        rid = d.get('id')
+        if not rid:
+            return jsonify({"status": "error"}), 400
+        uid = get_user_id()
+        sb.table("reminders").delete().eq("id", rid).eq("user_id", uid).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("delete_reminder:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/cron/check_reminders')
+def cron_check_reminders():
+    token = request.args.get('token', '')
+    if not CRON_SECRET or token != CRON_SECRET:
+        return jsonify({"status": "error", "message": "unauthorized"}), 401
+    now = datetime.utcnow().isoformat()
+    try:
+        r = sb.table("reminders").select("*").eq("sent", False).lte("due_at", now).limit(50).execute()
+        due = r.data or []
+    except Exception as e:
+        print(f"cron error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    sent_count = 0
+    for rem in due:
+        try:
+            send_push_to_user(rem["user_id"], "تذكير من نبراس", rem["title"], url="/")
+            sb.table("reminders").update({"sent": True}).eq("id", rem["id"]).execute()
+            sent_count += 1
+            print(f"تذكير أُرسل لـ {rem['user_id']}: {rem['title']}")
+        except Exception as e:
+            print(f"reminder send error: {e}")
+    return jsonify({"status": "ok", "checked": len(due), "sent": sent_count})
 
 
 # ==========================================================
@@ -1494,6 +1630,7 @@ def delete_my_account():
         sb.table("assistant_usage").delete().eq("user_id", uid).execute()
         sb.table("image_library").delete().eq("user_id", uid).execute()
         sb.table("push_subscriptions").delete().eq("user_id", uid).execute()
+        sb.table("reminders").delete().eq("user_id", uid).execute()
         sb.table("profiles").delete().eq("email", email.lower()).execute()
         dr = requests.delete(
             f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
@@ -1573,8 +1710,6 @@ def change_password():
     if not newp or len(newp) < 8:
         return jsonify({"status": "error", "message": "كلمة المرور الجديدة لازم 8 أحرف على الأقل"}), 400
 
-    print(f"change_password: user={email} old_len={len(oldp)} new_len={len(newp)}")
-
     try:
         r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
             headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
@@ -1582,8 +1717,6 @@ def change_password():
     except Exception as e:
         print(f"change_password: login request error: {e}")
         return jsonify({"status": "error", "message": "تعذر الاتصال بخدمة المصادقة"}), 500
-
-    print(f"change_password: login status={r.status_code} body={r.text[:300]}")
 
     if r.status_code != 200:
         msg = "كلمة المرور الحالية غير صحيحة"
@@ -1615,7 +1748,6 @@ def change_password():
                 "Content-Type": "application/json"
             },
             json={"password": newp}, timeout=15)
-        print(f"change_password: update status={r2.status_code} body={r2.text[:300]}")
     except Exception as e:
         print(f"change_password: update request error: {e}")
         return jsonify({"status": "error", "message": "تعذر تحديث كلمة المرور"}), 500
@@ -1650,7 +1782,6 @@ def change_password():
                     headers={"apikey": service_key, "Authorization": f"Bearer {service_key}", "Content-Type": "application/json"},
                     json={"password": newp}, timeout=15
                 )
-                print(f"change_password: admin update status={ur.status_code} body={ur.text[:300]}")
                 if ur.status_code == 200:
                     return jsonify({"status": "ok"}), 200
         except Exception as e:
@@ -1863,7 +1994,6 @@ def update_password():
             json={"password": newp},
             timeout=15
         )
-        print(f"update_password: status={r.status_code} body={r.text[:200]}")
         if r.status_code == 200:
             return jsonify({"status": "ok"})
         msg = "تعذر تحديث كلمة المرور"
@@ -1991,14 +2121,28 @@ def admin_send_notification():
 def admin_dashboard():
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
+
+    recent, users_list, reports_list, subs_count, feedback_list = [], [], [], 0, []
     try:
         recent = (sb.table("assistant_chats").select("user_id,title,created_at").order("created_at", desc=True).limit(10).execute()).data or []
+    except Exception as e:
+        print(f"admin recent error: {e}")
+    try:
         users_list = (sb.table("profiles").select("email,display_name,role").order("created_at", desc=True).limit(30).execute()).data or []
+    except Exception as e:
+        print(f"admin users error: {e}")
+    try:
         reports_list = (sb.table("bug_reports").select("*").order("created_at", desc=True).limit(30).execute()).data or []
+    except Exception as e:
+        print(f"admin reports error: {e}")
+    try:
         subs_count = len((sb.table("push_subscriptions").select("id").execute()).data or [])
+    except Exception as e:
+        print(f"admin subs error: {e}")
+    try:
         feedback_list = (sb.table("message_feedback").select("*").order("created_at", desc=True).limit(100).execute()).data or []
-    except:
-        recent, users_list, reports_list, subs_count, feedback_list = [], [], [], 0, []
+    except Exception as e:
+        print(f"admin feedback error: {e}")
 
     likes_count = sum(1 for f in feedback_list if f.get('feedback') == 'like')
     dislikes_count = sum(1 for f in feedback_list if f.get('feedback') == 'dislike')
@@ -2011,11 +2155,11 @@ def admin_dashboard():
         f'<div style="border-right:4px solid {"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};padding:12px;margin:10px 0;background:{"#f0fdf4" if f.get("feedback")=="like" else "#fef2f2"};border-radius:10px;">'
         f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
         f'<b style="color:{"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};font-size:14px;">'
-        f'{"👍 إعجاب" if f.get("feedback")=="like" else "👎 رفض"}</b>'
+        f'{"إعجاب" if f.get("feedback")=="like" else "رفض"}</b>'
         f'<small style="color:#8b949e;font-size:11px;">{escape(str(f.get("created_at",""))[:16])}</small>'
         f'</div>'
         f'<div style="font-size:12px;color:#5a6b7c;margin-bottom:6px;">'
-        f'👤 {escape(str(f.get("user_email","?")))}'
+        f'{escape(str(f.get("user_email","?")))}'
         f'</div>'
         f'<div style="font-size:13px;color:#1a2b3c;background:#fff;padding:8px 10px;border-radius:6px;line-height:1.6;">'
         f'{escape(str(f.get("message_text",""))[:250])}'
@@ -2045,28 +2189,28 @@ def admin_dashboard():
     .notif-btn:hover{{background:#3a5a7a}}
     </style></head><body><div class="container">
 
-    <h1>🎛️ لوحة تحكم نبراس</h1>
+    <h1>لوحة تحكم نبراس</h1>
 
     <div class="card">
-        <h3>📢 إرسال إشعار يدوي</h3>
+        <h3>إرسال إشعار يدوي</h3>
         <input type="text" id="notif-title" class="notif-input" placeholder="العنوان" value="نبراس">
         <textarea id="notif-body" class="notif-input" placeholder="اكتب الرسالة..." style="min-height:80px;"></textarea>
-        <button onclick="sendNotif()" class="notif-btn">📤 إرسال للجميع</button>
+        <button onclick="sendNotif()" class="notif-btn">إرسال للجميع</button>
         <div id="notif-result" style="margin-top:10px;font-size:13px;"></div>
     </div>
 
     <div class="card">
-        <div class="stat"><span>👥 المستخدمون</span><span class="num">{len(users_list)}</span></div>
-        <div class="stat"><span>🔔 المشتركون بالإشعارات</span><span class="num">{subs_count}</span></div>
-        <div class="stat"><span>📩 البلاغات</span><span class="num">{len(reports_list)}</span></div>
-        <div class="stat"><span>👍 إعجابات</span><span class="num" style="color:#27ae60;">{likes_count}</span></div>
-        <div class="stat"><span>👎 رفض</span><span class="num" style="color:#e74c3c;">{dislikes_count}</span></div>
+        <div class="stat"><span>المستخدمون</span><span class="num">{len(users_list)}</span></div>
+        <div class="stat"><span>المشتركون بالإشعارات</span><span class="num">{subs_count}</span></div>
+        <div class="stat"><span>البلاغات</span><span class="num">{len(reports_list)}</span></div>
+        <div class="stat"><span>إعجابات</span><span class="num" style="color:#27ae60;">{likes_count}</span></div>
+        <div class="stat"><span>رفض</span><span class="num" style="color:#e74c3c;">{dislikes_count}</span></div>
     </div>
 
-    <div class="card"><h3>📊 تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
-    <div class="card"><h3>📩 البلاغات</h3>{reports_html}</div>
-    <div class="card"><h3>👥 المستخدمون</h3>{users_html}</div>
-    <div class="card"><h3>💬 آخر المحادثات</h3>{recent_html}</div>
+    <div class="card"><h3>تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
+    <div class="card"><h3>البلاغات</h3>{reports_html}</div>
+    <div class="card"><h3>المستخدمون</h3>{users_html}</div>
+    <div class="card"><h3>آخر المحادثات</h3>{recent_html}</div>
 
     <a href="/" class="back">← العودة للرئيسية</a>
     </div>
@@ -2078,7 +2222,7 @@ def admin_dashboard():
         if(!body){{ alert('اكتب الرسالة أول'); return; }}
         if(!confirm('إرسال الإشعار لكل المشتركين؟')) return;
         const res = document.getElementById('notif-result');
-        res.textContent = '⏳ جاري الإرسال...';
+        res.textContent = 'جاري الإرسال...';
         res.style.color = '#4a6a8a';
         try{{
             const r = await fetch('/admin/send_notification', {{
@@ -2088,15 +2232,15 @@ def admin_dashboard():
             }});
             const d = await r.json();
             if(d.status === 'ok'){{
-                res.textContent = '✅ تم الإرسال لـ ' + d.sent + ' من ' + d.total;
+                res.textContent = 'تم الإرسال لـ ' + d.sent + ' من ' + d.total;
                 res.style.color = '#27ae60';
                 document.getElementById('notif-body').value = '';
             }} else {{
-                res.textContent = '❌ ' + (d.message || 'فشل');
+                res.textContent = 'فشل: ' + (d.message || '');
                 res.style.color = '#e74c3c';
             }}
         }}catch(e){{
-            res.textContent = '❌ خطأ في الاتصال';
+            res.textContent = 'خطأ في الاتصال';
             res.style.color = '#e74c3c';
         }}
     }}
@@ -2159,9 +2303,58 @@ def chat():
         else:
             user_lang = 'ar'
 
+        # كشف طلب التذكير
+        if is_registered and um and ('ذكرني' in um or 'تذكير' in um or 'ذكريني' in um):
+            try:
+                import pytz
+                riyadh = pytz.timezone('Asia/Riyadh')
+                now_local = datetime.now(riyadh)
+                prompt = (
+                    f"التاريخ والوقت الحالي بتوقيت الرياض: {now_local.strftime('%Y-%m-%d %H:%M')}\n"
+                    f"اليوم: {now_local.strftime('%A')}\n\n"
+                    "حلل الرسالة التالية. إذا كانت طلب تذكير أو موعد، أرجع JSON فقط:\n"
+                    '{"is_reminder": true, "title": "وصف قصير بالعربي", "due_at": "YYYY-MM-DDTHH:MM:SS"}\n\n'
+                    "بتوقيت الرياض (بدون timezone).\n"
+                    "إذا مو طلب تذكير، أرجع: {\"is_reminder\": false}\n\n"
+                    f"الرسالة: {um}"
+                )
+                rr = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                    max_completion_tokens=200
+                )
+                parsed = json.loads(rr.choices[0].message.content)
+                if parsed.get("is_reminder") and parsed.get("due_at"):
+                    from datetime import datetime as _dt
+                    local_dt = _dt.strptime(parsed["due_at"], "%Y-%m-%dT%H:%M:%S")
+                    aware_local = riyadh.localize(local_dt)
+                    utc_dt = aware_local.astimezone(pytz.utc)
+                    title_txt = parsed.get("title", um)[:200]
+                    sb.table("reminders").insert({
+                        "user_id": uid,
+                        "user_email": user_email,
+                        "title": title_txt,
+                        "due_at": utc_dt.isoformat()
+                    }).execute()
+                    human_time = aware_local.strftime('%Y-%m-%d %H:%M')
+                    reply = f"تمام، ذكرتك: {title_txt}\nالموعد: {human_time} (بتوقيت الرياض)"
+                    nid = save_message(uid, um, reply, cid) if is_registered else cid
+                    def rem_stream():
+                        yield f"data: {json.dumps({'token': reply}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
+                    inc_usage(uid, "chat_count")
+                    return Response(
+                        stream_with_context(rem_stream()),
+                        mimetype='text/event-stream',
+                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+                    )
+            except Exception as e:
+                print(f"reminder parse error: {e}")
+
         usage, limits, can_chat, can_search, can_image = check_limits(uid, user_role if not is_admin else 'admin')
         if not can_chat:
-            reply_limit = "وصل محادثاتك للحد اليومي المسموح به، شكراً لك، غداً نلتقي 🌹" if user_lang == 'ar' else "You've reached the daily limit. Thank you, see you tomorrow 🌹"
+            reply_limit = "وصل محادثاتك للحد اليومي المسموح به، شكراً لك، غداً نلتقي" if user_lang == 'ar' else "You've reached the daily limit. Thank you, see you tomorrow"
             nid = save_message(uid, um, reply_limit, cid) if is_registered else cid
             def limit_stream():
                 yield f"data: {json.dumps({'token': reply_limit}, ensure_ascii=False)}\n\n"
@@ -2259,10 +2452,9 @@ def chat():
                     try: res = sr.output[0].content[0].text
                     except: res = ""
                 if res:
-                    msgs.append({"role": "system", "content": f"📰 نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
-                    print(f"✅ بحث ناجح - {len(res)} حرف")
+                    msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
             except Exception as e:
-                print(f"❌ فشل البحث ({type(e).__name__}): {e}")
+                print(f"فشل البحث ({type(e).__name__}): {e}")
 
         def generate():
             full_reply = ""
