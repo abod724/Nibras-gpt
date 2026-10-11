@@ -9,3 +9,4 @@ supabase
 gotrue
 pywebpush
 py-vapid
+pytz
