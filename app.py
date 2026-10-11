@@ -12,8 +12,6 @@ from datetime import datetime, timedelta, date as _date
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from supabase import create_client
-from pywebpush import webpush, WebPushException
-from concurrent.futures import ThreadPoolExecutor
 from markupsafe import escape
 import urllib.parse
 
@@ -52,12 +50,6 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("SUPABASE_URL و SUPABASE_KEY مطلوبان!")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_KEY
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
-VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
-VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", f"mailto:{ADMIN_EMAIL}")
-
-CRON_SECRET = os.environ.get("CRON_SECRET", "")
 
 
 LIMITS = {
@@ -482,48 +474,6 @@ def delete_user_image(uid, image_id):
         return False
 
 
-def send_push_to_user(user_id, title, body, url="/"):
-    if not VAPID_PRIVATE_KEY or not VAPID_SUBJECT:
-        print("VAPID غير مُعَد")
-        return 0
-    sent_count = 0
-    try:
-        subs = sb.table("push_subscriptions").select("*").eq("user_id", user_id).execute()
-        for sub in (subs.data or []):
-            try:
-                webpush(
-                    subscription_info={
-                        "endpoint": sub["endpoint"],
-                        "keys": {"p256dh": sub["p256dh"], "auth": sub["auth"]}
-                    },
-                    data=json.dumps({"title": title, "body": body, "url": url}),
-                    vapid_private_key=VAPID_PRIVATE_KEY,
-                    vapid_claims={"sub": VAPID_SUBJECT}
-                )
-                sent_count += 1
-                print(f"إشعار Push أُرسل لـ {user_id}")
-            except WebPushException as ex:
-                if ex.response and ex.response.status_code in (404, 410):
-                    sb.table("push_subscriptions").delete().eq("id", sub["id"]).execute()
-                    print("حذف اشتراك منتهي")
-                else:
-                    print(f"فشل إرسال Push: {ex}")
-    except Exception as e:
-        print("send_push_to_user:", e)
-    return sent_count
-
-
-def send_push_to_all(user_ids, title, body):
-    if not user_ids:
-        return 0
-    try:
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            return sum(executor.map(lambda uid: send_push_to_user(uid, title, body), user_ids))
-    except Exception as e:
-        print("send_push_to_all:", e)
-        return 0
-
-
 kc = ""
 for fn in ["Knowledge.md", "knowledge.md", "معرفة.md", "README.md", "ملف_المعرفة.md"]:
     if os.path.exists(fn):
@@ -822,7 +772,41 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
 .assistant-form-actions button{flex:1;padding:13px;border-radius:14px;border:none;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s}
 .assistant-form-actions .btn-cancel{background:var(--bg-hover);color:var(--text-primary)}
 .assistant-form-actions .btn-save{background:var(--primary-color);color:#fff}
-.assistant-form-actions .btn-save:disabled{opacity:0.6;cursor:not-allowed}</style></head><body>
+.assistant-form-actions .btn-save:disabled{opacity:0.6;cursor:not-allowed}
+.sp-input{width:100%;padding:14px 16px;border:1.5px solid var(--border-color);border-radius:14px;font-size:15px;background:var(--bg-app);color:var(--text-primary);font-family:inherit;transition:all .2s;box-sizing:border-box;outline:none;font-weight:500}
+.sp-input:focus{border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(74,106,138,0.1)}
+.sp-input::placeholder{color:var(--placeholder-color)}
+.sp-input:disabled{opacity:0.55;cursor:not-allowed}
+.sp-select{width:100%;padding:14px 44px 14px 16px;border:1.5px solid var(--border-color);border-radius:14px;font-size:15px;background-color:var(--bg-app);color:var(--text-primary);font-family:inherit;transition:all .2s;box-sizing:border-box;outline:none;font-weight:500;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235a6b7c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 14px center;background-size:18px;cursor:pointer}
+.sp-select:focus{border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(74,106,138,0.1)}
+.sp-field{margin-bottom:16px}
+.sp-field:last-child{margin-bottom:0}
+.sp-label{display:block;font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-align:right}
+.sp-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:14px;border:none;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;width:100%;-webkit-tap-highlight-color:transparent;outline:none}
+.sp-btn:active{transform:scale(0.98)}
+.sp-btn-primary{background:var(--primary-color);color:#fff}
+.sp-btn-primary:hover{filter:brightness(1.08)}
+.sp-btn-danger{background:rgba(211,47,47,0.08);color:#d32f2f}
+.sp-btn-danger:hover{background:rgba(211,47,47,0.15)}
+html.dark-mode .sp-btn-danger{background:rgba(248,81,73,0.12);color:#f85149}
+html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
+.sp-btn-row{display:flex;gap:10px}
+.sp-btn-row .sp-btn{flex:1}
+.sp-link-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:14px;background:var(--bg-app);color:var(--text-primary);text-decoration:none;font-size:15px;font-weight:600;border:1.5px solid var(--border-color);transition:all .15s;text-align:center;width:100%;box-sizing:border-box}
+.sp-link-btn:hover{background:var(--bg-hover);border-color:var(--primary-color);color:var(--primary-color)}
+.sp-note{font-size:14.5px;color:var(--text-secondary);line-height:1.9}
+.sp-note b{color:var(--text-primary);font-weight:700;display:block;margin-bottom:6px;font-size:15px}
+.sp-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:14px;border:1px solid var(--border-color);overflow:hidden}
+.sp-list-item{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border-color);font-size:15px}
+.sp-list-item:last-child{border-bottom:none}
+.sp-list-key{color:var(--text-secondary);font-weight:500}
+.sp-list-val{color:var(--text-primary);font-weight:700;text-align:left;max-width:60%;word-wrap:break-word}
+.sp-hero{display:flex;align-items:center;gap:14px;padding:16px;background:var(--bg-app);border-radius:16px;border:1px solid var(--border-color);margin-bottom:16px}
+.sp-hero-icon{width:46px;height:46px;border-radius:13px;background:var(--bg-hover);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--primary-color)}
+.sp-hero-icon svg{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none}
+.sp-hero-title{font-size:15.5px;font-weight:700;color:var(--text-primary);margin:0 0 3px}
+.sp-hero-sub{font-size:12.5px;color:var(--text-secondary);margin:0;line-height:1.5}
+</style></head><body>
 <div class="app"><div class="header"><div class="header-right"><button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button><button class="icon-btn" id="menuToggle" title="القائمة"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div><div class="header-left"><div class="btn-group">{% if session.get('user_email') or session.get('is_admin') %}{% if user_name %}<div class="user-badge" title="{{ session.get('user_email') }}"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ user_name }}</div>{% endif %}<a href="/logout" class="btn btn-outline">خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div>
 
 <div class="dropdown" id="dropdown">
@@ -1038,26 +1022,26 @@ const subPagesContent={
     fontSize:'<div class="fontsize-list"><div class="fontsize-row" data-fs="small" onclick="selectFontSize(\'small\',\'صغير\')"><div class="fontsize-row-left"><div class="fontsize-label">صغير</div><div class="fontsize-sample" style="font-size:13px;">نموذج من الخط الصغير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="medium" onclick="selectFontSize(\'medium\',\'متوسط\')"><div class="fontsize-row-left"><div class="fontsize-label">متوسط</div><div class="fontsize-sample" style="font-size:15px;">نموذج من الخط المتوسط</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="large" onclick="selectFontSize(\'large\',\'كبير\')"><div class="fontsize-row-left"><div class="fontsize-label">كبير</div><div class="fontsize-sample" style="font-size:17px;">نموذج من الخط الكبير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="xlarge" onclick="selectFontSize(\'xlarge\',\'ضخم\')"><div class="fontsize-row-left"><div class="fontsize-label">ضخم</div><div class="fontsize-sample" style="font-size:19px;">نموذج من الخط الضخم</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
     personality:'<div class="personality-list"><div class="personality-row" data-p="friendly" onclick="selectPersonality(\'friendly\',\'ودود\')"><div class="personality-text"><div class="personality-name">ودود</div><div class="personality-sub">دافئ ومريح</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="concise" onclick="selectPersonality(\'concise\',\'مختصر\')"><div class="personality-text"><div class="personality-name">مختصر</div><div class="personality-sub">ردود قصيرة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="detailed" onclick="selectPersonality(\'detailed\',\'مفصّل\')"><div class="personality-text"><div class="personality-name">مفصّل</div><div class="personality-sub">شرح عميق</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="formal" onclick="selectPersonality(\'formal\',\'رسمي\')"><div class="personality-text"><div class="personality-name">رسمي</div><div class="personality-sub">احترافي ومهني</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="teacher" onclick="selectPersonality(\'teacher\',\'معلّم\')"><div class="personality-text"><div class="personality-name">معلّم</div><div class="personality-sub">يشرح خطوة بخطوة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="playful" onclick="selectPersonality(\'playful\',\'فرفوش\')"><div class="personality-text"><div class="personality-name">فرفوش</div><div class="personality-sub">مرح ومزح خفيف</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
     language:'<div class="lang-list"><div class="lang-card" data-lang="ar" onclick="selectLanguage(\'ar\')"><div class="lang-flag">🇸🇦</div><div class="lang-info"><div class="lang-name">العربية</div><div class="lang-sub">Arabic</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="lang-card" data-lang="en" onclick="selectLanguage(\'en\')"><div class="lang-flag">🇬🇧</div><div class="lang-info"><div class="lang-name">English</div><div class="lang-sub">الإنجليزية</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
-    general:'<div class="field"><label>الاسم الكامل</label><input type="text" id="sp-name" value="{{ user_name or '' }}" placeholder="اكتب اسمك"></div>',
-    memory:'<div id="memoryContent"><div class="info-box" style="text-align:center;">جاري تحميل الذاكرة...</div></div>',
-    assistants:'<div class="info-box" style="text-align:center;">جاري التحميل...</div>',
-    voice:'<div style="display:flex;flex-direction:column;gap:16px;"><div><div style="font-size:12px;color:var(--text-secondary);font-weight:700;padding:0 4px 8px;letter-spacing:.5px;">جنس الصوت</div><div class="personality-list"><div class="personality-row" data-vg="male" onclick="selectVoiceGender(\'male\')"><div class="personality-text"><div class="personality-name">ذكر</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vg="female" onclick="selectVoiceGender(\'female\')"><div class="personality-text"><div class="personality-name">أنثى</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div style="font-size:12px;color:var(--text-secondary);font-weight:700;padding:0 4px 8px;letter-spacing:.5px;">سرعة الصوت</div><div class="personality-list"><div class="personality-row" data-vs="0.75" onclick="selectVoiceSpeed(0.75)"><div class="personality-text"><div class="personality-name">بطيء</div><div class="personality-sub">0.75×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1" onclick="selectVoiceSpeed(1)"><div class="personality-text"><div class="personality-name">عادي</div><div class="personality-sub">1×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.25" onclick="selectVoiceSpeed(1.25)"><div class="personality-text"><div class="personality-name">سريع</div><div class="personality-sub">1.25×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.5" onclick="selectVoiceSpeed(1.5)"><div class="personality-text"><div class="personality-name">سريع جداً</div><div class="personality-sub">1.5×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div style="font-size:12px;color:var(--text-secondary);font-weight:700;padding:0 4px 8px;letter-spacing:.5px;">مستوى الصوت</div><div class="personality-list"><div class="personality-row" data-vl="25" onclick="selectVoiceLevel(25)"><div class="personality-text"><div class="personality-name">هادئ</div><div class="personality-sub">25%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="50" onclick="selectVoiceLevel(50)"><div class="personality-text"><div class="personality-name">متوسط</div><div class="personality-sub">50%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="75" onclick="selectVoiceLevel(75)"><div class="personality-text"><div class="personality-name">عالي</div><div class="personality-sub">75%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="100" onclick="selectVoiceLevel(100)"><div class="personality-text"><div class="personality-name">كامل</div><div class="personality-sub">100%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div></div>',
-    safety:'<div class="info-box"><b>إرشادات السلامة:</b><br>• لا تشارك معلوماتك الشخصية الحساسة.<br>• نبراس مساعد ذكي، وليس بديلاً عن الاستشارة المتخصصة.<br>• أبلغ عن أي محتوى غير لائق.</div>',
-    security:'<div class="field"><label>البريد الإلكتروني</label><input type="email" value="{{ session.get('user_email','') }}" disabled></div><div class="field"><label>كلمة المرور الحالية</label><input type="password" id="sp-old-pass" placeholder="••••••••"></div><div class="field"><label>كلمة المرور الجديدة</label><input type="password" id="sp-new-pass" placeholder="••••••••"></div>',
-    remote:'<div class="info-box"><b>الأجهزة المتصلة:</b><br>هذا الجهاز (المتصفح الحالي) - الآن<br><br>لتسجيل الخروج من جميع الأجهزة، اضغط الزر أدناه.</div><div style="margin-top:14px;"><button class="save-btn" style="width:100%;background:#d32f2f;" onclick="logoutAll()">تسجيل الخروج من كل الأجهزة</button></div>',
-    storage:'<div class="info-box"><b>التخزين المستخدم:</b><br>المحادثات: <span id="sp-conv-count">0</span><br>الصور: <span id="sp-img-count">0</span><br><br>لتفريغ الكاش المحلي:</div><div style="margin-top:14px;"><button class="save-btn" style="width:100%;background:#d32f2f;" onclick="clearCache()">مسح الكاش</button></div>',
-    privacy:'<div class="info-box"><b>سياسة الخصوصية:</b><br>• نحتفظ بمحادثاتك لتقديم خدمة أفضل.<br>• لا نشارك بياناتك مع أطراف ثالثة.<br>• يمكنك حذف بياناتك في أي وقت من "التحكم في البيانات".<br><br><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:block; padding:12px; background:var(--primary-color); color:#fff; text-decoration:none; border-radius:10px; font-weight:600; text-align:center;">قراءة سياسة الخصوصية كاملة</a></div>',
-    data:'<div class="info-box">يمكنك تصدير جميع بياناتك أو حذفها نهائياً.</div><div style="display:flex;gap:10px;margin-top:14px;"><button class="save-btn" style="flex:1;background:var(--primary-color);" onclick="exportData()">تصدير</button><button class="save-btn" style="flex:1;background:#d32f2f;" onclick="deleteMyAccount()">حذف</button></div>',
-    ads:'<div class="field"><label>تخصيص الإعلانات</label><select id="sp-ads"><option value="personalized">مخصصة</option><option value="non-personalized">غير مخصصة</option></select></div>',
-    report:'<div class="field"><label>نوع المشكلة</label><select id="sp-report-type"><option>خطأ تقني</option><option>محتوى غير لائق</option><option>اقتراح</option><option>أخرى</option></select></div><div class="field"><label>الوصف</label><input type="text" id="sp-report-desc" placeholder="اشرح المشكلة..."></div>',
-    about:'<div class="info-box"><b>نبراس GP</b><br>الإصدار 1.0<br><br>مساعد ذكي شخصي باللهجة العربية العامية.<br><br>© 2026 جميع الحقوق محفوظة.</div><a href="https://abod724.github.io/nibras-privacy/terms.html" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:linear-gradient(135deg,var(--primary-color) 0%,var(--primary-hover) 100%);color:#fff;text-decoration:none;border-radius:50px;font-weight:600;text-align:center;margin-top:14px;box-shadow:0 6px 18px rgba(74,106,138,0.25);font-size:14px;">شروط الاستخدام</a><a href="https://abod724.github.io/nibras-privacy/" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:linear-gradient(135deg,var(--primary-color) 0%,var(--primary-hover) 100%);color:#fff;text-decoration:none;border-radius:50px;font-weight:600;text-align:center;margin-top:10px;box-shadow:0 6px 18px rgba(74,106,138,0.25);font-size:14px;">سياسة الخصوصية</a>'
+    general:'<div class="sp-field"><label class="sp-label">الاسم الكامل</label><input type="text" id="sp-name" class="sp-input" value="{{ user_name or \'\' }}" placeholder="اكتب اسمك"></div>',
+    memory:'<div id="memoryContent"><div class="sp-note" style="text-align:center;">جاري تحميل الذاكرة...</div></div>',
+    assistants:'<div class="sp-note" style="text-align:center;">جاري التحميل...</div>',
+    voice:'<div style="display:flex;flex-direction:column;gap:16px;"><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">جنس الصوت</div><div class="personality-list"><div class="personality-row" data-vg="male" onclick="selectVoiceGender(\'male\')"><div class="personality-text"><div class="personality-name">ذكر</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vg="female" onclick="selectVoiceGender(\'female\')"><div class="personality-text"><div class="personality-name">أنثى</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">سرعة الصوت</div><div class="personality-list"><div class="personality-row" data-vs="0.75" onclick="selectVoiceSpeed(0.75)"><div class="personality-text"><div class="personality-name">بطيء</div><div class="personality-sub">0.75×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1" onclick="selectVoiceSpeed(1)"><div class="personality-text"><div class="personality-name">عادي</div><div class="personality-sub">1×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.25" onclick="selectVoiceSpeed(1.25)"><div class="personality-text"><div class="personality-name">سريع</div><div class="personality-sub">1.25×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.5" onclick="selectVoiceSpeed(1.5)"><div class="personality-text"><div class="personality-name">سريع جداً</div><div class="personality-sub">1.5×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">مستوى الصوت</div><div class="personality-list"><div class="personality-row" data-vl="25" onclick="selectVoiceLevel(25)"><div class="personality-text"><div class="personality-name">هادئ</div><div class="personality-sub">25%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="50" onclick="selectVoiceLevel(50)"><div class="personality-text"><div class="personality-name">متوسط</div><div class="personality-sub">50%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="75" onclick="selectVoiceLevel(75)"><div class="personality-text"><div class="personality-name">عالي</div><div class="personality-sub">75%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="100" onclick="selectVoiceLevel(100)"><div class="personality-text"><div class="personality-name">كامل</div><div class="personality-sub">100%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div></div>',
+    safety:'<div class="sp-note"><b>إرشادات السلامة</b>• لا تشارك معلوماتك الشخصية الحساسة.<br>• نبراس مساعد ذكي، وليس بديلاً عن الاستشارة المتخصصة.<br>• أبلغ عن أي محتوى غير لائق.</div>',
+    security:'<div class="sp-field"><label class="sp-label">البريد الإلكتروني</label><input type="email" class="sp-input" value="{{ session.get(\'user_email\',\'\') }}" disabled></div><div class="sp-field"><label class="sp-label">كلمة المرور الحالية</label><input type="password" id="sp-old-pass" class="sp-input" placeholder="••••••••"></div><div class="sp-field"><label class="sp-label">كلمة المرور الجديدة</label><input type="password" id="sp-new-pass" class="sp-input" placeholder="••••••••"></div>',
+    remote:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><div><div class="sp-hero-title">إدارة الجلسات</div><div class="sp-hero-sub">تحكم بالأجهزة المتصلة بحسابك</div></div></div><div class="sp-list"><div class="sp-list-item"><span class="sp-list-key">هذا الجهاز (المتصفح الحالي)</span><span class="sp-list-val" style="color:var(--primary-color);font-size:13px;">نشط الآن</span></div></div><div style="margin-top:16px;"><button class="sp-btn sp-btn-danger" onclick="logoutAll()">تسجيل الخروج من كل الأجهزة</button></div>',
+    storage:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="sp-hero-title">التخزين</div><div class="sp-hero-sub">إحصائيات البيانات المحفوظة</div></div></div><div class="sp-list"><div class="sp-list-item"><span class="sp-list-key">المحادثات</span><span class="sp-list-val" id="sp-conv-count">0</span></div><div class="sp-list-item"><span class="sp-list-key">الصور</span><span class="sp-list-val" id="sp-img-count">0</span></div></div><div style="margin-top:16px;"><button class="sp-btn sp-btn-danger" onclick="clearCache()">مسح الكاش المحلي</button></div>',
+    privacy:'<div class="sp-note"><b>سياسة الخصوصية</b>• نحتفظ بمحادثاتك لتقديم خدمة أفضل.<br>• لا نشارك بياناتك مع أطراف ثالثة.<br>• يمكنك حذف بياناتك في أي وقت من التحكم في البيانات.</div><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="sp-link-btn" style="margin-top:16px;">قراءة السياسة كاملة</a>',
+    data:'<div class="sp-note">يمكنك تصدير جميع بياناتك أو حذفها نهائياً.</div><div class="sp-btn-row" style="margin-top:16px;"><button class="sp-btn sp-btn-primary" onclick="exportData()">تصدير البيانات</button><button class="sp-btn sp-btn-danger" onclick="deleteMyAccount()">حذف</button></div>',
+    ads:'<div class="sp-field"><label class="sp-label">تخصيص الإعلانات</label><select id="sp-ads" class="sp-select"><option value="personalized">مخصصة</option><option value="non-personalized">غير مخصصة</option></select></div>',
+    report:'<div class="sp-field"><label class="sp-label">نوع المشكلة</label><select id="sp-report-type" class="sp-select"><option>خطأ تقني</option><option>محتوى غير لائق</option><option>اقتراح</option><option>أخرى</option></select></div><div class="sp-field"><label class="sp-label">الوصف</label><input type="text" id="sp-report-desc" class="sp-input" placeholder="اشرح المشكلة..."></div>',
+    about:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div><div><div class="sp-hero-title">نبراس GP</div><div class="sp-hero-sub">الإصدار 1.0 · مساعد ذكي شخصي</div></div></div><div class="sp-note">مساعد شخصي باللهجة العربية العامية.<br><br>© 2026 جميع الحقوق محفوظة.</div><a href="https://abod724.github.io/nibras-privacy/terms.html" target="_blank" class="sp-link-btn" style="margin-top:16px;">شروط الاستخدام</a><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="sp-link-btn" style="margin-top:10px;">سياسة الخصوصية</a>'
 };
 let currentSubKey=null;
 function openSubPage(key){
     currentSubKey=key;
     const titleMap={general:'عام',voice:'الصوت',safety:'السلامة',security:'الأمان وتسجيل الدخول',remote:'التحكم عن بُعد',storage:'التخزين',privacy:'مركز الخصوصية',data:'التحكم في البيانات',ads:'التحكم في الإعلانات',report:'الإبلاغ عن خطأ',about:'حول',theme:'المظهر',color:'لون التمييز',language:'اللغة / Language',personality:'شخصية المساعد',fontSize:'حجم الخط',memory:'الذاكرة',assistants:'مساعدي الخاص'};
     document.getElementById('subPageTitle').textContent=titleMap[key]||'إعدادات';
-    document.getElementById('subPageBody').innerHTML=subPagesContent[key]||'<div class="info-box">قريباً</div>';
+    document.getElementById('subPageBody').innerHTML=subPagesContent[key]||'<div class="sp-note">قريباً</div>';
     document.getElementById('subPage').classList.add('show');
     setTimeout(function(){
         if(key==='theme'){const t=localStorage.getItem('nibras-theme-mode')||'system';markSelectedTheme(t);}
@@ -1094,13 +1078,9 @@ function selectTheme(t){if(t==='system'){const prefersDark=window.matchMedia('(p
 function markSelectedTheme(t){document.querySelectorAll('.option-row').forEach(el=>{if(el.dataset.theme===t)el.classList.add('selected');else el.classList.remove('selected');});}
 function selectColor(color,name){setAccentColor(color,name);markSelectedColor(color);}
 function markSelectedColor(color){document.querySelectorAll('.color-row').forEach(el=>{if(el.dataset.color===color)el.classList.add('selected');else el.classList.remove('selected');});}
-async function loadMemory(){const c=document.getElementById('memoryContent');if(!c)return;if(!IS_REGISTERED){c.innerHTML='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div><div class="memory-empty">أنت تستخدم التطبيق كضيف.<br>سجّل دخولك لحفظ ذاكرتك بشكل دائم.</div></div>';return;}try{const r=await fetch('/get_memory');const d=await r.json();const items=[];if(d.name)items.push({k:'الاسم',v:d.name});if(d.lang)items.push({k:'اللغة',v:d.lang==='en'?'English':'العربية'});if(d.personality){const pMap={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};items.push({k:'شخصية المساعد',v:pMap[d.personality]||d.personality});}if(d.email)items.push({k:'البريد الإلكتروني',v:d.email});let html='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div>';if(items.length===0){html+='<div class="memory-empty">لا توجد معلومات محفوظة بعد.</div>';}else{items.forEach(i=>{html+='<div class="memory-item"><span class="memory-key">'+i.k+'</span><span class="memory-val">'+escapeHtml(i.v)+'</span></div>';});}html+='</div>';html+='<div class="memory-note">نبراس يستخدم هذي المعلومات لتخصيص ردوده. لا يشاركها مع أي طرف ثالث.</div>';c.innerHTML=html;}catch(e){c.innerHTML='<div class="info-box" style="text-align:center;">تعذر تحميل الذاكرة.</div>';}}
+async function loadMemory(){const c=document.getElementById('memoryContent');if(!c)return;if(!IS_REGISTERED){c.innerHTML='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div><div class="memory-empty">أنت تستخدم التطبيق كضيف.<br>سجّل دخولك لحفظ ذاكرتك بشكل دائم.</div></div>';return;}try{const r=await fetch('/get_memory');const d=await r.json();const items=[];if(d.name)items.push({k:'الاسم',v:d.name});if(d.lang)items.push({k:'اللغة',v:d.lang==='en'?'English':'العربية'});if(d.personality){const pMap={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};items.push({k:'شخصية المساعد',v:pMap[d.personality]||d.personality});}if(d.email)items.push({k:'البريد الإلكتروني',v:d.email});let html='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div>';if(items.length===0){html+='<div class="memory-empty">لا توجد معلومات محفوظة بعد.</div>';}else{items.forEach(i=>{html+='<div class="memory-item"><span class="memory-key">'+i.k+'</span><span class="memory-val">'+escapeHtml(i.v)+'</span></div>';});}html+='</div>';html+='<div class="memory-note">نبراس يستخدم هذي المعلومات لتخصيص ردوده. لا يشاركها مع أي طرف ثالث.</div>';c.innerHTML=html;}catch(e){c.innerHTML='<div class="sp-note" style="text-align:center;">تعذر تحميل الذاكرة.</div>';}}
 async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
 function saveGeneral(){const n=(document.getElementById('sp-name').value||'').trim();if(!n||n.length<2){showToast('اكتب اسم صحيح');return;}fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,lang:userLang})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم الحفظ');closeSubPage();setTimeout(()=>location.reload(),500);}else showToast('فشل');});}
-function urlBase64ToUint8Array(s){const p='='.repeat((4-s.length%4)%4);const b=(s+p).replace(/-/g,'+').replace(/_/g,'/');const r=window.atob(b);return Uint8Array.from([...r].map(c=>c.charCodeAt(0)));}
-async function subscribeToPush(){if(!('serviceWorker' in navigator)||!('PushManager' in window)){showToast('المتصفح لا يدعم الإشعارات');return;}try{const reg=await navigator.serviceWorker.register('/service-worker.js');const perm=await Notification.requestPermission();if(perm!=='granted'){showToast('تم رفض الإشعارات');return;}const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array('BIXh4oekikNxqR70auleDmY4jwelsRooviY_s4hAVK8PTmWDGxiMTPehGpR6oAus-UXrFJ-UDYrFa1s4XdOdx9Q')});const res=await fetch('/save_push_subscription',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub)});if(res.ok)showToast('تم تفعيل الإشعارات');else showToast('فشل الحفظ');}catch(err){console.error(err);showToast('فشل: '+err.message);}}
-async function unsubscribeFromPush(){if(!('serviceWorker' in navigator)){showToast('المتصفح ما يدعم الإشعارات');return;}try{const reg=await navigator.serviceWorker.getRegistration('/service-worker.js');if(reg){const sub=await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe();}await fetch('/remove_push_subscription',{method:'POST'});showToast('تم إلغاء الإشعارات');}catch(err){console.error(err);showToast('فشل الإلغاء');}}
-function requestNotifications(){subscribeToPush();}
 function saveVoice(){var lvlEl=document.querySelector('[data-vl].selected');var lvl=lvlEl?lvlEl.dataset.vl:'100';var gender=isMale?'male':'female';var speedEl=document.querySelector('[data-vs].selected');var speed=speedEl?parseFloat(speedEl.dataset.vs):1;voiceSpeed=speed;localStorage.setItem('nibras-voice-level',lvl);localStorage.setItem('nibras-voice-gender',gender);localStorage.setItem('nibras-voice-speed',speed);fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:gender})}).then(function(){showToast('تم حفظ الإعدادات');closeSubPage();}).catch(function(){showToast('تم الحفظ محلياً');closeSubPage();});}
 function changePassword(){const o=document.getElementById('sp-old-pass').value;const n=document.getElementById('sp-new-pass').value;if(!o){showToast('اكتب كلمة المرور الحالية');return;}if(!n||n.length<8){showToast('كلمة المرور الجديدة 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:o,new_password:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');document.getElementById('sp-old-pass').value='';document.getElementById('sp-new-pass').value='';closeSubPage();}else{showToast((d.message||'فشل تغيير كلمة المرور'));}}).catch(()=>showToast('تعذر الاتصال بالسيرفر'));}
 function logoutAll(){if(confirm('خروج من كل الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
@@ -1149,7 +1129,7 @@ function openAssistantForm(id){editingAssistantId=id;const a=id?myAssistants.fin
 function pickAssistantColor(c){selectedAsstColor=c;document.querySelectorAll('.assistant-color-dot').forEach(el=>{el.classList.toggle('selected',el.dataset.color===c);});}
 async function saveAssistant(){const nameEl=document.getElementById('asst-name');const personaEl=document.getElementById('asst-persona');const name=(nameEl.value||'').trim();const persona=(personaEl.value||'').trim();if(name.length<2){showToast('اسم المساعد قصير جداً');return;}if(persona.length<10){showToast('اكتب وصفاً أطول للمساعد');return;}const btn=document.getElementById('asst-save-btn');btn.disabled=true;btn.textContent='جاري الحفظ...';try{const url=editingAssistantId?'/update_assistant':'/create_assistant';const body={name,persona,color:selectedAsstColor};if(editingAssistantId)body.id=editingAssistantId;const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(d.status==='ok'){showToast(editingAssistantId?'تم التعديل':'تم إنشاء المساعد');if(d.assistant&&!editingAssistantId){myAssistants.push(d.assistant);}else if(d.assistant&&editingAssistantId){const idx=myAssistants.findIndex(x=>x.id===editingAssistantId);if(idx>=0)myAssistants[idx]=d.assistant;}else{await loadAssistants();}renderAssistantMenu();loadAssistantsPage();}else{showToast(d.message||'فشل الحفظ');btn.disabled=false;btn.textContent='حفظ';}}catch(e){showToast('خطأ في الاتصال');btn.disabled=false;btn.textContent='حفظ';}}
 async function deleteAssistant(id){if(!confirm('حذف هذا المساعد؟'))return;try{const r=await fetch('/delete_assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});const d=await r.json();if(d.status==='ok'){myAssistants=myAssistants.filter(x=>x.id!==id);if(currentAssistantId===id)selectAssistant(null,false);showToast('تم الحذف');renderAssistantMenu();loadAssistantsPage();}else{showToast('فشل الحذف');}}catch(e){showToast('خطأ في الاتصال');}}
-function loadAssistantsPage(){currentSubKey='assistants';document.getElementById('subPageTitle').textContent='مساعدي الخاص';let html='';if(myAssistants.length===0){html='<div class="info-box" style="text-align:center;padding:30px;font-size:14px;">لا يوجد مساعدون حتى الآن.<br>أنشئ مساعداً خاصاً بك</div>';}else{html='<div class="assistants-list">';myAssistants.forEach(a=>{html+=`<div class="assistant-card"><div class="a-dot" style="background:${a.color}">${escapeHtml(a.name.charAt(0))}</div><div class="assistant-card-info"><div class="assistant-card-name">${escapeHtml(a.name)}</div><div class="assistant-card-sub">${escapeHtml(a.persona.substring(0,60))}${a.persona.length>60?'...':''}</div></div><button type="button" class="assistant-card-del" onclick="deleteAssistant(${a.id})" title="حذف"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;});html+='</div>';}html+=`<button type="button" class="assistant-add-btn" onclick="openAssistantForm(null)"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إنشاء مساعد جديد</button>`;document.getElementById('subPageBody').innerHTML=html;document.getElementById('subPage').classList.add('show');}
+function loadAssistantsPage(){currentSubKey='assistants';document.getElementById('subPageTitle').textContent='مساعدي الخاص';let html='';if(myAssistants.length===0){html='<div class="sp-note" style="text-align:center;padding:30px;font-size:14px;">لا يوجد مساعدون حتى الآن.<br>أنشئ مساعداً خاصاً بك</div>';}else{html='<div class="assistants-list">';myAssistants.forEach(a=>{html+=`<div class="assistant-card"><div class="a-dot" style="background:${a.color}">${escapeHtml(a.name.charAt(0))}</div><div class="assistant-card-info"><div class="assistant-card-name">${escapeHtml(a.name)}</div><div class="assistant-card-sub">${escapeHtml(a.persona.substring(0,60))}${a.persona.length>60?'...':''}</div></div><button type="button" class="assistant-card-del" onclick="deleteAssistant(${a.id})" title="حذف"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;});html+='</div>';}html+=`<button type="button" class="assistant-add-btn" onclick="openAssistantForm(null)"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إنشاء مساعد جديد</button>`;document.getElementById('subPageBody').innerHTML=html;document.getElementById('subPage').classList.add('show');}
 document.addEventListener('click',function(e){const menu=document.getElementById('assistantMenu');const pill=document.getElementById('assistantPill');if(!menu||!pill)return;if(!menu.contains(e.target)&&!pill.contains(e.target)){menu.classList.remove('show');}});
 if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');setTimeout(loadAssistants,300);}
 async function sendMessage(){if(iw)return;const msgText=ui.value.trim(),img=pid;if(!msgText&&!img)return;let userMsgEl=null;if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';cb.appendChild(botEl);if(userMsgEl)scrollMsgToTop(userMsgEl);const payload={message:msgText||"مرفق",image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId};let displayText='';let bufferText='';let streamDone=false;let typingTimer=null;function tick(){if(bufferText.length>0){displayText+=bufferText.slice(0,1);bufferText=bufferText.slice(1);botEl.innerHTML=formatBotText(displayText);}if(bufferText.length===0&&streamDone){clearInterval(typingTimer);typingTimer=null;botEl.innerHTML=formatBotText(displayText);if(displayText&&displayText.trim().length>0){attachBotActions(botEl,displayText);ch.push({role:'assistant',content:displayText});}iw=false;if(voiceOn&&displayText&&displayText.length<1500){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:displayText})}).then(r=>r.json()).then(v=>{if(v.audio){if(ca){ca.pause();ca.currentTime=0;}const src='data:audio/mp3;base64,'+v.audio;ca=new Audio(src);ca.onended=function(){ca=null;};const savedLvl=localStorage.getItem('nibras-voice-level');if(savedLvl)ca.volume=savedLvl/100;playAudioWithSpeed(ca);}}).catch(()=>{});}}}typingTimer=setInterval(tick,15);try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}clearInterval(typingTimer);botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let sseBuffer='';let firstToken=true;while(true){const {done,value}=await reader.read();if(done)break;sseBuffer+=decoder.decode(value,{stream:true});const parts=sseBuffer.split('\n\n');sseBuffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(firstToken){botEl.innerHTML='';firstToken=false;}bufferText+=data.token;}else if(data.done){if(data.conv_id)cid=data.conv_id;streamDone=true;}else if(data.error){bufferText+='\n\nخطأ: '+data.error;}}catch(e){}}}streamDone=true;}catch(e){clearInterval(typingTimer);if(botEl.parentNode)botEl.remove();addMessage(userLang==='en'?'Connection failed':'تعذر الاتصال','error');iw=false;}}
@@ -1159,7 +1139,7 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
-window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.requestNotifications=requestNotifications;window.subscribeToPush=subscribeToPush;window.unsubscribeFromPush=unsubscribeFromPush;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.loadMemory=loadMemory;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;
+window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.loadMemory=loadMemory;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;
 applyLang();
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 })();</script></body></html>"""
@@ -1239,93 +1219,6 @@ def library_delete():
     except Exception as e:
         print("library_delete:", e)
         return jsonify({"status": "error", "message": "حدث خطأ داخلي"}), 500
-
-
-@app.route('/save_push_subscription', methods=['POST'])
-def save_push_subscription():
-    try:
-        sub = request.get_json(silent=True) or {}
-        uid = get_user_id()
-        sb.table("push_subscriptions").upsert({
-            "user_id": uid,
-            "endpoint": sub["endpoint"],
-            "p256dh": sub["keys"]["p256dh"],
-            "auth": sub["keys"]["auth"]
-        }, on_conflict="endpoint").execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print("save_push_subscription:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/remove_push_subscription', methods=['POST'])
-def remove_push_subscription():
-    try:
-        uid = get_user_id()
-        sb.table("push_subscriptions").delete().eq("user_id", uid).execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print("remove_push_subscription:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/get_reminders')
-def get_reminders():
-    email = session.get('user_email')
-    is_admin = session.get('is_admin')
-    if not email and not is_admin:
-        return jsonify({"reminders": []})
-    uid = get_user_id()
-    try:
-        r = (sb.table("reminders").select("id,title,due_at,created_at")
-             .eq("user_id", uid).eq("sent", False)
-             .order("due_at", desc=False).limit(100).execute())
-        rows = r.data or []
-    except Exception as e:
-        print("get_reminders:", e)
-        return jsonify({"reminders": [], "error": str(e)})
-    return jsonify({"reminders": rows})
-
-
-@app.route('/delete_reminder', methods=['POST'])
-def delete_reminder():
-    if not session.get('user_email') and not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    try:
-        d = request.get_json(silent=True) or {}
-        rid = d.get('id')
-        if not rid:
-            return jsonify({"status": "error"}), 400
-        uid = get_user_id()
-        sb.table("reminders").delete().eq("id", rid).eq("user_id", uid).execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print("delete_reminder:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/cron/check_reminders')
-def cron_check_reminders():
-    token = request.args.get('token', '')
-    if not CRON_SECRET or token != CRON_SECRET:
-        return jsonify({"status": "error", "message": "unauthorized"}), 401
-    now = datetime.utcnow().isoformat()
-    try:
-        r = sb.table("reminders").select("*").eq("sent", False).lte("due_at", now).limit(50).execute()
-        due = r.data or []
-    except Exception as e:
-        print(f"cron error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-    sent_count = 0
-    for rem in due:
-        try:
-            send_push_to_user(rem["user_id"], "تذكير من نبراس", rem["title"], url="/")
-            sb.table("reminders").update({"sent": True}).eq("id", rem["id"]).execute()
-            sent_count += 1
-            print(f"تذكير أُرسل لـ {rem['user_id']}: {rem['title']}")
-        except Exception as e:
-            print(f"reminder send error: {e}")
-    return jsonify({"status": "ok", "checked": len(due), "sent": sent_count})
 
 
 @app.route('/my_assistants')
@@ -1527,8 +1420,6 @@ def delete_my_account():
         sb.table("assistant_chats").delete().eq("user_id", uid).execute()
         sb.table("assistant_usage").delete().eq("user_id", uid).execute()
         sb.table("image_library").delete().eq("user_id", uid).execute()
-        sb.table("push_subscriptions").delete().eq("user_id", uid).execute()
-        sb.table("reminders").delete().eq("user_id", uid).execute()
         sb.table("custom_assistants").delete().eq("user_id", uid).execute()
         sb.table("profiles").delete().eq("email", email.lower()).execute()
         dr = requests.delete(
@@ -1967,32 +1858,11 @@ def admin_login():
     return """<body style='text-align:center;padding:50px;font-family:sans-serif;'><form method='POST'><h2>دخول الأدمن</h2><input type='password' name='password' required><br><br><button type='submit'>دخول</button></form></body>"""
 
 
-@app.route('/admin/send_notification', methods=['POST'])
-def admin_send_notification():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error", "message": "غير مصرح"}), 401
-    try:
-        d = request.get_json(silent=True) or {}
-        if not isinstance(d, dict):
-            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
-        title = (d.get('title') if isinstance(d.get('title'), str) else 'نبراس').strip()[:120]
-        body = (d.get('body') if isinstance(d.get('body'), str) else '').strip()[:2000]
-        if not body:
-            return jsonify({"status": "error", "message": "الرسالة فاضية"}), 400
-        subs = sb.table("push_subscriptions").select("user_id").execute()
-        user_ids = list({s["user_id"] for s in (subs.data or [])})
-        sent = send_push_to_all(user_ids, title, body)
-        total = len((sb.table("push_subscriptions").select("id").execute()).data or [])
-        return jsonify({"status": "ok", "sent": sent, "total": total})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
 @app.route('/admin')
 def admin_dashboard():
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
-    recent, users_list, reports_list, subs_count, feedback_list = [], [], [], 0, []
+    recent, users_list, reports_list, feedback_list = [], [], [], []
     try:
         recent = (sb.table("assistant_chats").select("user_id,title,created_at").order("created_at", desc=True).limit(10).execute()).data or []
     except Exception as e:
@@ -2005,10 +1875,6 @@ def admin_dashboard():
         reports_list = (sb.table("bug_reports").select("*").order("created_at", desc=True).limit(30).execute()).data or []
     except Exception as e:
         print(f"admin reports error: {e}")
-    try:
-        subs_count = len((sb.table("push_subscriptions").select("id").execute()).data or [])
-    except Exception as e:
-        print(f"admin subs error: {e}")
     try:
         feedback_list = (sb.table("message_feedback").select("*").order("created_at", desc=True).limit(100).execute()).data or []
     except Exception as e:
@@ -2116,54 +1982,6 @@ def chat():
             user_lang = get_user_language(user_email)
         else:
             user_lang = 'ar'
-
-        if is_registered and um and ('ذكرني' in um or 'تذكير' in um or 'ذكريني' in um):
-            try:
-                import pytz
-                riyadh = pytz.timezone('Asia/Riyadh')
-                now_local = datetime.now(riyadh)
-                prompt = (
-                    f"التاريخ والوقت الحالي بتوقيت الرياض: {now_local.strftime('%Y-%m-%d %H:%M')}\n"
-                    f"اليوم: {now_local.strftime('%A')}\n\n"
-                    "حلل الرسالة التالية. إذا كانت طلب تذكير أو موعد، أرجع JSON فقط:\n"
-                    '{"is_reminder": true, "title": "وصف قصير بالعربي", "due_at": "YYYY-MM-DDTHH:MM:SS"}\n\n'
-                    "بتوقيت الرياض (بدون timezone).\n"
-                    "إذا مو طلب تذكير، أرجع: {\"is_reminder\": false}\n\n"
-                    f"الرسالة: {um}"
-                )
-                rr = client.chat.completions.create(
-                    model=OPENAI_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format={"type": "json_object"},
-                    max_completion_tokens=200
-                )
-                parsed = json.loads(rr.choices[0].message.content)
-                if parsed.get("is_reminder") and parsed.get("due_at"):
-                    from datetime import datetime as _dt
-                    local_dt = _dt.strptime(parsed["due_at"], "%Y-%m-%dT%H:%M:%S")
-                    aware_local = riyadh.localize(local_dt)
-                    utc_dt = aware_local.astimezone(pytz.utc)
-                    title_txt = parsed.get("title", um)[:200]
-                    sb.table("reminders").insert({
-                        "user_id": uid,
-                        "user_email": user_email,
-                        "title": title_txt,
-                        "due_at": utc_dt.isoformat()
-                    }).execute()
-                    human_time = aware_local.strftime('%Y-%m-%d %H:%M')
-                    reply = f"تمام، ذكرتك: {title_txt}\nالموعد: {human_time} (بتوقيت الرياض)"
-                    nid = save_message(uid, um, reply, cid) if is_registered else cid
-                    def rem_stream():
-                        yield f"data: {json.dumps({'token': reply}, ensure_ascii=False)}\n\n"
-                        yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
-                    inc_usage(uid, "chat_count")
-                    return Response(
-                        stream_with_context(rem_stream()),
-                        mimetype='text/event-stream',
-                        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
-                    )
-            except Exception as e:
-                print(f"reminder parse error: {e}")
 
         assistant_persona_extra = ""
         if assistant_id and is_registered:
@@ -2298,9 +2116,6 @@ def chat():
                 nid = cid
                 if is_registered:
                     nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
-                    if not is_admin:
-                        try: send_push_to_user(uid, "نبراس - رد جديد", cleaned[:120])
-                        except Exception as pe: print("push send:", pe)
                 else:
                     if not nid:
                         nid = "guest_conv_" + secrets.token_hex(5)
