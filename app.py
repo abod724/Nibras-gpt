@@ -15,6 +15,7 @@ from supabase import create_client
 from pywebpush import webpush, WebPushException
 from concurrent.futures import ThreadPoolExecutor
 from markupsafe import escape
+import urllib.parse
 
 
 # ==========================================================
@@ -958,7 +959,9 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
         }
         var params = new URLSearchParams(hash.replace(/^#/, ''));
         var at = params.get('access_token');
-        if(at){
+        var codeP = new URLSearchParams(search).get('code');
+        console.log('[Nibras OAuth] hash_len=', hash.length, 'has_at=', !!at, 'has_code=', !!codeP);
+        if(at || codeP){
             var rt = params.get('refresh_token') || '';
             try{ history.replaceState(null, '', window.location.pathname); }catch(e){}
 
@@ -975,13 +978,13 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
                 if(spin) spin.style.display = 'none';
                 if(title){ title.textContent = isOk ? 'تم تسجيل الدخول ✓' : 'تعذر تسجيل الدخول'; title.classList.add(isOk ? 'ok' : 'err'); }
                 if(msgEl) msgEl.textContent = msg;
-                setTimeout(function(){ window.location.replace(isOk ? '/' : '/login'); }, isOk ? 700 : 2000);
+                setTimeout(function(){ window.location.replace(isOk ? '/' : '/login'); }, isOk ? 700 : 2500);
             }
 
             fetch('/auth/session', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({access_token: at, refresh_token: rt})
+                body:JSON.stringify({access_token: at || '', refresh_token: rt, code: codeP || ''})
             }).then(function(r){return r.json();}).then(function(d){
                 if(d && d.status === 'ok'){
                     done('جاري تحويلك...', true);
@@ -1894,7 +1897,8 @@ def oauth_login(provider):
     callback = f"{request.host_url.rstrip('/')}/auth/callback"
     auth_url = (
         f"{SUPABASE_URL}/auth/v1/authorize"
-        f"?provider={provider}&redirect_to={callback}"
+        f"?provider={provider}"
+        f"&redirect_to={urllib.parse.quote(callback, safe='')}"
     )
     return redirect(auth_url)
 
@@ -1910,8 +1914,10 @@ def oauth_session():
     try:
         d = request.get_json(silent=True) or {}
         at = d.get('access_token')
+        code = d.get('code')
+        print(f"oauth_session: at={'yes' if at else 'no'} code={'yes' if code else 'no'}")
         if not at or not isinstance(at, str):
-            return jsonify({"status": "error", "message": "توكن مفقود"}), 400
+            return jsonify({"status": "error", "message": f"توكن مفقود (code={'yes' if code else 'no'})"}), 400
         r = requests.get(
             f"{SUPABASE_URL}/auth/v1/user",
             headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {at}"},
