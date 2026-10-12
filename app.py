@@ -532,9 +532,9 @@ def get_piper_voice():
     global voice
     if voice is None:
         try:
-            # تأكد أن أسماء الملفات تطابق ما تم تحميله في Dockerfile
+            # PiperVoice.load يجب استدعاؤها كدالة لإرجاع الكائن
             voice = PiperVoice.load("ar_JO-kareem-medium.onnx", config_path="ar_JO-kareem-medium.onnx.json")
-            print("Piper TTS model loaded successfully.")
+            print(f"Piper TTS model loaded successfully. Type: {type(voice)}")
         except Exception as e:
             print(f"Error loading Piper TTS model: {e}")
     return voice
@@ -544,6 +544,11 @@ def generate_speech(text, gender):
         v = get_piper_voice()
         if not v:
             print("Piper voice not available.")
+            return None
+        
+        # التحقق من أن الكائن يحتوي على دالة synthesize
+        if not hasattr(v, 'synthesize'):
+            print(f"Error: Loaded object does not have 'synthesize' method. Type: {type(v)}")
             return None
         
         # توليد الصوت في الذاكرة
