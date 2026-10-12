@@ -534,11 +534,21 @@ async def _generate_speech_async(text, voice):
 
 def generate_speech(text, gender):
     try:
-        voice = "ar-SA-HamedNeural" if gender == "male" else "ar-SA-ZariahNeural"
-        audio = asyncio.run(_generate_speech_async(text, voice))
+        voice = "ar-SA-HamedNeural" if gender == "male" else "ar-SA-ZariyahNeural"
+
+        def _run_sync():
+            return asyncio.run(_generate_speech_async(text, voice))
+
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            audio = ex.submit(_run_sync).result(timeout=30)
+
+        if not audio:
+            print("صوت: الرد فاضي من edge_tts")
+            return None
         return base64.b64encode(audio).decode('utf-8')
     except Exception as e:
-        print(f"صوت: {e}")
+        print(f"صوت فشل: {type(e).__name__}: {e}")
         return None
 
 
@@ -1927,7 +1937,11 @@ def admin_dashboard():
 
 @app.route('/set_gender', methods=['POST'])
 def set_gender():
-    session['voice_gender'] = request.get_json(silent=True) or {}.get('gender', 'male')
+    d = request.get_json(silent=True) or {}
+    gender = d.get('gender', 'male')
+    if gender not in ('male', 'female'):
+        gender = 'male'
+    session['voice_gender'] = gender
     return jsonify({"status": "ok"})
 
 
