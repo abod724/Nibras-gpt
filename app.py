@@ -13,7 +13,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from supabase import create_client
 from markupsafe import escape
-from ttsfm import TTSClient, Voice
+from gtts import gTTS
+import io
 import urllib.parse
 
 
@@ -526,18 +527,16 @@ PERSONALITY_INSTRUCTIONS = {
 
 def generate_speech(text, gender):
     try:
-        client_tts = TTSClient()
-        voice = Voice.ONYX if gender == "male" else Voice.NOVA
-        response = client_tts.generate_speech(
-            text=text[:4000],
-            voice=voice
-        )
-        if response and getattr(response, "audio_data", None):
-            print(f"TTSFM OK: {len(response.audio_data)} bytes, voice={voice}")
-            return base64.b64encode(response.audio_data).decode('utf-8')
-        print("TTSFM: رد فاضي")
+        tts = gTTS(text=text[:4000], lang='ar', slow=False)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        audio = buf.getvalue()
+        if audio:
+            print(f"gTTS OK: {len(audio)} bytes")
+            return base64.b64encode(audio).decode('utf-8')
+        print("gTTS: رد فاضي")
     except Exception as e:
-        print(f"TTSFM فشل: {type(e).__name__}: {e}")
+        print(f"gTTS فشل: {type(e).__name__}: {e}")
     return None
 
 
@@ -1946,26 +1945,6 @@ def voice():
     except Exception as e:
         print(f"voice: {e}")
         return jsonify({"audio": None})
-
-
-@app.route('/voice/test')
-def voice_test():
-    from ttsfm import TTSClient, Voice
-    import traceback
-    results = {}
-    try:
-        c = TTSClient()
-        r = c.generate_speech(text="اختبار نبراس", voice=Voice.ONYX)
-        results["male"] = f"OK bytes={len(r.audio_data)}" if r and getattr(r, "audio_data", None) else "رد فاضي"
-    except Exception as e:
-        results["male"] = f"FAIL: {type(e).__name__}: {e}"
-    try:
-        c = TTSClient()
-        r = c.generate_speech(text="اختبار نبراس", voice=Voice.NOVA)
-        results["female"] = f"OK bytes={len(r.audio_data)}" if r and getattr(r, "audio_data", None) else "رد فاضي"
-    except Exception as e:
-        results["female"] = f"FAIL: {type(e).__name__}: {e}"
-    return jsonify(results)
 
 
 @app.route('/chat', methods=['POST'])
