@@ -2,7 +2,6 @@ flask
 openai
 requests
 gunicorn
-edge-tts>=7.2.8
 uvicorn
 flask-limiter
 supabase
@@ -10,3 +9,6 @@ gotrue
 pywebpush
 py-vapid
 pytz
+ttsfm
+aiohttp
+fake-useragent
