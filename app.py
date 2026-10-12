@@ -16,7 +16,7 @@ from markupsafe import escape
 import io
 import urllib.parse
 import wave
-from piper.voice import PiperVoice
+from gtts import gTTS
 
 
 app = Flask(__name__, static_folder='static')
@@ -526,49 +526,80 @@ PERSONALITY_INSTRUCTIONS = {
 }
 
 
-# ================== تعديل دالة توليد الصوت لتعمل بـ Piper TTS ==================
+# ================== دالة توليد الصوت الهجينة (Piper + gTTS) ==================
+import io
+import wave
+import base64
+from gtts import gTTS
+
 voice = None
+piper_available = True
+
 def get_piper_voice():
-    global voice
-    if voice is None:
+    global voice, piper_available
+    if voice is None and piper_available:
         try:
-            # PiperVoice.load يجب استدعاؤها كدالة لإرجاع الكائن
-            voice = PiperVoice.load("ar_JO-kareem-medium.onnx", config_path="ar_JO-kareem-medium.onnx.json")
-            print(f"Piper TTS model loaded successfully. Type: {type(voice)}")
+            from piper.voice import PiperVoice
+            voice = PiperVoice.load(
+                "ar_JO-kareem-medium.onnx",
+                config_path="ar_JO-kareem-medium.onnx.json"
+            )
+            if not hasattr(voice, 'synthesize'):
+                print(f"⚠️ Piper returned unexpected type: {type(voice)} - falling back to gTTS")
+                piper_available = False
+                voice = None
+            else:
+                print(f"✅ Piper TTS loaded successfully. Type: {type(voice)}")
         except Exception as e:
-            print(f"Error loading Piper TTS model: {e}")
+            print(f"❌ Piper load failed: {type(e).__name__}: {e} - falling back to gTTS")
+            piper_available = False
+            voice = None
     return voice
 
-def generate_speech(text, gender):
+def generate_speech_with_piper(text):
+    """محاولة توليد الصوت بـ Piper"""
     try:
         v = get_piper_voice()
-        if not v:
-            print("Piper voice not available.")
+        if v is None or not hasattr(v, 'synthesize'):
             return None
         
-        # التحقق من أن الكائن يحتوي على دالة synthesize
-        if not hasattr(v, 'synthesize'):
-            print(f"Error: Loaded object does not have 'synthesize' method. Type: {type(v)}")
-            return None
-        
-        # توليد الصوت في الذاكرة
         with io.BytesIO() as wav_io:
             with wave.open(wav_io, 'wb') as wav_file:
-                # --- الإعدادات المطلوبة لحل المشكلة ---
-                wav_file.setnchannels(1)   # 1 = Mono (قناة واحدة)
-                wav_file.setsampwidth(2)   # 2 = 16-bit
-                wav_file.setframerate(22050) # 22050 Hz هو معدل العينة لنموذج kareem
-                # ----------------------------------------
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(22050)
                 v.synthesize(text[:4000], wav_file)
             audio = wav_io.getvalue()
         
-        if audio:
-            print(f"Piper TTS OK: {len(audio)} bytes")
+        if audio and len(audio) > 44:  # 44 = حجم رأس WAV الفارغ
+            print(f"✅ Piper TTS OK: {len(audio)} bytes")
             return base64.b64encode(audio).decode('utf-8')
-        print("Piper TTS: رد فاضي")
+        return None
     except Exception as e:
-        print(f"Piper TTS فشل: {type(e).__name__}: {e}")
+        print(f"❌ Piper synthesis failed: {type(e).__name__}: {e}")
+        return None
+
+def generate_speech_with_gtts(text):
+    """توليد الصوت بـ gTTS (الحل الاحتياطي المضمون)"""
+    try:
+        tts = gTTS(text=text[:4000], lang='ar', slow=False)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        audio = buf.getvalue()
+        if audio:
+            print(f"✅ gTTS fallback OK: {len(audio)} bytes")
+            return base64.b64encode(audio).decode('utf-8')
+    except Exception as e:
+        print(f"❌ gTTS failed: {type(e).__name__}: {e}")
     return None
+
+def generate_speech(text, gender):
+    """الدالة الرئيسية: تجرب Piper أولاً، ثم gTTS"""
+    result = generate_speech_with_piper(text)
+    if result:
+        return result
+    print("🔄 Piper failed, using gTTS fallback...")
+    return generate_speech_with_gtts(text)
 # ==============================================================================
 
 
