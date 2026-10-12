@@ -549,6 +549,11 @@ def generate_speech(text, gender):
         # توليد الصوت في الذاكرة
         with io.BytesIO() as wav_io:
             with wave.open(wav_io, 'wb') as wav_file:
+                # --- الإعدادات المطلوبة لحل المشكلة ---
+                wav_file.setnchannels(1)   # 1 = Mono (قناة واحدة)
+                wav_file.setsampwidth(2)   # 2 = 16-bit
+                wav_file.setframerate(22050) # 22050 Hz هو معدل العينة لنموذج kareem
+                # ----------------------------------------
                 v.synthesize(text[:4000], wav_file)
             audio = wav_io.getvalue()
         
