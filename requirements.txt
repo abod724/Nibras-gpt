@@ -9,6 +9,4 @@ gotrue
 pywebpush
 py-vapid
 pytz
-ttsfm
-aiohttp
-fake-useragent
+gTTS
