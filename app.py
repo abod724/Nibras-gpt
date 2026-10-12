@@ -44,12 +44,7 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود!")
 
-OPENAI_TTS_MODEL = os.environ.get("OPENAI_TTS_MODEL", "tts-1")
-OPENAI_TTS_KEY = os.environ.get("OPENAI_TTS_KEY", OPENAI_API_KEY)
-OPENAI_TTS_VOICE = os.environ.get("OPENAI_TTS_VOICE", "coral")
-
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
-tts_client = openai.OpenAI(api_key=OPENAI_TTS_KEY)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -530,50 +525,20 @@ PERSONALITY_INSTRUCTIONS = {
 }
 
 
-# ================== دالة توليد الصوت (OpenAI TTS + gTTS fallback) ==================
-def generate_speech_with_gtts(text):
+# ================== دالة توليد الصوت (gTTS فقط - مستقر ومجاني) ==================
+def generate_speech(text, gender):
+    """توليد الصوت باستخدام gTTS فقط (مستقر ومجاني)"""
     try:
         tts = gTTS(text=text[:4000], lang='ar', slow=False)
         buf = io.BytesIO()
         tts.write_to_fp(buf)
         audio = buf.getvalue()
         if audio:
-            print(f"✅ gTTS fallback OK: {len(audio)} bytes")
+            print(f"✅ gTTS OK: {len(audio)} bytes")
             return base64.b64encode(audio).decode('utf-8')
     except Exception as e:
         print(f"❌ gTTS failed: {type(e).__name__}: {e}")
     return None
-
-
-def generate_speech(text, gender):
-    voice = OPENAI_TTS_VOICE
-    if gender == 'male':
-        voice = "onyx"
-    elif gender == 'female':
-        voice = "coral"
-    
-    last_error = None
-    for attempt in range(3):
-        try:
-            response = tts_client.audio.speech.create(
-                model=OPENAI_TTS_MODEL,
-                voice=voice,
-                input=text[:500],
-                response_format="mp3"
-            )
-            audio_data = response.content
-            if audio_data and len(audio_data) > 100:
-                print(f"✅ OpenAI TTS OK (attempt {attempt+1}): {len(audio_data)} bytes | Voice: {voice}")
-                return base64.b64encode(audio_data).decode('utf-8')
-            last_error = "Empty response"
-        except Exception as e:
-            last_error = f"{type(e).__name__}: {str(e)[:200]}"
-            print(f"❌ Attempt {attempt+1} failed: {last_error}")
-            if attempt < 2:
-                time.sleep(attempt + 1)
-    
-    print(f"🔄 All attempts failed. Last: {last_error}. Using gTTS.")
-    return generate_speech_with_gtts(text)
 # ==============================================================================
 
 
@@ -1225,7 +1190,7 @@ async function deleteAssistant(id){if(!confirm('حذف هذا المساعد؟')
 function loadAssistantsPage(){currentSubKey='assistants';document.getElementById('subPageTitle').textContent='مساعدي الخاص';let html='';if(myAssistants.length===0){html='<div class="sp-note" style="text-align:center;padding:30px;font-size:14px;">لا يوجد مساعدون حتى الآن.<br>أنشئ مساعداً خاصاً بك</div>';}else{html='<div class="assistants-list">';myAssistants.forEach(a=>{html+=`<div class="assistant-card"><div class="a-dot" style="background:${a.color}">${escapeHtml(a.name.charAt(0))}</div><div class="assistant-card-info"><div class="assistant-card-name">${escapeHtml(a.name)}</div><div class="assistant-card-sub">${escapeHtml(a.persona.substring(0,60))}${a.persona.length>60?'...':''}</div></div><button type="button" class="assistant-card-del" onclick="deleteAssistant(${a.id})" title="حذف"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;});html+='</div>';}html+=`<button type="button" class="assistant-add-btn" onclick="openAssistantForm(null)"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إنشاء مساعد جديد</button>`;document.getElementById('subPageBody').innerHTML=html;document.getElementById('subPage').classList.add('show');}
 document.addEventListener('click',function(e){const menu=document.getElementById('assistantMenu');const pill=document.getElementById('assistantPill');if(!menu||!pill)return;if(!menu.contains(e.target)&&!pill.contains(e.target)){menu.classList.remove('show');}});
 if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');setTimeout(loadAssistants,300);}
-async function sendMessage(){if(iw)return;const msgText=ui.value.trim(),img=pid;if(!msgText&&!img)return;let userMsgEl=null;if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';cb.appendChild(botEl);if(userMsgEl)scrollMsgToTop(userMsgEl);const payload={message:msgText||"مرفق",image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId};let displayText='';let bufferText='';let streamDone=false;let typingTimer=null;function tick(){if(bufferText.length>0){displayText+=bufferText.slice(0,1);bufferText=bufferText.slice(1);botEl.innerHTML=formatBotText(displayText);}if(bufferText.length===0&&streamDone){clearInterval(typingTimer);typingTimer=null;botEl.innerHTML=formatBotText(displayText);if(displayText&&displayText.trim().length>0){attachBotActions(botEl,displayText);ch.push({role:'assistant',content:displayText});}iw=false;if(voiceOn===true && displayText && displayText.trim().length>10){console.log('🎙️ Auto-voice request');fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:displayText})}).then(r=>r.json()).then(v=>{if(v && v.audio){playAudioWithSpeed(v.audio, function(){});}}).catch(function(){});}}}typingTimer=setInterval(tick,15);try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}clearInterval(typingTimer);botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let sseBuffer='';let firstToken=true;while(true){const {done,value}=await reader.read();if(done)break;sseBuffer+=decoder.decode(value,{stream:true});const parts=sseBuffer.split('\n\n');sseBuffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(firstToken){botEl.innerHTML='';firstToken=false;}bufferText+=data.token;}else if(data.done){if(data.conv_id)cid=data.conv_id;streamDone=true;}else if(data.error){bufferText+='\n\nخطأ: '+data.error;}}catch(e){}}}streamDone=true;}catch(e){clearInterval(typingTimer);if(botEl.parentNode)botEl.remove();addMessage(userLang==='en'?'Connection failed':'تعذر الاتصال','error');iw=false;}}
+async function sendMessage(){if(iw)return;const msgText=ui.value.trim(),img=pid;if(!msgText&&!img)return;let userMsgEl=null;if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';cb.appendChild(botEl);if(userMsgEl)scrollMsgToTop(userMsgEl);const payload={message:msgText||"مرفق",image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId};let displayText='';let bufferText='';let streamDone=false;let typingTimer=null;function tick(){if(bufferText.length>0){displayText+=bufferText.slice(0,1);bufferText=bufferText.slice(1);botEl.innerHTML=formatBotText(displayText);}if(bufferText.length===0&&streamDone){clearInterval(typingTimer);typingTimer=null;botEl.innerHTML=formatBotText(displayText);if(displayText&&displayText.trim().length>0){attachBotActions(botEl,displayText);ch.push({role:'assistant',content:displayText});}iw=false;if(voiceOn===true && displayText && displayText.trim().length>10){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:displayText})}).then(r=>r.json()).then(v=>{if(v && v.audio){playAudioWithSpeed(v.audio, function(){});}}).catch(function(){});}}}typingTimer=setInterval(tick,15);try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}clearInterval(typingTimer);botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let sseBuffer='';let firstToken=true;while(true){const {done,value}=await reader.read();if(done)break;sseBuffer+=decoder.decode(value,{stream:true});const parts=sseBuffer.split('\n\n');sseBuffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(firstToken){botEl.innerHTML='';firstToken=false;}bufferText+=data.token;}else if(data.done){if(data.conv_id)cid=data.conv_id;streamDone=true;}else if(data.error){bufferText+='\n\nخطأ: '+data.error;}}catch(e){}}}streamDone=true;}catch(e){clearInterval(typingTimer);if(botEl.parentNode)botEl.remove();addMessage(userLang==='en'?'Connection failed':'تعذر الاتصال','error');iw=false;}}
 sb.addEventListener('click',sendMessage);
 ui.addEventListener('keypress',function(e){if(e.key==='Enter'){e.preventDefault();sendMessage()}});
 document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
