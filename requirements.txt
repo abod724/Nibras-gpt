@@ -10,3 +10,4 @@ pywebpush
 py-vapid
 pytz
 gtts
+piper-tts
