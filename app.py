@@ -1229,6 +1229,7 @@ function confirmSubPage(){
     else if(currentSubKey==='general'){saveGeneral();}
     else if(currentSubKey==='security'){changePassword();}
     else if(currentSubKey==='ads'){saveAds();}
+    else if(currentSubKey==='report'){sendReport();}
     else{closeSubPage();}
 }
 function pickVoiceGender(g){isMale=(g==='male');}
