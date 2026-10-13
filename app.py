@@ -112,3 +112,164 @@ def service_worker():
 # ═══════════════════════════════════════════════════════════
 #  نهاية القسم 1
 # ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+#  القسم 2/8 — دوال المستخدم الأساسية
+# ═══════════════════════════════════════════════════════════
+
+def get_user_role(email):
+    if not email:
+        return 'guest'
+    if email.lower() == ADMIN_EMAIL.lower():
+        return 'admin'
+    try:
+        r = (sb.table("profiles").select("role")
+             .eq("email", email.lower()).limit(1).execute())
+        if r and r.data and r.data[0].get("role"):
+            return r.data[0]["role"]
+    except Exception as e:
+        print("get_user_role:", e)
+    return 'user'
+
+
+def get_user_profile(email):
+    if not email:
+        return None
+    try:
+        r = (sb.table("profiles").select("*")
+             .eq("email", email.lower().strip()).limit(1).execute())
+        if r and r.data:
+            return r.data[0]
+    except Exception as e:
+        print("get_user_profile:", e)
+    return None
+
+
+def save_user_profile(email, name=None, avatar=None):
+    if not email:
+        return
+    try:
+        data = {"email": email.lower().strip()}
+        if name is not None:
+            data["display_name"] = name
+        if avatar is not None:
+            data["avatar_url"] = avatar
+        sb.table("profiles").upsert(data, on_conflict="email").execute()
+    except Exception as e:
+        print("save_user_profile:", e)
+
+
+def touch_user(email):
+    if not email:
+        return
+    try:
+        sb.table("profiles").update(
+            {"last_seen": datetime.utcnow().isoformat()}
+        ).eq("email", email.lower().strip()).execute()
+    except Exception as e:
+        print("touch_user:", e)
+
+
+def get_user_memory(email):
+    if not email:
+        return {}
+    try:
+        r = (sb.table("profiles").select("memory")
+             .eq("email", email.lower().strip()).limit(1).execute())
+        if r and r.data and r.data[0].get("memory"):
+            return r.data[0]["memory"] or {}
+    except Exception as e:
+        print("get_user_memory:", e)
+    return {}
+
+
+def save_user_memory(email, memory_dict):
+    if not email:
+        return
+    try:
+        sb.table("profiles").update(
+            {"memory": memory_dict}
+        ).eq("email", email.lower().strip()).execute()
+    except Exception as e:
+        print("save_user_memory:", e)
+
+
+def get_user_language(email):
+    if not email:
+        return 'ar'
+    mem = get_user_memory(email)
+    lang = mem.get('lang')
+    if lang in ('ar', 'en'):
+        return lang
+    return 'ar'
+
+
+def get_pinned_convs(email):
+    if not email:
+        return []
+    try:
+        r = (sb.table("profiles").select("pinned_convs")
+             .eq("email", email.lower().strip()).limit(1).execute())
+        if r and r.data and r.data[0].get("pinned_convs"):
+            return r.data[0]["pinned_convs"] or []
+    except Exception as e:
+        print("get_pinned_convs:", e)
+    return []
+
+
+def save_pinned_convs(email, pinned_list):
+    if not email:
+        return
+    try:
+        sb.table("profiles").update(
+            {"pinned_convs": pinned_list}
+        ).eq("email", email.lower().strip()).execute()
+    except Exception as e:
+        print("save_pinned_convs:", e)
+
+
+def get_user_id():
+    if session.get('is_admin'):
+        session.permanent = True
+        return "admin_page"
+    if session.get('user_email'):
+        session.permanent = True
+        return "user_" + session['user_email']
+    if 'guest_id' not in session:
+        session['guest_id'] = "guest_" + secrets.token_hex(8)
+    session.permanent = True
+    return session['guest_id']
+
+
+def get_usage_today(uid):
+    today = _date.today().isoformat()
+    try:
+        r = (sb.table("assistant_usage").select("*")
+             .eq("user_id", uid).eq("date", today).limit(1).execute())
+        if r and r.data:
+            return r.data[0]
+    except Exception as e:
+        print("get_usage_today select:", e)
+    new_row = {"user_id": uid, "date": today, "chat_count": 0, "image_count": 0, "search_count": 0}
+    try:
+        r = sb.table("assistant_usage").insert(new_row).execute()
+        if r and r.data:
+            return r.data[0]
+    except Exception as e:
+        print("get_usage_today insert:", e)
+    return new_row
+
+
+def inc_usage(uid, field):
+    today = _date.today().isoformat()
+    row = get_usage_today(uid)
+    current = int(row.get(field, 0) or 0) + 1
+    try:
+        sb.table("assistant_usage").update({field: current}) \
+            .eq("user_id", uid).eq("date", today).execute()
+    except Exception as e:
+        print("inc_usage:", e)
+    return current
+
+# ═══════════════════════════════════════════════════════════
+#  نهاية القسم 2
+# ═══════════════════════════════════════════════════════════
