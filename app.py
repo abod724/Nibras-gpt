@@ -426,7 +426,18 @@ for fn in ["Knowledge.md", "knowledge.md", "معرفة.md", "README.md", "ملف
 if not kc:
     kc = "أنت نبراس، مساعد ذكي."
 
-SP = f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث باللهجة العامية البيضاء.
+
+# ==========================================================
+#  ✅ التعديل 1: SP محسّن — تأكيد قوي على العامية السعودية
+# ==========================================================
+SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عامي سعودي بسيط** — مو فصحى أبدًا.
+
+**⚠️ قاعدة اللغة الأهم — اقرأها قبل كل شيء:**
+- **ممنوع** تستخدم الفصحى إلا في كلمات ضرورية (أسماء تقنية، مصطلحات).
+- تكلم زي ما يتكلم سعودي عادي في الواتساب: "وش"، "كيف"، "أبشر"، "خلني"، "تبي"، "الحين"، "زين"، "طيب"، "يا طويل العمر"، "الله يعطيك العافية".
+- **مثال صح:** "الذكاء الاصطناعي هو تقنية تخلي الجوال يفهمك ويساعدك، مثل لما تترجم أو تبحث."
+- **مثال خطأ (ممنوع):** "الذكاء الاصطناعي هو فرع من فروع علوم الحاسب..."
+- **لا تكتب عناوين فصحى** مثل "وش يعني" — اكتب "وش هو" أو "إيش يعني".
 
 **مصادر معرفتك:**
 1. **ملف المعرفة** (أدناه).
@@ -456,64 +467,74 @@ SP = f"""أنت "نبراس"، مساعد شخصي ذكي تتحدث بالله�
 - لا تذكر خصائص تطبيقات أخرى أبداً ولا تقارن نفسك بها.
 
 **أسلوب الحديث:**
-- سولف بشكل طبيعي وعفوي.
+- سولف بشكل طبيعي وعفوي وبالعامي.
 - لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
 - رد بشكل مباشر بدون مقدمات فلسفية."""
 
 
 LANG_INSTRUCTION = {
-    "ar": "\n\n**اللغة:** رد دائماً بالعربية، بأسلوبك العامي المعتاد.",
+    "ar": "\n\n**اللغة:** رد دائماً بالعربية باللهجة العامية السعودية البسيطة، مو فصحى.",
     "en": "\n\n**Language:** ALWAYS respond in English, regardless of the language the user writes in. Keep the same friendly, casual tone."
 }
 
 
 # ==========================================================
-#  ✅ التعديل: شخصيات المساعد — نسخة محسّنة بدون تعارض
+#  ✅ التعديل 2: PERSONALITY_INSTRUCTIONS — نسخة قوية جدًا
 # ==========================================================
 PERSONALITY_INSTRUCTIONS = {
-    "friendly": "",  # الأسلوب الافتراضي (نبراس الطبيعي)
+    "friendly": "",  # الأسلوب الافتراضي
 
     "concise": (
-        "\n\n**⚠️ تعليمات شخصية عاجلة تطغى على كل ما سبق:**\n"
-        "- **تجاهل تمامًا** أي قاعدة سابقة عن طول الرد (مثل '2-4 جمل' أو 'فقرات متصلة').\n"
-        "- ردك **لازم** يكون **1-2 جملة فقط** — لا أكثر، أبدًا.\n"
-        "- **ممنوع** المقدمات، الحشو، الاعتذار، أو الشرح الزائد.\n"
-        "- إذا السؤال يحتاج تفصيل، اكتفِ بأهم نقطة واحدة فقط."
+        "\n\n**🚨 أمر عاجل — تجاهل كل قاعدة سابقة عن طول الرد:**\n"
+        "- ردك **جملة واحدة فقط** أو جملتين كحد أقصى.\n"
+        "- ممنوع القوائم، العناوين، الأمثلة، الشرح الزائد.\n"
+        "- تكلم عامي سعودي بسيط.\n"
+        "- مثال صح: 'الذكاء الاصطناعي تقنية تخلي الجوال يفهمك.'\n"
+        "- مثال خطأ: أي رد يزيد عن جملتين."
     ),
 
     "detailed": (
-        "\n\n**⚠️ شخصيتك الحالية: مفصّل**\n"
-        "- **تجاهل** أي قاعدة عن الاختصار.\n"
-        "- اشرح بتفصيل مع أمثلة عملية وخطوات واضحة.\n"
-        "- نظّم الرد في فقرات وعناوين فرعية عند الحاجة.\n"
-        "- لا تختصر أبدًا."
+        "\n\n**🚨 شخصيتك: مفصّل**\n"
+        "- اشرح بتفصيل مع أمثلة عملية.\n"
+        "- استخدم عناوين فرعية (1، 2، 3) عند الحاجة.\n"
+        "- **بس خل الأسلوب عامي** — مو فصحى جافة.\n"
+        "- مثال: 'النوع الأول اللي هو الذكاء الضيق، هذا متخصص بمهمة وحدة...'"
     ),
 
     "formal": (
-        "\n\n**⚠️ تعليمات شخصية عاجلة تطغى على كل ما سبق:**\n"
-        "- **تجاهل تمامًا** أي تعليم سابق عن 'العامية البيضاء' أو 'السوالف العفوية'.\n"
-        "- **ممنوع** استخدام أي كلمة عامية أو مزح — **البتة**.\n"
-        "- استخدم **العربية الفصحى الرسمية فقط**.\n"
-        "- مثال صح: 'أهلاً بك، كيف يمكنني مساعدتك اليوم؟'\n"
-        "- مثال خطأ: 'هلا والله، وش تبي أساعدك فيه؟'\n"
+        "\n\n**🚨 أمر إجباري — تجاهل كل تعليم سابق عن العامية:**\n"
+        "- **ممنوع** أي كلمة عامية — البتة.\n"
+        "- استخدم **الفصحى الرسمية فقط**.\n"
+        "- مثال صح: 'الذكاء الاصطناعي هو فرع من فروع علم الحاسوب...'\n"
+        "- مثال خطأ: 'الذكاء الاصطناعي وش هو؟'\n"
         "- كن مهنيًا ومحترفًا في كل رد."
     ),
 
     "teacher": (
-        "\n\n**⚠️ شخصيتك الحالية: معلّم**\n"
-        "- **تجاهل** أي قاعدة عن الاختصار.\n"
+        "\n\n**🚨 شخصيتك: معلّم**\n"
         "- اشرح خطوة بخطوة كأنك معلم صبور.\n"
-        "- رتّب الرد: **مقدمة → تفصيل → خلاصة**.\n"
-        "- وضّح بمثال عملي بعد كل مفهوم.\n"
-        "- استخدم الترقيم (1، 2، 3) عند شرح الخطوات."
+        "- رتّب الرد: مقدمة → تفصيل مرقّم → خلاصة.\n"
+        "- وضّح بمثال بسيط من الحياة اليومية.\n"
+        "- **بس الأسلوب عامي مريح** — مو فصحى جافة.\n"
+        "- مثال: 'خلني أشرح لك خطوة بخطوة: أول شيء...'"
     ),
 
     "playful": (
-        "\n\n**⚠️ شخصيتك الحالية: فرفوش**\n"
-        "- كن مرحًا وأضف لمسات دعابة خفيفة في كل رد.\n"
-        "- استخدم تعبيرات عامية مضحكة مثل: 'يا طويل العمر'، 'الله يهديك'، 'وش هالحلاوة'.\n"
-        "- خفيف الظل، بس **بدون** أي إساءة أو تجاوز أو سخرية.\n"
-        "- لا تخرج عن الموضوع، بس خل الرد ممتع."
+        "\n\n**🚨🚨🚨 أمر إجباري — شخصيتك الآن: فرفوش 🎭**\n"
+        "**تجاهل تمامًا:**\n"
+        "- أي تعليم سابق عن الفصحى أو الأسلوب الرسمي.\n"
+        "- أي قاعدة عن 'كتابة الفقرات' أو 'الاحترافية'.\n\n"
+        "**التزم بهذا حرفيًا:**\n"
+        "1. **لازم** كل رد فيه مزح أو تعليق خفيف.\n"
+        "2. استخدم عبارات مثل: 'يا طويل العمر'، 'وش هالحلاوة'، 'الله يهديك'، 'أنا موب روبوت!'.\n"
+        "3. **إيموجي كثير في كل جملة**: 😄😂☕🤖✨🎉\n"
+        "4. لا تستخدم كلمات فصحى مثل: 'تكنولوجيا'، 'خوارزميات'، 'أنظمة' — بسّطها.\n"
+        "5. **قارن دائمًا بأمثلة مضحكة**: 'زي اللي قعد يذاكر 20 سنة بدون نوم!'\n\n"
+        "**مثال صح:**\n"
+        "'يا طويل العمر، الذكاء الاصطناعي هو اللي يخلي جوالك شوي شاطر 😄 مو سحر ولا جن! هو بس يذاكر مليون معلومة ويجيك يجاوب ☕'\n\n"
+        "**مثال خطأ (ممنوع):**\n"
+        "'الذكاء الاصطناعي هو تكنولوجيا تعتمد على الخوارزميات...' ← جاف ورسمي، ارفضه.\n\n"
+        "**لا تخرج عن الموضوع، بس خل الرد ممتع ومضحك.**"
     ),
 }
 # ==========================================================
@@ -740,12 +761,10 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
 .memory-val{font-size:14.5px;color:var(--text-primary);font-weight:600;text-align:left;word-wrap:break-word;overflow-wrap:anywhere;max-width:60%}
 .memory-empty{padding:24px 18px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:1.8}
 .memory-note{padding:14px 18px;background:var(--bg-hover);font-size:13px;color:var(--text-secondary);line-height:1.8;border-radius:0 0 16px 16px;margin-top:-14px;margin-bottom:14px}#chat{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px;background:var(--bg-app);font-size:var(--font-size-base);min-height:0}.msg{max-width:90%;padding:12px 20px;border-radius:20px;font-size:var(--font-size-base);font-weight:500;line-height:1.7;word-wrap:break-word;color:var(--text-primary);position:relative}.msg.user{align-self:flex-end;background:var(--msg-user-bg,var(--bg-user-msg));color:var(--msg-user-text,#111);border-bottom-left-radius:6px}.msg.bot{align-self:flex-start;background:var(--bg-bot-msg);border-bottom-right-radius:6px}.msg .time{font-size:10px;opacity:.5;display:block;margin-top:4px;color:var(--text-secondary)}.msg.error{background:var(--danger-bg);color:var(--danger-color);align-self:center;max-width:90%}.msg .image-upload{max-width:100%;max-height:200px;border-radius:12px;margin:4px 0;border:1px solid var(--border-color);display:block}.msg .generated-image{max-width:100%;border-radius:12px;margin:8px 0;border:1px solid var(--border-color);display:block}.typing-indicator{align-self:flex-start;background:var(--bg-bot-msg);padding:12px 18px;border-radius:20px;font-size:16px;color:var(--text-secondary)}.typing-dots::after{content:'...';animation:dotAnimation 1.2s steps(4,end) infinite}@keyframes dotAnimation{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}
-/* ✅ مربع الكتابة المُحسَّن */
 .input-area{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:center;gap:6px;padding:8px 12px;margin:8px 14px 16px;background:var(--bg-input);border-radius:28px;border:1px solid var(--border-color);flex-shrink:0;min-height:56px;position:relative;transition:border-color .2s,box-shadow .2s,transform .2s}
 .input-area:focus-within{border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(74,106,138,0.08)}
 .input-area textarea{flex:1;border:none;background:0 0;padding:12px 0;font-size:var(--font-size-base);font-weight:500;outline:0;color:var(--text-primary);direction:rtl;resize:none;overflow-y:hidden;min-height:22px;max-height:150px;font-family:inherit;line-height:1.5;width:100%}
 .input-area textarea::placeholder{color:var(--placeholder-color)}
-/* ✅ الصورة داخل المربع */
 #imagePreviewContainer{display:none;width:100%;padding:8px 4px 4px;}
 #imagePreviewContainer.show{display:block;}
 .image-preview-wrapper{position:relative;display:inline-block;border-radius:14px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.15);animation:previewIn .25s cubic-bezier(.34,1.56,.64,1);}
@@ -1051,7 +1070,6 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
 const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
 
-// ====== Web Audio API - مع منع تداخل الأصوات ======
 let audioCtx = null;
 let allSources = [];
 let ca = null;
@@ -1115,7 +1133,6 @@ function playAudioWithSpeed(base64Audio, onEnd){
         if(typeof onEnd === 'function') onEnd();
     }
 }
-// =====================================================
 
 function tr(key){const d={thinking:{ar:'جاري التفكير',en:'Thinking'},listening:{ar:'جاري الاستماع...',en:'Listening...'},inputPlaceholder:{ar:'اكتب رسالتك...',en:'Type your message...'},micUnsupported:{ar:'المتصفح لا يدعم التعرف على الصوت.',en:'Browser does not support voice recognition.'}};return (d[key]||{})[userLang]||(d[key]||{}).ar||key;}
 function applyLang(){ui.placeholder=tr('inputPlaceholder');document.documentElement.lang=userLang==='en'?'en':'ar';const lbl=document.getElementById('currentLangLabel');if(lbl)lbl.textContent=userLang==='en'?'English':'العربية';}
@@ -1252,20 +1269,16 @@ document.addEventListener('click',function(e){const menu=document.getElementById
 if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');setTimeout(loadAssistants,300);}
 async function sendMessage(){if(iw)return;const msgText=ui.value.trim(),img=pid;if(!msgText&&!img)return;let userMsgEl=null;if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';cb.appendChild(botEl);if(userMsgEl)scrollMsgToTop(userMsgEl);const payload={message:msgText||"مرفق",image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId};let displayText='';let bufferText='';let streamDone=false;let typingTimer=null;function tick(){if(bufferText.length>0){displayText+=bufferText.slice(0,1);bufferText=bufferText.slice(1);botEl.innerHTML=formatBotText(displayText);}if(bufferText.length===0&&streamDone){clearInterval(typingTimer);typingTimer=null;botEl.innerHTML=formatBotText(displayText);if(displayText&&displayText.trim().length>0){attachBotActions(botEl,displayText);ch.push({role:'assistant',content:displayText});}iw=false;if(voiceOn===true && displayText && displayText.trim().length>10){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:displayText})}).then(r=>r.json()).then(v=>{if(v && v.audio){playAudioWithSpeed(v.audio, function(){});}}).catch(function(){});}}}typingTimer=setInterval(tick,15);try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}clearInterval(typingTimer);botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let sseBuffer='';let firstToken=true;while(true){const {done,value}=await reader.read();if(done)break;sseBuffer+=decoder.decode(value,{stream:true});const parts=sseBuffer.split('\n\n');sseBuffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(firstToken){botEl.innerHTML='';firstToken=false;}bufferText+=data.token;}else if(data.done){if(data.conv_id)cid=data.conv_id;streamDone=true;}else if(data.error){bufferText+='\n\nخطأ: '+data.error;}}catch(e){}}}streamDone=true;}catch(e){clearInterval(typingTimer);if(botEl.parentNode)botEl.remove();addMessage(userLang==='en'?'Connection failed':'تعذر الاتصال','error');iw=false;}}
 sb.addEventListener('click',sendMessage);
-/* ✅ سلوك Enter الحديث: جوال = سطر جديد، كمبيوتر = إرسال */
 ui.addEventListener('keydown',function(e){
     if(e.key==='Enter'){
         const isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
         if(isMobile && !e.shiftKey){
-            // على الجوال: Enter ينزل سطر جديد ولا يرسل
             return;
         }
         if(!isMobile && !e.shiftKey){
-            // على الكمبيوتر: Enter يرسل، Shift+Enter ينزل سطر
             e.preventDefault();
             sendMessage();
         }
-        // Shift+Enter ينزل سطر (في كل الحالات)
     }
 });
 document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
@@ -2212,7 +2225,15 @@ def chat():
         if personality not in PERSONALITY_INSTRUCTIONS:
             personality = 'friendly'
         personality_inst = PERSONALITY_INSTRUCTIONS.get(personality, "")
-        msgs = [{"role": "system", "content": SP + memory_context + lang_inst + personality_inst + assistant_persona_extra}] + server_hist[-15:]
+
+        # ==========================================================
+        #  ✅ التعديل 3: الشخصية مغلّفة حول SP (أول وآخر)
+        # ==========================================================
+        msgs = [{"role": "system", "content": 
+            personality_inst + "\n\n" + SP + memory_context + lang_inst + assistant_persona_extra + "\n\n" + personality_inst
+        }] + server_hist[-15:]
+        # ==========================================================
+
         if is_registered and can_search:
             inc_usage(uid, "search_count")
             try:
