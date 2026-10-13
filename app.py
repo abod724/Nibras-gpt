@@ -273,3 +273,57 @@ def inc_usage(uid, field):
 # ═══════════════════════════════════════════════════════════
 #  نهاية القسم 2
 # ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+#  القسم 3/8 — نظام أكواد الوصول
+# ═══════════════════════════════════════════════════════════
+
+def get_active_access(email):
+    """يرجع كود الوصول النشط للمستخدم (مع فحص يدوي للتاريخ)"""
+    if not email:
+        return None
+    try:
+        r = (sb.table("access_redemptions").select("*")
+             .eq("user_email", email.lower())
+             .order("expires_at", desc=True).limit(1).execute())
+        if r and r.data:
+            row = r.data[0]
+            expires = row.get('expires_at')
+            if expires:
+                try:
+                    exp_str = str(expires).replace('Z', '').replace('+00:00', '')
+                    if '.' in exp_str:
+                        exp_str = exp_str.split('.')[0]
+                    exp = datetime.fromisoformat(exp_str)
+                    if exp >= datetime.utcnow():
+                        return row
+                    else:
+                        print(f"⚠️ Access expired for {email}: {exp}")
+                        return None
+                except Exception as ex:
+                    print(f"⚠️ Date parse error: {ex}, raw: {expires}")
+                    return None
+            return row
+    except Exception as e:
+        print("get_active_access:", e)
+    return None
+
+
+def check_limits(uid, role, email=None):
+    usage = get_usage_today(uid)
+    access = get_active_access(email) if email else None
+    if access:
+        limits = {
+            "chat": int(access.get("chat_limit", 15) or 15),
+            "search": int(access.get("search_limit", 2) or 2),
+            "image": int(access.get("image_limit", 1) or 1)
+        }
+    else:
+        limits = LIMITS.get(role, LIMITS["guest"])
+    can_chat = int(usage.get("chat_count", 0) or 0) < limits["chat"]
+    can_search = int(usage.get("search_count", 0) or 0) < limits["search"]
+    can_image = int(usage.get("image_count", 0) or 0) < limits["image"]
+    return usage, limits, can_chat, can_search, can_image
+
+# ═══════════════════════════════════════════════════════════
+#  نهاية القسم 3
+# ═══════════════════════════════════════════════════════════
