@@ -1,6 +1,6 @@
 # ==========================================================
 #  نبراس GP - المساعد الذكي الشخصي
-#  مع نظام أكواد الوصول + أخبار Google News
+#  مع نظام أكواد الوصول + أخبار Google News المنسقة كبطاقات
 # ==========================================================
 
 from flask import (
@@ -13,12 +13,15 @@ from datetime import datetime, timedelta, date as _date
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from supabase import create_client
-from markupsafe import escape
+from markupsafe import escape, Markup
 import io
 import urllib.parse
 import xml.etree.ElementTree as ET
 from urllib.parse import quote_plus
 from gtts import gTTS
+# ✅ جديد: مكتبات تنسيق Markdown
+import markdown
+import bleach
 
 
 app = Flask(__name__, static_folder='static')
@@ -522,7 +525,6 @@ LANG_INSTRUCTION = {
 
 PERSONALITY_INSTRUCTIONS = {
     "friendly": "",
-
     "concise": (
         "\n\n**🚨 أمر عاجل — تجاهل كل قاعدة سابقة عن طول الرد:**\n"
         "- ردك **جملة واحدة فقط** أو جملتين كحد أقصى.\n"
@@ -531,7 +533,6 @@ PERSONALITY_INSTRUCTIONS = {
         "- مثال صح: 'الذكاء الاصطناعي تقنية تخلي الجوال يفهمك.'\n"
         "- مثال خطأ: أي رد يزيد عن جملتين."
     ),
-
     "detailed": (
         "\n\n**🚨 شخصيتك: مفصّل**\n"
         "- اشرح بتفصيل مع أمثلة عملية.\n"
@@ -539,7 +540,6 @@ PERSONALITY_INSTRUCTIONS = {
         "- **بس خل الأسلوب عامي** — مو فصحى جافة.\n"
         "- مثال: 'النوع الأول اللي هو الذكاء الضيق، هذا متخصص بمهمة وحدة...'"
     ),
-
     "formal": (
         "\n\n**🚨 أمر إجباري — تجاهل كل تعليم سابق عن العامية:**\n"
         "- **ممنوع** أي كلمة عامية — البتة.\n"
@@ -548,7 +548,6 @@ PERSONALITY_INSTRUCTIONS = {
         "- مثال خطأ: 'الذكاء الاصطناعي وش هو؟'\n"
         "- كن مهنيًا ومحترفًا في كل رد."
     ),
-
     "teacher": (
         "\n\n**🚨 شخصيتك: معلّم**\n"
         "- اشرح خطوة بخطوة كأنك معلم صبور.\n"
@@ -557,7 +556,6 @@ PERSONALITY_INSTRUCTIONS = {
         "- **بس الأسلوب عامي مريح** — مو فصحى جافة.\n"
         "- مثال: 'خلني أشرح لك خطوة بخطوة: أول شيء...'"
     ),
-
     "playful": (
         "\n\n**🚨🚨🚨 أمر إجباري — شخصيتك الآن: فرفوش 🎭**\n"
         "**تجاهل تمامًا:**\n"
@@ -576,6 +574,67 @@ PERSONALITY_INSTRUCTIONS = {
         "**لا تخرج عن الموضوع، بس خل الرد ممتع ومضحك.**"
     ),
 }
+
+
+# ==========================================================
+#  ✅ جديد: دالة تحويل Markdown إلى HTML منسق (بطاقات إخبارية)
+# ==========================================================
+def format_nibras_response(text):
+    """تحويل رد نبراس (Markdown) إلى HTML منسق وآمن."""
+    if not isinstance(text, str):
+        return ""
+
+    text = text.strip()
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+    # إزالة أسوار Markdown الخارجية إن وجدت
+    text = re.sub(
+        r"^\s*```(?:markdown|md)?\s*\n(.*?)\n```\s*$",
+        r"\1",
+        text,
+        flags=re.IGNORECASE | re.DOTALL
+    )
+
+    # تحويل Markdown إلى HTML
+    html = markdown.markdown(
+        text,
+        extensions=["extra", "sane_lists", "nl2br"]
+    )
+
+    # السماح بوسوم آمنة فقط
+    allowed_tags = set(bleach.sanitizer.ALLOWED_TAGS).union({
+        "p", "h1", "h2", "h3", "h4", "h5", "h6",
+        "br", "hr", "ul", "ol", "li",
+        "strong", "em", "blockquote",
+        "pre", "code", "table", "thead",
+        "tbody", "tr", "th", "td", "img"
+    })
+
+    allowed_attributes = {
+        "a": ["href", "title", "rel", "target"],
+        "img": ["src", "alt", "title", "width", "height"],
+        "code": ["class"],
+        "pre": ["class"],
+        "th": ["align"],
+        "td": ["align"]
+    }
+
+    clean_html = bleach.clean(
+        html,
+        tags=allowed_tags,
+        attributes=allowed_attributes,
+        protocols={"http", "https", "mailto"},
+        strip=True
+    )
+
+    # إضافة حماية للروابط الخارجية
+    clean_html = re.sub(
+        r'<a\s+href="(https?://[^"]*)"',
+        r'<a href="\1" target="_blank" rel="noopener noreferrer"',
+        clean_html
+    )
+
+    return Markup(clean_html)
 
 
 def generate_speech(text, gender):
@@ -622,11 +681,11 @@ def generate_speech(text, gender):
 
 
 # ==========================================================
-#  📰 نظام الأخبار (Google News RSS) — مجاني
+#  📰 نظام الأخبار (Google News RSS) — منسق كبطاقات
 # ==========================================================
 
 _news_cache = {}
-_NEWS_CACHE_TTL = 900  # 15 دقيقة
+_NEWS_CACHE_TTL = 900
 
 
 def fetch_news(query, limit=6):
@@ -693,21 +752,52 @@ def detect_news_query(text):
     return None
 
 
+# ✅ جديد: إخراج Markdown منسق بدلاً من نص عادي
 def format_news_reply(articles, lang="ar"):
-    """يحوّل الأخبار لرد منسق"""
+    """يحوّل الأخبار لرد منسق بصيغة Markdown (لعرضها كبطاقات)"""
     if not articles:
         return "ما لقيت أخبار جديدة عن الموضوع هذا." if lang == "ar" else "No recent news found."
+
     lines = []
-    for a in articles[:6]:
-        title = a["title"]
-        source = a["source"] or ""
-        link = a["link"]
+    if lang == "ar":
+        lines.append("## 📰 آخر الأخبار")
+    else:
+        lines.append("## 📰 Latest News")
+    lines.append("")
+    lines.append("تشي هذي القائمة بأحدث الأخبار المتعلقة بطلبك:")
+    lines.append("")
+
+    for i, a in enumerate(articles[:6], 1):
+        title = (a.get("title") or "").strip()
+        source = (a.get("source") or "").strip()
+        link = (a.get("link") or "").strip()
+        published = (a.get("published") or "").strip()
+
+        lines.append("---")
+        lines.append("")
+        lines.append(f"### {i}. {title}")
+        lines.append("")
+
+        meta_parts = []
         if source:
-            lines.append(f"• {title} — {source}\n{link}")
-        else:
-            lines.append(f"• {title}\n{link}")
-    header = "📰 آخر الأخبار:\n\n" if lang == "ar" else "📰 Latest news:\n\n"
-    return header + "\n\n".join(lines)
+            meta_parts.append(f"**المصدر:** {source}")
+        if published:
+            try:
+                from email.utils import parsedate_to_datetime
+                dt = parsedate_to_datetime(published)
+                date_str = dt.strftime("%d %B %Y")
+                meta_parts.append(f"*{date_str}*")
+            except Exception:
+                pass
+        if meta_parts:
+            lines.append(" · ".join(meta_parts))
+            lines.append("")
+
+        if link:
+            lines.append(f"[🔗 قراءة الخبر كاملاً]({link})")
+            lines.append("")
+
+    return "\n".join(lines)
 
 
 SHARED_VIEW_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:flex-start;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px;margin-top:20px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px;font-weight:600}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word;white-space:pre-wrap}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}.error{background:#ffe8e8;color:#c33;padding:20px;border-radius:14px;text-align:center;font-weight:600}</style></head><body><div class="container"><div class="header"><h1>محادثة نبراس</h1><a href="/">الرئيسية</a></div><div id="content"><div class="error">جاري التحميل...</div></div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div><script>
@@ -857,6 +947,7 @@ RESET_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UT
 </script></body></html>"""
 
 
+# ✅ تمت إضافة CSS الخاص بـ .nibras-response داخل HT
 HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><meta name="screen-orientation" content="portrait"><meta name="x5-orientation" content="portrait"><meta name="full-screen" content="no"><meta name="x5-fullscreen" content="false"><meta name="browsermode" content="application"><meta name="x5-page-mode" content="app"><title>نبراس GP | مساعد ذكي</title><link rel="manifest" href="/static/manifest.json"><link rel="icon" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="192x192" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="نبراس"><meta name="theme-color" content="#ffffff"><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a;--font-size-base:16px;--font-size-small:14px}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}html[data-font="small"]{--font-size-base:14px;--font-size-small:12.5px}html[data-font="medium"]{--font-size-base:16px;--font-size-small:14px}html[data-font="large"]{--font-size-base:18px;--font-size-small:16px}html[data-font="xlarge"]{--font-size-base:20px;--font-size-small:18px}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}html{-webkit-tap-highlight-color:transparent}body{-webkit-tap-highlight-color:transparent}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--text-secondary);opacity:0.7}.btn-group{display:flex;gap:8px;align-items:center}.btn{padding:7px 16px;border-radius:20px;font-size:14px;border:none;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;font-family:inherit;font-weight:600}.btn-outline{background:0 0;border:1.5px solid var(--primary-color);color:var(--primary-color);transition:all .2s}.btn-outline:hover{background:var(--primary-color);color:#fff}.user-badge{display:flex;align-items:center;gap:6px;background:var(--bg-hover);padding:6px 12px;border-radius:20px;font-size:13px;color:var(--text-primary);font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;border:none;font-family:inherit}.user-badge:hover{background:var(--border-color)}.user-badge svg{width:16px;height:16px;stroke:var(--primary-color);stroke-width:2;fill:none;flex-shrink:0}.dropdown{position:absolute;top:68px;left:12px;right:12px;background:var(--bg-dropdown);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15),0 4px 12px rgba(0,0,0,0.08);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:78vh;overflow-y:auto;padding:10px;opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}.dropdown.show{display:flex;opacity:1;transform:translateY(0)}.dropdown::-webkit-scrollbar{width:4px}.dropdown::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.dropdown .item{display:flex;align-items:center;gap:14px;padding:13px 16px;font-size:15px;color:var(--text-primary);background:transparent;border:none;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:background .15s ease,transform .1s ease;letter-spacing:-0.2px}.dropdown .item:hover{background:var(--bg-hover)}.dropdown .item:active{transform:scale(0.98)}.dropdown .item svg{width:20px;height:20px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.dropdown .section-title{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.8px;text-transform:uppercase;opacity:.7}.dropdown .conv-item{display:flex;align-items:center;gap:8px;padding:11px 16px;border:none;background:transparent;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-size:14px;color:var(--text-primary);font-weight:500;border-radius:14px;transition:background .15s ease;letter-spacing:-0.1px;position:relative}.dropdown .conv-item:hover{background:var(--bg-hover)}.dropdown .conv-item .conv-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dropdown .conv-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary-color);opacity:.4;flex-shrink:0}.dropdown .conv-item .pin-btn{background:transparent;border:none;cursor:pointer;padding:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;opacity:0.5;transition:opacity .2s,background .2s;flex-shrink:0}.dropdown .conv-item .pin-btn:hover{opacity:1;background:var(--bg-hover)}.dropdown .conv-item .pin-btn svg{width:16px;height:16px;stroke:var(--text-primary);stroke-width:2;fill:none}.dropdown .conv-item .pin-btn.pinned svg{fill:var(--primary-color);stroke:var(--primary-color)}.dropdown .pinned-item{padding:11px 16px;display:flex;align-items:center;gap:8px;border-radius:14px;transition:background .15s ease}.dropdown .pinned-item:hover{background:var(--bg-hover)}.gender-option{flex:1;padding:9px 12px;border-radius:12px;border:1px solid var(--border-color);background:transparent;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all .2s ease;font-family:inherit}.gender-option.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color);box-shadow:0 4px 12px rgba(74,106,138,0.3)}.dropdown .item.danger{color:#d32f2f}.dropdown .item.danger svg{stroke:#d32f2f;opacity:1}.dropdown .item.danger:hover{background:rgba(211,47,47,0.08)}.settings-overlay{position:fixed;inset:0;background:var(--bg-body);z-index:99999;display:none;flex-direction:column;overflow-y:auto}.settings-overlay.show{display:flex}.settings-page{max-width:500px;width:100%;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg-body)}.settings-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-app);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border-color)}.settings-header h2{font-size:18px;color:var(--text-primary);font-weight:700;margin:0}.settings-body{padding:16px;display:flex;flex-direction:column;gap:14px}.settings-card{background:var(--bg-app);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.settings-item{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.settings-item:last-child{border-bottom:none}.settings-item:hover{background:var(--bg-hover)}.settings-item .item-right{display:flex;align-items:center;gap:14px;color:var(--text-primary);font-size:15px;font-weight:600}.settings-item .item-right svg{width:22px;height:22px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0}.settings-item .chevron{width:18px;height:18px;stroke:var(--text-secondary);stroke-width:2;fill:none}.sub-page{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100000;display:none;align-items:center;justify-content:center;padding:20px}.sub-page.show{display:flex}.sub-page .modal-box{background:var(--bg-app);width:100%;max-width:420px;max-height:80vh;border-radius:22px;overflow:hidden;display:flex;flex-direction:column;animation:modalIn .25s ease;border:1px solid var(--border-color)}.sub-page-header{display:none}.sub-page-body{padding:20px;overflow-y:auto;flex:1}.sub-page-body::-webkit-scrollbar{width:4px}.sub-page-body::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.modal-title{text-align:center;font-size:17px;font-weight:700;color:var(--text-primary);padding:18px 20px;border-bottom:1px solid var(--border-color)}.modal-confirm{width:100%;padding:16px;background:transparent;border:none;border-top:1px solid var(--border-color);font-size:16px;font-weight:700;color:var(--primary-color);cursor:pointer;font-family:inherit}.modal-confirm:active{background:var(--bg-hover)}@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}.info-box{background:var(--bg-hover);padding:16px;border-radius:14px;font-size:14px;color:var(--text-secondary);line-height:1.8}.option-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.option-row{padding:18px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.option-row:last-child{border-bottom:none}.option-row:active{background:var(--bg-hover)}.option-label{display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--text-primary);font-weight:500}.check-icon{width:22px;height:22px;stroke:var(--primary-color);stroke-width:2.5;fill:none;opacity:0;transition:opacity .25s}.option-row.selected .check-icon{opacity:1}.color-grid{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.color-row{padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}.color-row:last-child{border-bottom:none}.color-row:active{background:var(--bg-hover)}.color-row-left{display:flex;align-items:center;gap:14px;font-size:15px;color:var(--text-primary);font-weight:500}.color-circle{width:26px;height:26px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);flex-shrink:0}.color-row .check-icon{opacity:0;transition:opacity .25s}.color-row.selected .check-icon{opacity:1}.lang-list{display:flex;flex-direction:column;gap:12px}.lang-card{display:flex;align-items:center;gap:16px;padding:18px 20px;background:var(--bg-app);border-radius:18px;cursor:pointer;border:2px solid var(--border-color);transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px var(--shadow-color)}.lang-card:hover{border-color:var(--primary-color);transform:translateY(-2px);box-shadow:0 8px 24px rgba(74,106,138,0.15)}.lang-card.selected{border-color:var(--primary-color);background:linear-gradient(135deg,var(--bg-app) 0%,rgba(74,106,138,0.06) 100%);box-shadow:0 6px 20px rgba(74,106,138,0.18)}.lang-flag{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.5px;box-shadow:0 2px 6px rgba(0,0,0,0.15);color:#fff}.lang-info{flex:1;display:flex;flex-direction:column;gap:3px}.lang-name{font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:-0.2px}.lang-sub{font-size:13px;color:var(--text-secondary)}.lang-check{width:26px;height:26px;stroke:var(--primary-color);stroke-width:3;fill:none;opacity:0;transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);flex-shrink:0;transform:scale(0.5)}.lang-card.selected .lang-check{opacity:1;transform:scale(1)}
 .personality-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}
 .personality-row{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}
@@ -1007,1767 +1098,18 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 .user-menu-item.danger:hover{background:rgba(211,47,47,0.08)}
 .user-menu-item.danger svg{stroke:#d32f2f}
 .user-menu-sep{height:1px;background:var(--border-color);margin:4px 8px}
+/* ✅ جديد: تنسيق بطاقات الأخبار (nibras-response) */
+.nibras-response{font-size:var(--font-size-base);line-height:1.9;color:var(--text-primary);max-width:100%}
+.nibras-response h2{font-size:1.25em;font-weight:800;color:var(--primary-color);margin:4px 0 16px;padding-bottom:10px;border-bottom:2px solid var(--border-color);line-height:1.5}
+.nibras-response h3{font-size:1.05em;font-weight:750;margin:16px 0 8px;background:var(--bg-hover);padding:10px 14px;border-right:4px solid var(--primary-color);border-radius:8px;color:var(--text-primary);line-height:1.5}
+.nibras-response p{margin:0 0 10px;color:var(--text-primary)}
+.nibras-response em{color:var(--text-secondary);font-size:0.9em;display:inline-block;margin-bottom:6px;font-style:normal}
+.nibras-response hr{border:0;height:1px;background:var(--border-color);margin:18px 0}
+.nibras-response strong{font-weight:800;color:var(--text-primary)}
+.nibras-response a{color:var(--primary-color);text-decoration:none;font-weight:600;display:inline-block;padding:4px 0}
+.nibras-response a:hover{text-decoration:underline}
+.nibras-response ul,.nibras-response ol{padding-right:22px;padding-left:0;margin:8px 0 14px}
+.nibras-response li{margin-bottom:8px}
+.nibras-response blockquote{border-right:4px solid var(--primary-color);margin:10px 0;padding:8px 14px;background:var(--bg-hover);border-radius:8px}
+.nibras-response img{display:block;max-width:100%;height:auto;border-radius:12px;margin:10px 0;border:1px solid var(--border-color)}
 </style></head><body>
-<div class="app"><div class="header"><div class="header-right"><button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg></button><button class="icon-btn" id="menuToggle" title="القائمة"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div><div class="header-left"><div class="btn-group">{% if session.get('user_email') or session.get('is_admin') %}{% if user_name %}<button type="button" class="user-badge" id="userBadge" onclick="toggleUserMenu(event)" title="{{ session.get('user_email') }}"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ user_name }}</button>{% endif %}<a href="/logout" class="btn btn-outline">خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div>
-
-<div class="user-menu" id="userMenu">
-    <button class="user-menu-item" onclick="openSubPage('general');toggleUserMenu(null)">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="3"/><path d="M6.5 20a5.5 5.5 0 0 1 11 0"/></svg>
-        <span>حسابي</span>
-    </button>
-    <button class="user-menu-item" onclick="openRedeemCode();toggleUserMenu(null)">
-        <svg viewBox="0 0 24 24"><path d="m15 7 4 4-4 4"/><path d="M19 11H5"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>
-        <span>تفعيل كود وصول</span>
-    </button>
-    <div class="user-menu-sep"></div>
-    <button class="user-menu-item danger" onclick="deleteMyAccount();toggleUserMenu(null)">
-        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
-        <span>حذف حسابي</span>
-    </button>
-    <button class="user-menu-item danger" onclick="window.location.href='/logout'">
-        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        <span>تسجيل الخروج</span>
-    </button>
-</div>
-
-<div class="dropdown" id="dropdown">
-    <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
-    <button class="item" onclick="window.location.href='/library'"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>مكتبتي</button>
-    <button class="item" data-action="share"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>مشاركة المحادثة</button>
-    <button class="item" onclick="openSettings()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>الإعدادات</button>
-    <div class="section-title">مثبت</div>
-    <div id="pinnedList"><div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;font-weight:500;">لا توجد محادثات مثبتة</div></div>
-    <div class="section-title">المحادثات الأخيرة</div>
-    <div id="historyList"></div>
-</div>
-
-<div id="settingsModal" class="settings-overlay">
-    <div class="settings-page">
-        <div class="settings-header"><button class="icon-btn" onclick="closeSettings()"><svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><h2>الإعدادات</h2><div style="width:32px;"></div></div>
-        <div class="settings-body">
-            <div class="settings-card">
-                <div class="settings-item" onclick="openSubPage('theme')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><span>المظهر</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('color')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg><span>لون التمييز</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentColorLabel" style="font-size:14px;color:var(--text-secondary);">أزرق داكن</span><span id="currentColorDot" style="width:14px;height:14px;border-radius:50%;background:#4a6a8a;display:inline-block;"></span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
-                <div class="settings-item" onclick="openSubPage('fontSize')"><div class="item-right"><svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span>حجم الخط</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentFontSizeLabel" style="font-size:14px;color:var(--text-secondary);">متوسط</span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
-                <div class="settings-item" onclick="openSubPage('personality')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg><span>شخصية المساعد</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentPersonalityLabel" style="font-size:14px;color:var(--text-secondary);">ودود</span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
-                <div class="settings-item" onclick="openSubPage('language')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span>اللغة / Language</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentLangLabel" style="font-size:14px;color:var(--text-secondary);">العربية</span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
-            </div>
-            <div class="settings-card">
-                <div class="settings-item" onclick="openSubPage('general')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>عام</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('memory')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg><span>الذاكرة</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('assistants')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg><span>مساعدي الخاص</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('voice')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg><span>الصوت</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('safety')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>السلامة</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('security')"><div class="item-right"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>الأمان وتسجيل الدخول</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('remote')"><div class="item-right"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span>التحكم عن بُعد</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-            </div>
-            <div class="settings-card">
-                <div class="settings-item" onclick="openSubPage('storage')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg><span>التخزين</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('privacy')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span>مركز الخصوصية</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('data')"><div class="item-right"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span>التحكم في البيانات</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('ads')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span>التحكم في الإعلانات</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('report')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>الإبلاغ عن خطأ</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                <div class="settings-item" onclick="openSubPage('about')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>حول</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-            </div>
-            {% if session.get('user_email') and not session.get('is_admin') %}
-            <div class="settings-card">
-                <div class="settings-item" onclick="deleteMyAccount()"><div class="item-right"><svg viewBox="0 0 24 24" style="stroke:#d32f2f;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg><span style="color:#d32f2f;">حذف حسابي</span></div></div>
-            </div>
-            {% endif %}
-            <div class="settings-card" onclick="window.location.href='/logout'">
-                <div class="settings-item" style="justify-content:center;">
-                    <div class="item-right" style="justify-content:center;width:100%;">
-                        <span style="color:#d32f2f;font-weight:bold;">تسجيل الخروج</span>
-                        <svg viewBox="0 0 24 24" style="stroke:#d32f2f;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div id="subPage" class="sub-page" onclick="if(event.target===this)closeSubPage()">
-    <div class="modal-box">
-        <div class="modal-title" id="subPageTitle">إعدادات</div>
-        <div class="sub-page-body" id="subPageBody"></div>
-        <button class="modal-confirm" onclick="confirmSubPage()">تأكيد</button>
-    </div>
-</div>
-
-<div id="chat"></div>
-<div class="assistant-bar" id="assistantBar">
-  <button class="assistant-pill" id="assistantPill" type="button" onclick="toggleAssistantMenu(event)">
-    <span class="a-dot" id="assistantPillDot" style="background:#4a6a8a">ن</span>
-    <span class="a-name" id="assistantPillName">نبراس</span>
-    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-  </button>
-</div>
-<div class="assistant-menu" id="assistantMenu"></div>
-<div class="input-area" id="inputArea">
-    <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
-    <button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
-    <button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button></div>
-    <textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea>
-    <button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-</div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/></div>
-
-<div class="share-modal" id="shareModal">
-    <div class="box">
-        <h3>مشاركة المحادثة</h3>
-        <div class="share-grid">
-            <a class="share-btn whatsapp" id="shareWhatsapp" target="_blank" rel="noopener">واتساب</a>
-            <a class="share-btn facebook" id="shareFacebook" target="_blank" rel="noopener">فيسبوك</a>
-            <a class="share-btn twitter" id="shareTwitter" target="_blank" rel="noopener">تويتر</a>
-            <button class="share-btn snapchat" id="shareSnapchat">نسخ الرابط</button>
-        </div>
-        <button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إغلاق</button>
-    </div>
-</div>
-
-<script>
-(function(){
-    try{
-        var hash = window.location.hash || '';
-        var search = window.location.search || '';
-        if(hash.indexOf('type=recovery') !== -1 && hash.indexOf('access_token=') !== -1){
-            window.location.replace('/reset-password' + hash);
-            return;
-        }
-        if(search.indexOf('type=recovery') !== -1 && search.indexOf('code=') !== -1){
-            window.location.replace('/reset-password' + search);
-            return;
-        }
-        var params = new URLSearchParams(hash.replace(/^#/, ''));
-        var at = params.get('access_token');
-        var codeP = new URLSearchParams(search).get('code');
-        if(at || codeP){
-            var rt = params.get('refresh_token') || '';
-            try{ history.replaceState(null, '', window.location.pathname); }catch(e){}
-            var overlay = document.createElement('div');
-            overlay.id = 'oauth-overlay';
-            overlay.classList.add('show');
-            overlay.innerHTML = '<div class="oauth-spinner" id="oauth-spin"></div><div class="oauth-title" id="oauth-title">جاري تسجيل الدخول</div><div class="oauth-msg" id="oauth-msg">لحظة من فضلك...</div>';
-            document.body.appendChild(overlay);
-            function done(msg, isOk){
-                var spin = document.getElementById('oauth-spin');
-                var title = document.getElementById('oauth-title');
-                var msgEl = document.getElementById('oauth-msg');
-                if(spin) spin.style.display = 'none';
-                if(title){ title.textContent = isOk ? 'تم تسجيل الدخول' : 'تعذر تسجيل الدخول'; title.classList.add(isOk ? 'ok' : 'err'); }
-                if(msgEl) msgEl.textContent = msg;
-                setTimeout(function(){ window.location.replace(isOk ? '/' : '/login'); }, isOk ? 700 : 2500);
-            }
-            fetch('/auth/session', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({access_token: at || '', refresh_token: rt, code: codeP || ''})
-            }).then(function(r){return r.json();}).then(function(d){
-                if(d && d.status === 'ok'){ done('جاري تحويلك...', true); }
-                else { done((d && d.message) || 'فشل إنشاء الجلسة', false); }
-            }).catch(function(){ done('تعذر الاتصال بالسيرفر', false); });
-            return;
-        }
-    }catch(e){}
-})();
-(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let isMale=(localStorage.getItem('nibras-voice-gender')||'male')==='male';let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
-const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
-const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
-
-let audioCtx = null;
-let allSources = [];
-let ca = null;
-let voiceSessionId = 0;
-function getAudioContext(){ if(!audioCtx){ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } if(audioCtx.state === 'suspended'){ audioCtx.resume(); } return audioCtx; }
-function stopAllAudio(){ allSources.forEach(function(src){ try{ src.stop(0); }catch(e){} }); allSources = []; ca = null; voiceSessionId++; }
-function playAudioWithSpeed(base64Audio, onEnd){ try{ stopAllAudio(); const mySession = voiceSessionId; const ctx = getAudioContext(); const binary = atob(base64Audio); const bytes = new Uint8Array(binary.length); for(let i = 0; i < binary.length; i++){ bytes[i] = binary.charCodeAt(i); } ctx.decodeAudioData(bytes.buffer, function(buffer){ if(mySession !== voiceSessionId){ if(typeof onEnd === 'function') onEnd(); return; } const source = ctx.createBufferSource(); source.buffer = buffer; source.playbackRate.value = voiceSpeed; const gainNode = ctx.createGain(); const savedLvl = localStorage.getItem('nibras-voice-level'); gainNode.gain.value = savedLvl ? savedLvl/100 : 1; source.connect(gainNode); gainNode.connect(ctx.destination); source.onended = function(){ const idx = allSources.indexOf(source); if(idx >= 0) allSources.splice(idx, 1); if(typeof onEnd === 'function') onEnd(); }; source.start(0); allSources.push(source); ca = { pause: function(){ try{source.stop(0);}catch(e){} }, currentTime: 0 }; }, function(err){ console.error('Audio decode error:', err); if(typeof onEnd === 'function') onEnd(); }); }catch(e){ console.error('Web Audio API error:', e); if(typeof onEnd === 'function') onEnd(); } }
-
-function tr(key){const d={thinking:{ar:'جاري التفكير',en:'Thinking'},listening:{ar:'جاري الاستماع...',en:'Listening...'},inputPlaceholder:{ar:'اكتب رسالتك...',en:'Type your message...'},micUnsupported:{ar:'المتصفح لا يدعم التعرف على الصوت.',en:'Browser does not support voice recognition.'}};return (d[key]||{})[userLang]||(d[key]||{}).ar||key;}
-function applyLang(){ui.placeholder=tr('inputPlaceholder');document.documentElement.lang=userLang==='en'?'en':'ar';const lbl=document.getElementById('currentLangLabel');if(lbl)lbl.textContent=userLang==='en'?'English':'العربية';}
-function applyFontSize(size){document.documentElement.setAttribute('data-font',size);const map={small:'صغير',medium:'متوسط',large:'كبير',xlarge:'ضخم'};const lbl=document.getElementById('currentFontSizeLabel');if(lbl)lbl.textContent=map[size]||'متوسط';}
-applyFontSize(userFontSize);
-vt.addEventListener('click',function(){voiceOn=!voiceOn;if(voiceOn){vt.classList.remove('voice-off');vt.classList.add('voice-on');vt.innerHTML=SVG_SPK_ON;showToast(userLang==='en'?'Sound ON':'الصوت مفعّل');}else{vt.classList.remove('voice-on');vt.classList.add('voice-off');vt.innerHTML=SVG_SPK_OFF;stopAllAudio();showToast(userLang==='en'?'Sound OFF':'الصوت مغلق');}});
-function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
-function getPinnedLocal(){try{return JSON.parse(localStorage.getItem('nibras_pinned')||'[]');}catch(e){return [];}}
-function savePinnedLocal(arr){try{localStorage.setItem('nibras_pinned',JSON.stringify(arr));}catch(e){}}
-async function togglePin(cid,wasPinned,btnEl){if(IS_REGISTERED){const url=wasPinned?'/unpin_conversation':'/pin_conversation';try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid})});if(r.ok){btnEl.classList.toggle('pinned',!wasPinned);showToast(wasPinned?(userLang==='en'?'Unpinned':'تم إلغاء التثبيت'):(userLang==='en'?'Pinned':'تم التثبيت'));loadPinned();}}catch(e){showToast(userLang==='en'?'Connection failed':'فشل الاتصال');}}else{let arr=getPinnedLocal();if(wasPinned){arr=arr.filter(x=>x!==cid);showToast(userLang==='en'?'Unpinned':'تم إلغاء التثبيت');}else{if(!arr.includes(cid))arr.push(cid);showToast(userLang==='en'?'Pinned locally':'تم التثبيت محلياً');}savePinnedLocal(arr);btnEl.classList.toggle('pinned',!wasPinned);loadPinned();}}
-mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();loadPinned();}});
-
-// ===== قائمة الاسم =====
-function toggleUserMenu(e){
-    if(e) e.stopPropagation();
-    const menu = document.getElementById('userMenu');
-    const badge = document.getElementById('userBadge');
-    if(!menu || !badge) return;
-    if(menu.classList.contains('show')){
-        menu.classList.remove('show');
-        return;
-    }
-    const rect = badge.getBoundingClientRect();
-    const menuW = 220;
-    let left = rect.left;
-    if(left + menuW > window.innerWidth - 8){
-        left = window.innerWidth - menuW - 8;
-    }
-    menu.style.left = Math.max(8, left) + 'px';
-    menu.style.top = (rect.bottom + 8) + 'px';
-    menu.classList.add('show');
-}
-document.addEventListener('click', function(e){
-    const menu = document.getElementById('userMenu');
-    const badge = document.getElementById('userBadge');
-    if(!menu || !badge) return;
-    if(!menu.contains(e.target) && !badge.contains(e.target)){
-        menu.classList.remove('show');
-    }
-});
-
-// ===== نافذة تفعيل كود الوصول =====
-function openRedeemCode(){
-    const body = document.getElementById('subPageBody');
-    document.getElementById('subPageTitle').textContent = 'تفعيل كود وصول';
-    body.innerHTML = '<div class="sp-field"><label class="sp-label">كود الوصول</label><input type="text" id="redeem-input" class="sp-input" placeholder="NBRAS-XXXX-XXXX" style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-weight:700" maxlength="30"></div><div class="sp-note" style="margin-top:16px;">أدخل الكود اللي وصلك لتفعيل ميزات إضافية مؤقتة.</div>';
-    const btn = document.querySelector('#subPage .modal-confirm');
-    btn.textContent = 'تفعيل';
-    btn.disabled = false;
-    btn.onclick = redeemSubmit;
-    document.getElementById('subPage').classList.add('show');
-    currentSubKey = null;
-    setTimeout(function(){ var el=document.getElementById('redeem-input'); if(el) el.focus(); }, 100);
-}
-async function redeemSubmit(){
-    const code = (document.getElementById('redeem-input').value || '').trim().toUpperCase();
-    if(code.length < 5){ showToast('أدخل كود صحيح'); return; }
-    const btn = document.querySelector('#subPage .modal-confirm');
-    btn.disabled = true;
-    btn.textContent = 'جاري التحقق...';
-    try{
-        const r = await fetch('/redeem_code', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({code})
-        });
-        const d = await r.json();
-        if(d.status === 'ok'){
-            showToast('✅ تم التفعيل! ' + d.image + ' صور، ' + d.search + ' بحث، ' + d.chat + ' محادثة');
-            setTimeout(function(){ closeSubPage(); location.reload(); }, 1500);
-        } else {
-            showToast(d.message || 'فشل التفعيل');
-            btn.disabled = false;
-            btn.textContent = 'تفعيل';
-        }
-    }catch(e){
-        showToast('تعذر الاتصال');
-        btn.disabled = false;
-        btn.textContent = 'تفعيل';
-    }
-}
-
-function openSettings(){document.getElementById('settingsModal').classList.add('show');document.getElementById('dropdown').classList.remove('show');}
-function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
-function setTheme(t){const h=document.documentElement;if(t==='dark'){h.classList.add('dark-mode');localStorage.setItem('nibras-theme','dark')}else{h.classList.remove('dark-mode');localStorage.setItem('nibras-theme','light')}}
-function getContrastColor(hex){try{const r=parseInt(hex.slice(1,3),16);const g=parseInt(hex.slice(3,5),16);const b=parseInt(hex.slice(5,7),16);const lum=(0.299*r+0.587*g+0.114*b)/255;return lum>0.6?'#111111':'#ffffff';}catch(e){return '#111111';}}
-function setAccentColor(color,name){const h=document.documentElement;h.style.setProperty('--primary-color',color);h.style.setProperty('--accent-color',color);h.style.setProperty('--send-bg',color);h.style.setProperty('--send-hover',color);h.style.setProperty('--primary-hover',color);h.style.setProperty('--icon-color',color);h.style.setProperty('--send-shadow',color+'33');h.style.setProperty('--msg-user-bg',color);h.style.setProperty('--msg-user-text',getContrastColor(color));const lbl=document.getElementById('currentColorLabel');if(lbl)lbl.textContent=name;const dot=document.getElementById('currentColorDot');if(dot)dot.style.background=color;localStorage.setItem('nibras-accent',color);localStorage.setItem('nibras-accent-name',name);}
-(function initTheme(){const mode=localStorage.getItem('nibras-theme-mode')||'system';if(mode==='system'){const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;setTheme(prefersDark?'dark':'light');}else{setTheme(mode);}})();
-const savedAccent=localStorage.getItem('nibras-accent');const savedAccentName=localStorage.getItem('nibras-accent-name');
-if(savedAccent){setAccentColor(savedAccent,savedAccentName||'مخصص');}
-const subPagesContent={
-    theme:'<div class="option-list"><div class="option-row" data-theme="system" onclick="selectTheme(\'system\')"><div class="option-label"><span>النظام (افتراضي)</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div><div class="option-row" data-theme="light" onclick="selectTheme(\'light\')"><div class="option-label"><span>فاتح</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div><div class="option-row" data-theme="dark" onclick="selectTheme(\'dark\')"><div class="option-label"><span>داكن</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div>',
-    color:'<div class="color-grid"><div class="color-row" data-color="#4a6a8a" onclick="selectColor(\'#4a6a8a\',\'أزرق داكن\')"><div class="color-row-left"><div class="color-circle" style="background:#4a6a8a;"></div><span>أزرق داكن (افتراضي)</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#1a1a1a" onclick="selectColor(\'#1a1a1a\',\'أسود\')"><div class="color-row-left"><div class="color-circle" style="background:#1a1a1a;"></div><span>أسود</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#10b981" onclick="selectColor(\'#10b981\',\'أخضر\')"><div class="color-row-left"><div class="color-circle" style="background:#10b981;"></div><span>أخضر</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#fbbf24" onclick="selectColor(\'#fbbf24\',\'أصفر\')"><div class="color-row-left"><div class="color-circle" style="background:#fbbf24;"></div><span>أصفر</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#ec4899" onclick="selectColor(\'#ec4899\',\'وردي\')"><div class="color-row-left"><div class="color-circle" style="background:#ec4899;"></div><span>وردي</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#f97316" onclick="selectColor(\'#f97316\',\'برتقالي\')"><div class="color-row-left"><div class="color-circle" style="background:#f97316;"></div><span>برتقالي</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#8b5cf6" onclick="selectColor(\'#8b5cf6\',\'أرجواني\')"><div class="color-row-left"><div class="color-circle" style="background:#8b5cf6;"></div><span>أرجواني</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
-    fontSize:'<div class="fontsize-list"><div class="fontsize-row" data-fs="small" onclick="selectFontSize(\'small\',\'صغير\')"><div class="fontsize-row-left"><div class="fontsize-label">صغير</div><div class="fontsize-sample" style="font-size:13px;">نموذج من الخط الصغير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="medium" onclick="selectFontSize(\'medium\',\'متوسط\')"><div class="fontsize-row-left"><div class="fontsize-label">متوسط</div><div class="fontsize-sample" style="font-size:15px;">نموذج من الخط المتوسط</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="large" onclick="selectFontSize(\'large\',\'كبير\')"><div class="fontsize-row-left"><div class="fontsize-label">كبير</div><div class="fontsize-sample" style="font-size:17px;">نموذج من الخط الكبير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="xlarge" onclick="selectFontSize(\'xlarge\',\'ضخم\')"><div class="fontsize-row-left"><div class="fontsize-label">ضخم</div><div class="fontsize-sample" style="font-size:19px;">نموذج من الخط الضخم</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
-    personality:'<div class="personality-list"><div class="personality-row" data-p="friendly" onclick="selectPersonality(\'friendly\',\'ودود\')"><div class="personality-text"><div class="personality-name">ودود</div><div class="personality-sub">دافئ ومريح</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="concise" onclick="selectPersonality(\'concise\',\'مختصر\')"><div class="personality-text"><div class="personality-name">مختصر</div><div class="personality-sub">ردود قصيرة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="detailed" onclick="selectPersonality(\'detailed\',\'مفصّل\')"><div class="personality-text"><div class="personality-name">مفصّل</div><div class="personality-sub">شرح عميق</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="formal" onclick="selectPersonality(\'formal\',\'رسمي\')"><div class="personality-text"><div class="personality-name">رسمي</div><div class="personality-sub">احترافي ومهني</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="teacher" onclick="selectPersonality(\'teacher\',\'معلّم\')"><div class="personality-text"><div class="personality-name">معلّم</div><div class="personality-sub">يشرح خطوة بخطوة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="playful" onclick="selectPersonality(\'playful\',\'فرفوش\')"><div class="personality-text"><div class="personality-name">فرفوش</div><div class="personality-sub">مرح ومزح خفيف</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
-    language:'<div class="lang-list"><div class="lang-card" data-lang="ar" onclick="selectLanguage(\'ar\')"><div class="lang-flag" style="background:linear-gradient(135deg,#2d6a4f 0%,#40916c 100%);">ع</div><div class="lang-info"><div class="lang-name">العربية</div><div class="lang-sub">Arabic</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="lang-card" data-lang="en" onclick="selectLanguage(\'en\')"><div class="lang-flag" style="background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);">EN</div><div class="lang-info"><div class="lang-name">English</div><div class="lang-sub">الإنجليزية</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
-    general:'<div class="sp-field"><label class="sp-label">الاسم الكامل</label><input type="text" id="sp-name" class="sp-input" value="{{ user_name or '' }}" placeholder="اكتب اسمك"></div>',
-    memory:'<div id="memoryContent"><div class="sp-note" style="text-align:center;">جاري تحميل الذاكرة...</div></div>',
-    assistants:'<div class="sp-note" style="text-align:center;">جاري التحميل...</div>',
-    voice:'<div style="display:flex;flex-direction:column;gap:16px;"><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">جنس الصوت</div><div class="personality-list"><div class="personality-row" data-vg="male" onclick="selectVoiceGender(\'male\')"><div class="personality-text"><div class="personality-name">ذكر</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vg="female" onclick="selectVoiceGender(\'female\')"><div class="personality-text"><div class="personality-name">أنثى</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">سرعة الصوت</div><div class="personality-list"><div class="personality-row" data-vs="0.75" onclick="selectVoiceSpeed(0.75)"><div class="personality-text"><div class="personality-name">بطيء</div><div class="personality-sub">0.75×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1" onclick="selectVoiceSpeed(1)"><div class="personality-text"><div class="personality-name">عادي</div><div class="personality-sub">1×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.25" onclick="selectVoiceSpeed(1.25)"><div class="personality-text"><div class="personality-name">سريع</div><div class="personality-sub">1.25×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.5" onclick="selectVoiceSpeed(1.5)"><div class="personality-text"><div class="personality-name">سريع جداً</div><div class="personality-sub">1.5×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">مستوى الصوت</div><div class="personality-list"><div class="personality-row" data-vl="25" onclick="selectVoiceLevel(25)"><div class="personality-text"><div class="personality-name">هادئ</div><div class="personality-sub">25%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="50" onclick="selectVoiceLevel(50)"><div class="personality-text"><div class="personality-name">متوسط</div><div class="personality-sub">50%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="75" onclick="selectVoiceLevel(75)"><div class="personality-text"><div class="personality-name">عالي</div><div class="personality-sub">75%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="100" onclick="selectVoiceLevel(100)"><div class="personality-text"><div class="personality-name">كامل</div><div class="personality-sub">100%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div></div>',
-    safety:'<div class="sp-note"><b>إرشادات السلامة</b>• لا تشارك معلوماتك الشخصية الحساسة.<br>• نبراس مساعد ذكي، وليس بديلاً عن الاستشارة المتخصصة.<br>• أبلغ عن أي محتوى غير لائق.</div>',
-    security:'<div class="sp-field"><label class="sp-label">البريد الإلكتروني</label><input type="email" class="sp-input" value="{{ session.get('user_email','') }}" disabled></div><div class="sp-field"><label class="sp-label">كلمة المرور الحالية</label><input type="password" id="sp-old-pass" class="sp-input" placeholder="••••••••"></div><div class="sp-field"><label class="sp-label">كلمة المرور الجديدة</label><input type="password" id="sp-new-pass" class="sp-input" placeholder="••••••••"></div>',
-    remote:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><div><div class="sp-hero-title">إدارة الجلسات</div><div class="sp-hero-sub">تحكم بالأجهزة المتصلة بحسابك</div></div></div><div class="sp-list"><div class="sp-list-item"><span class="sp-list-key">هذا الجهاز (المتصفح الحالي)</span><span class="sp-list-val" style="color:var(--primary-color);font-size:13px;">نشط الآن</span></div></div><div style="margin-top:16px;"><button class="sp-btn sp-btn-danger" onclick="logoutAll()">تسجيل الخروج من كل الأجهزة</button></div>',
-    storage:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="sp-hero-title">التخزين</div><div class="sp-hero-sub">إحصائيات البيانات المحفوظة</div></div></div><div class="sp-list"><div class="sp-list-item"><span class="sp-list-key">المحادثات</span><span class="sp-list-val" id="sp-conv-count">0</span></div><div class="sp-list-item"><span class="sp-list-key">الصور</span><span class="sp-list-val" id="sp-img-count">0</span></div></div><div style="margin-top:16px;"><button class="sp-btn sp-btn-danger" onclick="clearCache()">مسح الكاش المحلي</button></div>',
-    privacy:'<div class="sp-note"><b>سياسة الخصوصية</b>• نحتفظ بمحادثاتك لتقديم خدمة أفضل.<br>• لا نشارك بياناتك مع أطراف ثالثة.<br>• يمكنك حذف بياناتك في أي وقت من التحكم في البيانات.</div><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="sp-link-btn" style="margin-top:16px;">قراءة السياسة كاملة</a>',
-    data:'<div class="sp-note">يمكنك تصدير جميع بياناتك أو حذفها نهائياً.</div><div class="sp-btn-row" style="margin-top:16px;"><button class="sp-btn sp-btn-primary" onclick="exportData()">تصدير البيانات</button><button class="sp-btn sp-btn-danger" onclick="deleteMyAccount()">حذف</button></div>',
-    ads:'<div class="sp-field"><label class="sp-label">تخصيص الإعلانات</label><select id="sp-ads" class="sp-select"><option value="personalized">مخصصة</option><option value="non-personalized">غير مخصصة</option></select></div>',
-    report:'<div class="sp-field"><label class="sp-label">نوع المشكلة</label><select id="sp-report-type" class="sp-select"><option>خطأ تقني</option><option>محتوى غير لائق</option><option>اقتراح</option><option>أخرى</option></select></div><div class="sp-field"><label class="sp-label">الوصف</label><input type="text" id="sp-report-desc" class="sp-input" placeholder="اشرح المشكلة..."></div>',
-    about:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div><div><div class="sp-hero-title">نبراس GP</div><div class="sp-hero-sub">الإصدار 1.0 · مساعد ذكي شخصي</div></div></div><div class="sp-note">مساعد شخصي باللهجة العربية العامية.<br><br>© 2026 جميع الحقوق محفوظة.</div><a href="https://abod724.github.io/nibras-privacy/terms.html" target="_blank" class="sp-link-btn" style="margin-top:16px;">شروط الاستخدام</a><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="sp-link-btn" style="margin-top:10px;">سياسة الخصوصية</a>'
-};
-let currentSubKey=null;
-function openSubPage(key){
-    currentSubKey=key;
-    const titleMap={general:'عام',voice:'الصوت',safety:'السلامة',security:'الأمان وتسجيل الدخول',remote:'التحكم عن بُعد',storage:'التخزين',privacy:'مركز الخصوصية',data:'التحكم في البيانات',ads:'التحكم في الإعلانات',report:'الإبلاغ عن خطأ',about:'حول',theme:'المظهر',color:'لون التمييز',language:'اللغة / Language',personality:'شخصية المساعد',fontSize:'حجم الخط',memory:'الذاكرة',assistants:'مساعدي الخاص'};
-    document.getElementById('subPageTitle').textContent=titleMap[key]||'إعدادات';
-    document.getElementById('subPageBody').innerHTML=subPagesContent[key]||'<div class="sp-note">قريباً</div>';
-    document.getElementById('subPage').classList.add('show');
-    setTimeout(function(){
-        if(key==='theme'){const t=localStorage.getItem('nibras-theme-mode')||'system';markSelectedTheme(t);}
-        if(key==='color'){const c=localStorage.getItem('nibras-accent')||'#4a6a8a';markSelectedColor(c);}
-        if(key==='fontSize'){document.querySelectorAll('.fontsize-row').forEach(function(el){el.classList.toggle('selected',el.dataset.fs===userFontSize);});}
-        if(key==='personality'){document.querySelectorAll('.personality-row').forEach(function(el){el.classList.toggle('selected',el.dataset.p===userPersonality);});}
-        if(key==='language'){document.querySelectorAll('.lang-card').forEach(function(el){el.classList.toggle('selected',el.dataset.lang===userLang);});}
-        if(key==='voice'){markVoiceSelections();}
-        if(key==='memory'){loadMemory();}
-        if(key==='assistants'){loadAssistants().then(loadAssistantsPage);}
-        if(key==='storage'){loadStorageInfo();}
-    },60);
-}
-function closeSubPage(){
-    document.getElementById('subPage').classList.remove('show');
-    currentSubKey=null;
-    const btn = document.querySelector('#subPage .modal-confirm');
-    if(btn){ btn.onclick = confirmSubPage; btn.disabled = false; btn.textContent = 'تأكيد'; }
-}
-function confirmSubPage(){
-    if(currentSubKey==='voice'){saveVoice();}
-    else if(currentSubKey==='general'){saveGeneral();}
-    else if(currentSubKey==='security'){changePassword();}
-    else if(currentSubKey==='ads'){saveAds();}
-    else if(currentSubKey==='report'){sendReport();}
-    else{closeSubPage();}
-}
-function pickVoiceGender(g){isMale=(g==='male');}
-function selectVoiceGender(g){isMale=(g==='male');document.querySelectorAll('[data-vg]').forEach(function(el){el.classList.toggle('selected',el.dataset.vg===g);});}
-function selectVoiceSpeed(s){voiceSpeed=parseFloat(s);document.querySelectorAll('[data-vs]').forEach(function(el){el.classList.toggle('selected',parseFloat(el.dataset.vs)===voiceSpeed);});}
-function selectVoiceLevel(l){document.querySelectorAll('[data-vl]').forEach(function(el){el.classList.toggle('selected',parseInt(el.dataset.vl)===parseInt(l));});}
-function markVoiceSelections(){var g=isMale?'male':'female';document.querySelectorAll('[data-vg]').forEach(function(el){el.classList.toggle('selected',el.dataset.vg===g);});var s=voiceSpeed||1;document.querySelectorAll('[data-vs]').forEach(function(el){el.classList.toggle('selected',parseFloat(el.dataset.vs)===s);});var l=parseInt(localStorage.getItem('nibras-voice-level')||'100');document.querySelectorAll('[data-vl]').forEach(function(el){el.classList.toggle('selected',parseInt(el.dataset.vl)===l);});}
-function selectLanguage(lang){userLang=lang;try{localStorage.setItem('nibras-lang',userLang);}catch(e){}applyLang();fetch('/update_language',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lang:userLang})}).catch(()=>{});document.querySelectorAll('.lang-card').forEach(c=>{c.classList.toggle('selected',c.dataset.lang===userLang);});const lbl=document.getElementById('currentLangLabel');if(lbl)lbl.textContent=userLang==='en'?'English':'العربية';}
-function selectPersonality(p,name){userPersonality=p;try{localStorage.setItem('nibras-personality',p);}catch(e){}document.querySelectorAll('.personality-row').forEach(c=>{c.classList.toggle('selected',c.dataset.p===p);});const lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=name;fetch('/update_personality',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({personality:p})}).catch(()=>{});}
-function selectFontSize(size,name){userFontSize=size;try{localStorage.setItem('nibras-font-size',size);}catch(e){}applyFontSize(size);document.querySelectorAll('.fontsize-row').forEach(c=>{c.classList.toggle('selected',c.dataset.fs===size);});}
-function selectTheme(t){if(t==='system'){const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;setTheme(prefersDark?'dark':'light');}else{setTheme(t);}localStorage.setItem('nibras-theme-mode',t);markSelectedTheme(t);}
-function markSelectedTheme(t){document.querySelectorAll('.option-row').forEach(el=>{if(el.dataset.theme===t)el.classList.add('selected');else el.classList.remove('selected');});}
-function selectColor(color,name){setAccentColor(color,name);markSelectedColor(color);}
-function markSelectedColor(color){document.querySelectorAll('.color-row').forEach(el=>{if(el.dataset.color===color)el.classList.add('selected');else el.classList.remove('selected');});}
-async function loadMemory(){const c=document.getElementById('memoryContent');if(!c)return;if(!IS_REGISTERED){c.innerHTML='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div><div class="memory-empty">أنت تستخدم التطبيق كضيف.<br>سجّل دخولك لحفظ ذاكرتك بشكل دائم.</div></div>';return;}try{const r=await fetch('/get_memory');const d=await r.json();const items=[];if(d.name)items.push({k:'الاسم',v:d.name});if(d.lang)items.push({k:'اللغة',v:d.lang==='en'?'English':'العربية'});if(d.personality){const pMap={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};items.push({k:'شخصية المساعد',v:pMap[d.personality]||d.personality});}if(d.email)items.push({k:'البريد الإلكتروني',v:d.email});let html='<div class="memory-card"><div class="memory-header"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/></svg><span>الذاكرة</span></div>';if(items.length===0){html+='<div class="memory-empty">لا توجد معلومات محفوظة بعد.</div>';}else{items.forEach(i=>{html+='<div class="memory-item"><span class="memory-key">'+i.k+'</span><span class="memory-val">'+escapeHtml(i.v)+'</span></div>';});}html+='</div>';html+='<div class="memory-note">نبراس يستخدم هذي المعلومات لتخصيص ردوده. لا يشاركها مع أي طرف ثالث.</div>';c.innerHTML=html;}catch(e){c.innerHTML='<div class="sp-note" style="text-align:center;">تعذر تحميل الذاكرة.</div>';}}
-async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
-function saveGeneral(){const n=(document.getElementById('sp-name').value||'').trim();if(!n||n.length<2){showToast('اكتب اسم صحيح');return;}if(!IS_REGISTERED){showToast('سجّل دخولك أولاً');return;}fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,lang:userLang})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم الحفظ');closeSubPage();setTimeout(()=>location.reload(),500);}else{showToast(d.message||'فشل الحفظ');}}).catch(()=>showToast('تعذر الاتصال بالسيرفر'));}
-function saveVoice(){var lvlEl=document.querySelector('[data-vl].selected');var lvl=lvlEl?lvlEl.dataset.vl:'100';var gender=isMale?'male':'female';var speedEl=document.querySelector('[data-vs].selected');var speed=speedEl?parseFloat(speedEl.dataset.vs):1;voiceSpeed=speed;localStorage.setItem('nibras-voice-level',lvl);localStorage.setItem('nibras-voice-gender',gender);localStorage.setItem('nibras-voice-speed',speed);fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:gender})}).then(function(){showToast('تم حفظ الإعدادات');closeSubPage();}).catch(function(){showToast('تم الحفظ محلياً');closeSubPage();});}
-function changePassword(){const o=document.getElementById('sp-old-pass').value;const n=document.getElementById('sp-new-pass').value;if(!o){showToast('اكتب كلمة المرور الحالية');return;}if(!n||n.length<8){showToast('كلمة المرور الجديدة 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:o,new_password:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');document.getElementById('sp-old-pass').value='';document.getElementById('sp-new-pass').value='';closeSubPage();}else{showToast((d.message||'فشل تغيير كلمة المرور'));}}).catch(()=>showToast('تعذر الاتصال بالسيرفر'));}
-function logoutAll(){if(confirm('خروج من كل الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
-function clearCache(){if(!confirm('مسح الإعدادات المحلية؟'))return;localStorage.clear();sessionStorage.clear();document.documentElement.classList.remove('dark-mode');showToast('تم المسح');setTimeout(()=>location.reload(),900);}
-function exportData(){window.location.href='/export_data';}
-function saveAds(){showToast('تم حفظ التفضيلات');closeSubPage();}
-function sendReport(){const d=document.getElementById('sp-report-desc').value;if(!d||d.trim().length<3){showToast('اكتب وصف');return;}fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(r=>r.json()).then(res=>{if(res.status==='ok'){showToast('تم الإرسال');setTimeout(()=>closeSubPage(),800);}});}
-async function loadPinned(){try{let pinned=[];if(IS_REGISTERED){const r=await fetch('/pinned_conversations');const d=await r.json();pinned=d.pinned||[];}else{const ids=getPinnedLocal();if(ids.length){const hr=await fetch('/history');const hd=await hr.json();pinned=(hd.conversations||[]).filter(c=>ids.includes(c.id));}}pl.innerHTML='';if(!pinned||pinned.length===0){pl.innerHTML='<div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;">'+(userLang==='en'?'No pinned conversations':'لا توجد محادثات مثبتة')+'</div>';if(!IS_REGISTERED){const hint=document.createElement('div');hint.style.cssText='padding:8px 16px 12px;font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.6;';hint.innerHTML=userLang==='en'?'Sign in to save pins permanently':'سجّل دخولك لحفظ التثبيتات بشكل دائم';pl.appendChild(hint);}return;}pinned.forEach(c=>{const btn=document.createElement('button');btn.className='conv-item pinned-item';btn.innerHTML='<span class="conv-title">'+c.title+'</span>';btn.onclick=()=>loadConversation(c.id);pl.appendChild(btn);});}catch(e){}}
-async function loadHistory(){try{const r=await fetch('/history');const d=await r.json();hl.innerHTML='';const localPinned=getPinnedLocal();if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const isPinned=IS_REGISTERED?c.pinned:localPinned.includes(c.id);const b=document.createElement('div');b.className='conv-item';b.style.cursor='pointer';b.innerHTML='<span class="conv-title">'+((c.title&&c.title.trim())?c.title:'محادثة')+'</span><button class="pin-btn '+(isPinned?'pinned':'')+'" title="'+(isPinned?'إلغاء التثبيت':'تثبيت')+'"><svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></button>';b.onclick=(e)=>{if(e.target.closest('.pin-btn'))return;loadConversation(c.id);};b.querySelector('.pin-btn').onclick=async(e)=>{e.stopPropagation();await togglePin(c.id,isPinned,e.currentTarget);};hl.appendChild(b);});}else{const e=document.createElement('div');e.className='item';e.style.color='var(--text-secondary)';e.style.fontSize='13px';e.style.justifyContent='center';e.textContent=userLang==='en'?'No conversations':'لا توجد محادثات';hl.appendChild(e);}}catch(e){}}
-async function loadConversation(id){try{const r=await fetch('/load_conversation/'+id),d=await r.json();if(d.messages){cb.innerHTML='';ch=d.messages;cid=id;d.messages.slice(-50).forEach(function(m){const s=m.role==='user'?'user':'bot';addMessage(m.content,s,!0)});dd.classList.remove('show')}}catch(e){}}
-document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.classList.remove('show');ui.value=''});
-document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();dd.classList.remove('show');const msgs=ch.slice(-20).map(function(m){return{r:m.role==='user'?'u':'b',c:String(m.content||'').slice(0,500)};}).filter(function(m){return m.c;});if(!msgs||msgs.length===0){showToast(userLang==='en'?'No conversation to share':'لا توجد محادثة لمشاركتها');return;}const text=userLang==='en'?'Check out my conversation with Nibras':'شوف محادثتي مع نبراس';if(IS_REGISTERED&&cid&&!String(cid).startsWith('guest_conv_')){const dbUrl=window.location.origin+'/share/'+cid;document.getElementById('shareWhatsapp').href='https://wa.me/?text='+encodeURIComponent(text+'\n'+dbUrl);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(dbUrl);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(dbUrl)+'&text='+encodeURIComponent(text);document.getElementById('shareSnapchat').onclick=function(){navigator.clipboard.writeText(dbUrl).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});};sm.classList.add('show');}else{let url='';try{const json=JSON.stringify(msgs);const encoded=btoa(unescape(encodeURIComponent(json)));url=window.location.origin+'/share/view#d='+encodeURIComponent(encoded);}catch(err){showToast(userLang==='en'?'Failed to prepare link':'تعذر تجهيز الرابط');return;}if(url.length>60000){showToast(userLang==='en'?'Conversation too long to share':'المحادثة طويلة جداً للمشاركة');return;}if(navigator.share){navigator.share({title:userLang==='en'?'Nibras Conversation':'محادثة نبراس',text:text,url:url}).catch(function(){});}else{navigator.clipboard.writeText(url).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});}}});
-function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function formatBotText(t){let s=escapeHtml(t);return s.split(/\n\s*\n/).map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');}
-function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
-function scrollMsgToTop(el){if(!el)return;requestAnimationFrame(function(){const r=el.getBoundingClientRect();const c=cb.getBoundingClientRect();cb.scrollTop=cb.scrollTop+(r.top-c.top)-8;});}
-function isNearBottom(){return cb.scrollHeight-cb.scrollTop-cb.clientHeight<10;}
-cb.addEventListener('scroll',function(){stickBottom=isNearBottom();},{passive:true});
-cb.addEventListener('touchmove',function(){stickBottom=isNearBottom();},{passive:true});
-cb.addEventListener('wheel',function(){stickBottom=isNearBottom();},{passive:true});
-function attachBotActions(el,msgText){if(!el||el.querySelector('.msg-actions'))return;const actions=document.createElement('div');actions.className='msg-actions';actions.innerHTML='<button class="act-like" title="إعجاب"><svg viewBox="0 0 24 24"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg></button><button class="act-dislike" title="عدم إعجاب"><svg viewBox="0 0 24 24"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg></button><button class="act-copy" title="نسخ"><svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2.5" ry="2.5"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button><button class="act-speak" title="استماع"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>';el.appendChild(actions);const likeBtn=actions.querySelector('.act-like');const dislikeBtn=actions.querySelector('.act-dislike');const copyBtn=actions.querySelector('.act-copy');const speakBtn=actions.querySelector('.act-speak');likeBtn.addEventListener('click',function(){const wasLiked=this.classList.contains('liked');this.classList.toggle('liked',!wasLiked);dislikeBtn.classList.remove('disliked');actions.classList.add('touched');fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasLiked?'unlike':'like',message:msgText,conv_id:cid})}).catch(function(){});showToast(wasLiked?(userLang==='en'?'Like removed':'تم إلغاء الإعجاب'):(userLang==='en'?'Thanks!':'شكراً لتقييمك'));});dislikeBtn.addEventListener('click',function(){const wasDisliked=this.classList.contains('disliked');this.classList.toggle('disliked',!wasDisliked);likeBtn.classList.remove('liked');actions.classList.add('touched');fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasDisliked?'undislike':'dislike',message:msgText,conv_id:cid})}).catch(function(){});showToast(wasDisliked?(userLang==='en'?'Rating removed':'تم إلغاء التقييم'):(userLang==='en'?'We will improve':'رأيك مهم، بنتحسن'));});copyBtn.addEventListener('click',function(){navigator.clipboard.writeText(msgText).then(()=>{this.classList.add('copied');showToast(userLang==='en'?'Copied':'تم النسخ');const b=this;setTimeout(()=>b.classList.remove('copied'),1500);}).catch(()=>showToast(userLang==='en'?'Copy failed':'فشل النسخ'));});speakBtn.addEventListener('click',function(){const btn=this;if(btn.classList.contains('speaking')){stopAllAudio();document.querySelectorAll('.act-speak.speaking').forEach(function(b){ b.classList.remove('speaking'); });return;}stopAllAudio();document.querySelectorAll('.act-speak.speaking').forEach(function(b){ b.classList.remove('speaking'); });btn.classList.add('speaking');fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msgText})}).then(r=>r.json()).then(v=>{if(v && v.audio){playAudioWithSpeed(v.audio, function(){btn.classList.remove('speaking');});}else{btn.classList.remove('speaking');showToast(userLang==='en'?'Playback failed':'فشل التشغيل');}}).catch(function(){btn.classList.remove('speaking');showToast(userLang==='en'?'Connection failed':'فشل الاتصال');});});}
-function addMessage(t,s,isSys,img,imageUrl){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el}let content=formatBotText(t);if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}el.innerHTML=content;if(s==='bot'&&!isSys){attachBotActions(el,t);}cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el;}
-function showImagePreview(d){ip.src=d;ipc.classList.add('show');}
-function clearPending(){pid=null;ipc.classList.remove('show');ip.src='';}
-rib.addEventListener('click',clearPending);
-ui.addEventListener('input',function(){this.style.height='auto';const maxH=150;this.style.height=Math.min(this.scrollHeight,maxH)+'px';this.style.overflowY=this.scrollHeight>maxH?'auto':'hidden';const ums=cb.querySelectorAll('.msg.user');if(ums.length)scrollMsgToTop(ums[ums.length-1]);});
-let poOpen=false;
-pb.addEventListener('click',function(){poOpen=!poOpen;po.classList.toggle('show',poOpen);this.classList.toggle('rotate',poOpen)});
-document.addEventListener('click',function(e){if(!pb.contains(e.target)&&!po.contains(e.target)){po.classList.remove('show');poOpen=false;pb.classList.remove('rotate')}});
-gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
-fi.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];fi.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
-cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
-ci.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];ci.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
-let myAssistants=[];
-let currentAssistantId=null;
-let currentAssistantData={name:'نبراس',color:'#4a6a8a'};
-let editingAssistantId=null;
-let selectedAsstColor='#4a6a8a';
-async function loadAssistants(){if(!IS_REGISTERED)return;try{const r=await fetch('/my_assistants');const d=await r.json();myAssistants=d.assistants||[];renderAssistantMenu();const saved=localStorage.getItem('nibras_assistant_id');if(saved){const id=parseInt(saved);const found=myAssistants.find(a=>a.id===id);if(found){selectAssistant(id,false);}else{selectAssistant(null,false);}}else{selectAssistant(null,false);}}catch(e){console.error(e);}}
-function toggleAssistantMenu(e){if(e)e.stopPropagation();const menu=document.getElementById('assistantMenu');if(menu.classList.contains('show')){menu.classList.remove('show');return;}renderAssistantMenu();const pill=document.getElementById('assistantPill');const rect=pill.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-260))+'px';menu.style.bottom=(window.innerHeight-rect.top+6)+'px';menu.classList.add('show');}
-function renderAssistantMenu(){const menu=document.getElementById('assistantMenu');if(!menu)return;let html='';const isDefault=currentAssistantId===null;html+='<button class="assistant-menu-item'+(isDefault?' selected':'')+'" onclick="selectAssistant(null)"><span class="a-dot" style="background:#4a6a8a">ن</span><span class="a-name">نبراس</span><svg class="a-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>';if(myAssistants.length>0){html+='<div class="assistant-menu-sep"></div>';myAssistants.forEach(a=>{const sel=currentAssistantId===a.id;html+='<button class="assistant-menu-item'+(sel?' selected':'')+'" onclick="selectAssistant('+a.id+')"><span class="a-dot" style="background:'+a.color+'">'+escapeHtml(a.name.charAt(0))+'</span><span class="a-name">'+escapeHtml(a.name)+'</span><svg class="a-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>';});}html+='<div class="assistant-menu-sep"></div>';html+='<button class="assistant-menu-add" onclick="openNewAssistantForm()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إضافة مساعد جديد</button>';menu.innerHTML=html;}
-function selectAssistant(id,closeMenu){currentAssistantId=id;if(id===null){currentAssistantData={name:'نبراس',color:'#4a6a8a'};localStorage.removeItem('nibras_assistant_id');}else{const a=myAssistants.find(x=>x.id===id);if(a){currentAssistantData={name:a.name,color:a.color};localStorage.setItem('nibras_assistant_id',String(id));}}const dot=document.getElementById('assistantPillDot');const name=document.getElementById('assistantPillName');if(dot){dot.style.background=currentAssistantData.color;dot.textContent=currentAssistantData.name.charAt(0);}if(name){name.textContent=currentAssistantData.name;}if(closeMenu!==false){document.getElementById('assistantMenu').classList.remove('show');}}
-function openNewAssistantForm(){document.getElementById('assistantMenu').classList.remove('show');closeSettings();openAssistantForm(null);}
-function openAssistantForm(id){editingAssistantId=id;const a=id?myAssistants.find(x=>x.id===id):null;selectedAsstColor=a?a.color:'#4a6a8a';const colors=['#4a6a8a','#1a1a1a','#10b981','#fbbf24','#ec4899','#f97316','#8b5cf6','#ef4444'];const colorDots=colors.map(c=>'<button type="button" class="assistant-color-dot'+(c===selectedAsstColor?' selected':'')+'" data-color="'+c+'" style="background:'+c+'" onclick="pickAssistantColor(\''+c+'\')"></button>').join('');const body=document.getElementById('subPageBody');document.getElementById('subPageTitle').textContent=id?'تعديل المساعد':'مساعد جديد';body.innerHTML='<div class="assistant-form-field"><label>اسم المساعد</label><input type="text" id="asst-name" placeholder="مثلاً: أستاذ الرياضيات" maxlength="40" value="'+(a?escapeHtml(a.name):'')+'"></div><div class="assistant-form-field"><label>وصف المساعد وأسلوبه</label><textarea id="asst-persona" placeholder="اكتب كيف تريد المساعد يتصرف..." maxlength="1000">'+(a?escapeHtml(a.persona):'')+'</textarea><div class="assistant-form-hint">هذا الوصف يحدد شخصية المساعد وطريقة ردوده</div></div><div class="assistant-form-field"><label>اللون</label><div class="assistant-color-picker">'+colorDots+'</div></div><div class="assistant-form-actions"><button type="button" class="btn-cancel" onclick="loadAssistantsPage()">إلغاء</button><button type="button" class="btn-save" id="asst-save-btn" onclick="saveAssistant()">حفظ</button></div>';document.getElementById('subPage').classList.add('show');currentSubKey=null;setTimeout(()=>{const inp=document.getElementById('asst-name');if(inp)inp.focus();},100);}
-function pickAssistantColor(c){selectedAsstColor=c;document.querySelectorAll('.assistant-color-dot').forEach(el=>{el.classList.toggle('selected',el.dataset.color===c);});}
-async function saveAssistant(){const nameEl=document.getElementById('asst-name');const personaEl=document.getElementById('asst-persona');const name=(nameEl.value||'').trim();const persona=(personaEl.value||'').trim();if(name.length<2){showToast('اسم المساعد قصير جداً');return;}if(persona.length<10){showToast('اكتب وصفاً أطول للمساعد');return;}const btn=document.getElementById('asst-save-btn');btn.disabled=true;btn.textContent='جاري الحفظ...';try{const url=editingAssistantId?'/update_assistant':'/create_assistant';const body={name,persona,color:selectedAsstColor};if(editingAssistantId)body.id=editingAssistantId;const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(d.status==='ok'){showToast(editingAssistantId?'تم التعديل':'تم إنشاء المساعد');if(d.assistant&&!editingAssistantId){myAssistants.push(d.assistant);}else if(d.assistant&&editingAssistantId){const idx=myAssistants.findIndex(x=>x.id===editingAssistantId);if(idx>=0)myAssistants[idx]=d.assistant;}else{await loadAssistants();}renderAssistantMenu();loadAssistantsPage();}else{showToast(d.message||'فشل الحفظ');btn.disabled=false;btn.textContent='حفظ';}}catch(e){showToast('خطأ في الاتصال');btn.disabled=false;btn.textContent='حفظ';}}
-async function deleteAssistant(id){if(!confirm('حذف هذا المساعد؟'))return;try{const r=await fetch('/delete_assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});const d=await r.json();if(d.status==='ok'){myAssistants=myAssistants.filter(x=>x.id!==id);if(currentAssistantId===id)selectAssistant(null,false);showToast('تم الحذف');renderAssistantMenu();loadAssistantsPage();}else{showToast('فشل الحذف');}}catch(e){showToast('خطأ في الاتصال');}}
-function loadAssistantsPage(){currentSubKey='assistants';document.getElementById('subPageTitle').textContent='مساعدي الخاص';let html='';if(myAssistants.length===0){html='<div class="sp-note" style="text-align:center;padding:30px;font-size:14px;">لا يوجد مساعدون حتى الآن.<br>أنشئ مساعداً خاصاً بك</div>';}else{html='<div class="assistants-list">';myAssistants.forEach(a=>{html+='<div class="assistant-card"><div class="a-dot" style="background:'+a.color+'">'+escapeHtml(a.name.charAt(0))+'</div><div class="assistant-card-info"><div class="assistant-card-name">'+escapeHtml(a.name)+'</div><div class="assistant-card-sub">'+escapeHtml(a.persona.substring(0,60))+(a.persona.length>60?'...':'')+'</div></div><button type="button" class="assistant-card-del" onclick="deleteAssistant('+a.id+')" title="حذف"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';});html+='</div>';}html+='<button type="button" class="assistant-add-btn" onclick="openAssistantForm(null)"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إنشاء مساعد جديد</button>';document.getElementById('subPageBody').innerHTML=html;document.getElementById('subPage').classList.add('show');}
-document.addEventListener('click',function(e){const menu=document.getElementById('assistantMenu');const pill=document.getElementById('assistantPill');if(!menu||!pill)return;if(!menu.contains(e.target)&&!pill.contains(e.target)){menu.classList.remove('show');}});
-if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');setTimeout(loadAssistants,300);}
-async function sendMessage(){if(iw)return;const msgText=ui.value.trim(),img=pid;if(!msgText&&!img)return;let userMsgEl=null;if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}ui.value='';ui.style.height='auto';iw=true;const botEl=document.createElement('div');botEl.className='msg bot';botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';cb.appendChild(botEl);if(userMsgEl)scrollMsgToTop(userMsgEl);const payload={message:msgText||"مرفق",image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId};let displayText='';let bufferText='';let streamDone=false;let typingTimer=null;function tick(){if(bufferText.length>0){displayText+=bufferText.slice(0,1);bufferText=bufferText.slice(1);botEl.innerHTML=formatBotText(displayText);}if(bufferText.length===0&&streamDone){clearInterval(typingTimer);typingTimer=null;botEl.innerHTML=formatBotText(displayText);if(displayText&&displayText.trim().length>0){attachBotActions(botEl,displayText);ch.push({role:'assistant',content:displayText});}iw=false;if(voiceOn===true && displayText && displayText.trim().length>10){fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:displayText})}).then(r=>r.json()).then(v=>{if(v && v.audio){playAudioWithSpeed(v.audio, function(){});}}).catch(function(){});}}}typingTimer=setInterval(tick,15);try{const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok){let errMsg='مشكلة';try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}clearInterval(typingTimer);botEl.remove();addMessage('خطأ: '+errMsg,'error');iw=false;return;}const reader=r.body.getReader();const decoder=new TextDecoder();let sseBuffer='';let firstToken=true;while(true){const {done,value}=await reader.read();if(done)break;sseBuffer+=decoder.decode(value,{stream:true});const parts=sseBuffer.split('\n\n');sseBuffer=parts.pop();for(const line of parts){if(!line.startsWith('data: '))continue;try{const data=JSON.parse(line.slice(6));if(data.token){if(firstToken){botEl.innerHTML='';firstToken=false;}bufferText+=data.token;}else if(data.done){if(data.conv_id)cid=data.conv_id;streamDone=true;}else if(data.error){bufferText+='\n\nخطأ: '+data.error;}}catch(e){}}}streamDone=true;}catch(e){clearInterval(typingTimer);if(botEl.parentNode)botEl.remove();addMessage(userLang==='en'?'Connection failed':'تعذر الاتصال','error');iw=false;}}
-sb.addEventListener('click',sendMessage);
-ui.addEventListener('keydown',function(e){if(e.key==='Enter'){const isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);if(isMobile && !e.shiftKey){return;}if(!isMobile && !e.shiftKey){e.preventDefault();sendMessage();}}});
-document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
-let recog=null;
-mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
-window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
-window.toggleUserMenu=toggleUserMenu;window.openRedeemCode=openRedeemCode;window.redeemSubmit=redeemSubmit;
-window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.loadMemory=loadMemory;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;
-applyLang();
-(function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
-})();</script></body></html>"""
-@app.route('/')
-def index():
-    user_name = None
-    email = session.get('user_email')
-    is_registered = bool(email) or bool(session.get('is_admin'))
-    user_lang = ''
-    if email and not session.get('is_admin'):
-        p = get_user_profile(email)
-        if p:
-            user_name = p.get("display_name") or email.split("@")[0]
-        else:
-            user_name = email.split("@")[0]
-        mem = get_user_memory(email)
-        if mem.get('name'):
-            user_name = mem['name']
-        lang_from_mem = mem.get('lang')
-        if lang_from_mem in ('ar', 'en'):
-            user_lang = lang_from_mem
-    elif session.get('is_admin'):
-        user_name = "أدمن"
-    return render_template_string(HT, user_name=user_name, is_registered=is_registered, user_lang=user_lang)
-
-
-@app.route('/library')
-def library_page():
-    if not session.get('user_email') and not session.get('is_admin'):
-        return redirect(url_for('login'))
-    return render_template_string(LIBRARY_HTML)
-
-
-@app.route('/library/images')
-def library_images():
-    return jsonify({"images": get_user_images(get_user_id())})
-
-
-@app.route('/library/upload', methods=['POST'])
-def library_upload():
-    try:
-        if not session.get('user_email') and not session.get('is_admin'):
-            return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
-        d = request.get_json(silent=True) or {}
-        if not isinstance(d, dict):
-            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
-        image_data = d.get('image_data') or ''
-        if not isinstance(image_data, str) or len(image_data) > 7000000:
-            return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
-        if not image_data:
-            return jsonify({"status": "error", "message": "لا توجد صورة"}), 400
-        if not re.fullmatch(r"data:image/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+", image_data):
-            return jsonify({"status": "error", "message": "صيغة الصورة غير صالحة"}), 400
-        try:
-            if len(base64.b64decode(image_data.split(",", 1)[1], validate=True)) > 5 * 1024 * 1024:
-                return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
-        except Exception:
-            return jsonify({"status": "error", "message": "تعذر قراءة بيانات الصورة"}), 400
-        title = d.get('title') if isinstance(d.get('title'), str) else "صورة"
-        save_image_to_library(get_user_id(), image_data=image_data, title=title[:200] or "صورة", source="upload")
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print("library_upload:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/library/delete', methods=['POST'])
-def library_delete():
-    try:
-        d = request.get_json(silent=True) or {}
-        ok = delete_user_image(get_user_id(), d.get('id'))
-        if ok:
-            return jsonify({"status": "ok"}), 200
-        return jsonify({"status": "error"}), 404
-    except Exception as e:
-        print("library_delete:", e)
-        return jsonify({"status": "error", "message": "حدث خطأ داخلي"}), 500
-
-
-@app.route('/my_assistants')
-def my_assistants():
-    if not session.get('user_email') and not session.get('is_admin'):
-        return jsonify({"assistants": []})
-    uid = get_user_id()
-    try:
-        r = sb.table("custom_assistants").select("id,name,persona,color,created_at").eq("user_id", uid).order("created_at", desc=False).limit(50).execute()
-        return jsonify({"assistants": r.data or []})
-    except Exception as e:
-        print("my_assistants:", e)
-        return jsonify({"assistants": [], "error": str(e)})
-
-
-@app.route('/create_assistant', methods=['POST'])
-def create_assistant():
-    if not session.get('user_email') and not session.get('is_admin'):
-        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
-    d = request.get_json(silent=True) or {}
-    name = (d.get('name') or '').strip()[:40]
-    persona = (d.get('persona') or '').strip()[:1000]
-    color = (d.get('color') or '#4a6a8a')[:20]
-    if len(name) < 2 or len(persona) < 10:
-        return jsonify({"status": "error", "message": "بيانات ناقصة"}), 400
-    uid = get_user_id()
-    try:
-        cnt = len((sb.table("custom_assistants").select("id").eq("user_id", uid).execute()).data or [])
-        if cnt >= 5:
-            return jsonify({"status": "error", "message": "وصلت للحد الأقصى (5 مساعدين)"}), 400
-    except Exception as e:
-        print("count error:", e)
-    try:
-        r = sb.table("custom_assistants").insert({
-            "user_id": uid, "name": name, "persona": persona, "color": color
-        }).execute()
-        asst = r.data[0] if r and r.data else None
-        return jsonify({"status": "ok", "assistant": asst})
-    except Exception as e:
-        print("create_assistant:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/update_assistant', methods=['POST'])
-def update_assistant():
-    if not session.get('user_email') and not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    aid = d.get('id')
-    name = (d.get('name') or '').strip()[:40]
-    persona = (d.get('persona') or '').strip()[:1000]
-    color = (d.get('color') or '#4a6a8a')[:20]
-    if not aid or len(name) < 2 or len(persona) < 10:
-        return jsonify({"status": "error", "message": "بيانات ناقصة"}), 400
-    uid = get_user_id()
-    try:
-        r = sb.table("custom_assistants").update({
-            "name": name, "persona": persona, "color": color
-        }).eq("id", aid).eq("user_id", uid).execute()
-        asst = r.data[0] if r and r.data else None
-        return jsonify({"status": "ok", "assistant": asst})
-    except Exception as e:
-        print("update_assistant:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/delete_assistant', methods=['POST'])
-def delete_assistant():
-    if not session.get('user_email') and not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    aid = d.get('id')
-    if not aid:
-        return jsonify({"status": "error"}), 400
-    uid = get_user_id()
-    try:
-        sb.table("custom_assistants").delete().eq("id", aid).eq("user_id", uid).execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print("delete_assistant:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/pinned_conversations')
-def pinned_conversations():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"pinned": []})
-    pinned_ids = get_pinned_convs(email)
-    if not pinned_ids:
-        return jsonify({"pinned": []})
-    all_convs = get_user_conversations(get_user_id())
-    return jsonify({"pinned": [c for c in all_convs if c["id"] in pinned_ids]})
-
-
-@app.route('/pin_conversation', methods=['POST'])
-def pin_conversation():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    cid = d.get('conv_id')
-    pinned = get_pinned_convs(email)
-    if cid not in pinned:
-        pinned.append(cid)
-        save_pinned_convs(email, pinned)
-    return jsonify({"status": "ok"})
-
-
-@app.route('/unpin_conversation', methods=['POST'])
-def unpin_conversation():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    cid = d.get('conv_id')
-    pinned = get_pinned_convs(email)
-    if cid in pinned:
-        pinned.remove(cid)
-        save_pinned_convs(email, pinned)
-    return jsonify({"status": "ok"})
-
-
-@app.route('/history')
-def history():
-    uid = get_user_id()
-    cs = get_user_conversations(uid)
-    email = session.get('user_email')
-    pinned_ids = get_pinned_convs(email) if email else []
-    return jsonify({"conversations": [{"id": c["id"], "title": c["title"], "pinned": c["id"] in pinned_ids} for c in cs]})
-
-
-@app.route('/load_conversation/<cid>')
-def load_conversation_route(cid):
-    ms = load_conversation(get_user_id(), cid)
-    return jsonify({"messages": ms}) if ms else (jsonify({"messages": None}), 404)
-
-
-@app.route('/delete_message', methods=['POST'])
-def delete_message():
-    try:
-        d = request.get_json(silent=True) or {}
-        if not isinstance(d, dict) or not isinstance(d.get('conv_id'), str) or not isinstance(d.get('index'), int):
-            return jsonify({"status": "error", "message": "بيانات الحذف غير صحيحة"}), 400
-        ok = delete_message_row(get_user_id(), d.get('conv_id'), d.get('index'))
-        if ok:
-            return jsonify({"status": "ok"}), 200
-        return jsonify({"status": "error"}), 404
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/get_memory')
-def get_memory_route():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "guest", "items": {}})
-    try:
-        mem = get_user_memory(email) or {}
-        return jsonify({
-            "name": mem.get('name', ''),
-            "lang": mem.get('lang', 'ar'),
-            "personality": mem.get('personality', 'friendly'),
-            "email": email
-        })
-    except Exception as e:
-        print("get_memory:", e)
-        return jsonify({"status": "error"}), 500
-
-
-# ==========================================================
-#  ✅ نظام أكواد الوصول - Routes
-# ==========================================================
-
-@app.route('/admin/codes/list')
-def admin_codes_list():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    try:
-        r = (sb.table("access_codes").select("*")
-             .order("created_at", desc=True).limit(100).execute())
-        return jsonify({"codes": r.data or []})
-    except Exception as e:
-        print("admin_codes_list:", e)
-        return jsonify({"codes": [], "error": str(e)})
-
-
-@app.route('/admin/codes/generate', methods=['POST'])
-def admin_codes_generate():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    try:
-        chat_lim = max(1, min(99999, int(d.get('chat', 15))))
-        search_lim = max(0, min(99999, int(d.get('search', 2))))
-        image_lim = max(0, min(99999, int(d.get('image', 1))))
-        max_uses = max(1, min(1000, int(d.get('max_uses', 1))))
-        days = max(1, min(365, int(d.get('days', 7))))
-        note = (d.get('note') or '').strip()[:200]
-    except (ValueError, TypeError):
-        return jsonify({"status": "error", "message": "أرقام غير صحيحة"}), 400
-    from datetime import timezone
-    code = "NBRAS-" + secrets.token_hex(3).upper() + "-" + secrets.token_hex(2).upper()
-    expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
-    try:
-        r = sb.table("access_codes").insert({
-            "code": code,
-            "chat_limit": chat_lim,
-            "search_limit": search_lim,
-            "image_limit": image_lim,
-            "max_uses": max_uses,
-            "duration_days": days,
-            "note": note,
-            "expires_at": expires
-        }).execute()
-        return jsonify({"status": "ok", "code": r.data[0] if r.data else {"code": code}})
-    except Exception as e:
-        print("admin_codes_generate:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/admin/codes/delete', methods=['POST'])
-def admin_codes_delete():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    cid = d.get('id')
-    if not cid:
-        return jsonify({"status": "error"}), 400
-    try:
-        sb.table("access_codes").delete().eq("id", cid).execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/admin/codes/toggle', methods=['POST'])
-def admin_codes_toggle():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    cid = d.get('id')
-    if not cid:
-        return jsonify({"status": "error"}), 400
-    try:
-        r = sb.table("access_codes").select("active").eq("id", cid).limit(1).execute()
-        if not r.data:
-            return jsonify({"status": "error", "message": "الكود غير موجود"}), 404
-        new_state = not r.data[0].get("active", True)
-        sb.table("access_codes").update({"active": new_state}).eq("id", cid).execute()
-        return jsonify({"status": "ok", "active": new_state})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/redeem_code', methods=['POST'])
-@limiter.limit("10 per hour")
-def redeem_code():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
-    d = request.get_json(silent=True) or {}
-    code = (d.get('code') or '').strip().upper()
-    if not code or len(code) < 5:
-        return jsonify({"status": "error", "message": "كود غير صالح"}), 400
-
-    email_lc = email.lower().strip()
-    uid = get_user_id()
-    from datetime import timezone
-
-    try:
-        r = (sb.table("access_codes").select("*")
-             .eq("code", code).eq("active", True).limit(1).execute())
-    except Exception as e:
-        print("redeem_code select:", e)
-        return jsonify({"status": "error", "message": "خطأ في البحث"}), 500
-    if not r.data:
-        return jsonify({"status": "error", "message": "الكود غير صحيح أو موقوف"}), 404
-    row = r.data[0]
-
-    try:
-        ex = (sb.table("access_redemptions").select("id")
-              .eq("code", code).eq("user_email", email_lc).limit(1).execute())
-        if ex.data:
-            return jsonify({"status": "error", "message": "سبق استخدامك لهذا الكود"}), 400
-    except Exception as ex:
-        print("redeem_code dup check:", ex)
-
-    if row.get('expires_at'):
-        try:
-            exp_str = str(row['expires_at']).replace('Z', '+00:00')
-            exp = datetime.fromisoformat(exp_str)
-            if exp.tzinfo is None:
-                exp = exp.replace(tzinfo=timezone.utc)
-            if exp < datetime.now(timezone.utc):
-                return jsonify({"status": "error", "message": "انتهت صلاحية الكود"}), 400
-        except Exception as ex:
-            print("redeem_code exp check:", ex)
-
-    if int(row.get('used_count', 0) or 0) >= int(row.get('max_uses', 1) or 1):
-        return jsonify({"status": "error", "message": "الكود استُنفد الحد الأقصى"}), 400
-
-    days = int(row.get('duration_days', 7) or 7)
-    expires_user = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
-    chat_lim = int(row.get('chat_limit', 15) or 15)
-    search_lim = int(row.get('search_limit', 2) or 0)
-    image_lim = int(row.get('image_limit', 1) or 0)
-
-    try:
-        sb.table("access_redemptions").insert({
-            "code": code,
-            "user_email": email_lc,
-            "chat_limit": chat_lim,
-            "search_limit": search_lim,
-            "image_limit": image_lim,
-            "expires_at": expires_user
-        }).execute()
-        sb.table("access_codes").update({
-            "used_count": int(row.get('used_count', 0) or 0) + 1
-        }).eq("id", row['id']).execute()
-    except Exception as ex:
-        print("redeem_code insert:", ex)
-        return jsonify({"status": "error", "message": f"تعذر تفعيل الكود: {ex}"}), 500
-
-    try:
-        today = _date.today().isoformat()
-        sb.table("assistant_usage").update({
-            "chat_count": 0,
-            "search_count": 0,
-            "image_count": 0
-        }).eq("user_id", uid).eq("date", today).execute()
-        print(f"♻️ Reset daily counter for {uid}")
-    except Exception as ex:
-        print("reset usage:", ex)
-
-    print(f"✅ CODE REDEEMED: {email_lc} → chat={chat_lim}, search={search_lim}, image={image_lim}")
-    return jsonify({
-        "status": "ok",
-        "chat": chat_lim,
-        "search": search_lim,
-        "image": image_lim,
-        "expires_at": expires_user
-    })
-
-
-@app.route('/my_access')
-def my_access():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"access": None})
-    access = get_active_access(email)
-    return jsonify({"access": access})
-
-
-# ==========================================================
-#  نهاية نظام أكواد الوصول
-# ==========================================================
-
-
-@app.route('/delete_my_account', methods=['POST'])
-def delete_my_account():
-    email = session.get('user_email')
-    if not email or session.get('is_admin'):
-        return jsonify({"status": "error"}), 400
-    uid = get_user_id()
-    try:
-        service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        if not service_key:
-            return jsonify({"status": "error", "message": "حذف الحساب الكامل غير مُعدّ على الخادم. تواصل مع الإدارة."}), 503
-        auth_user_id = None
-        for page in range(1, 101):
-            ar = requests.get(
-                f"{SUPABASE_URL}/auth/v1/admin/users",
-                headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
-                params={"page": page, "per_page": 100}, timeout=15
-            )
-            ar.raise_for_status()
-            users_payload = ar.json()
-            auth_users = users_payload.get("users", []) if isinstance(users_payload, dict) else []
-            for auth_user in auth_users:
-                if (auth_user.get("email") or "").lower() == email.lower():
-                    auth_user_id = auth_user.get("id")
-                    break
-            if auth_user_id or len(auth_users) < 100:
-                break
-        if not auth_user_id:
-            return jsonify({"status": "error", "message": "لم يتم العثور على حساب المصادقة؛ لم تُحذف البيانات."}), 404
-        sb.table("assistant_chats").delete().eq("user_id", uid).execute()
-        sb.table("assistant_usage").delete().eq("user_id", uid).execute()
-        sb.table("image_library").delete().eq("user_id", uid).execute()
-        sb.table("custom_assistants").delete().eq("user_id", uid).execute()
-        sb.table("access_redemptions").delete().eq("user_email", email.lower()).execute()
-        sb.table("profiles").delete().eq("email", email.lower()).execute()
-        dr = requests.delete(
-            f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
-            headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"}, timeout=15
-        )
-        dr.raise_for_status()
-    except Exception as e:
-        print("delete_my_account:", e)
-        return jsonify({"status": "error", "message": "تعذر إكمال حذف الحساب. راجع سجلات الخادم."}), 500
-    session.clear()
-    return jsonify({"status": "success"}), 200
-
-
-@app.route('/update_profile', methods=['POST'])
-def update_profile():
-    d = request.get_json(silent=True) or {}
-    name = (d.get('name') or '').strip()
-    lang = d.get('lang')
-    if not name or len(name) < 2:
-        return jsonify({"status": "error"}), 400
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
-    save_user_profile(email, name=name)
-    mem = get_user_memory(email) or {}
-    mem['name'] = name
-    if lang in ('ar', 'en'):
-        mem['lang'] = lang
-    save_user_memory(email, mem)
-    return jsonify({"status": "ok"})
-
-
-@app.route('/update_language', methods=['POST'])
-def update_language():
-    d = request.get_json(silent=True) or {}
-    lang = d.get('lang')
-    if lang not in ('ar', 'en'):
-        return jsonify({"status": "error"}), 400
-    email = session.get('user_email')
-    if email:
-        try:
-            mem = get_user_memory(email) or {}
-            mem['lang'] = lang
-            save_user_memory(email, mem)
-        except Exception as e:
-            print("update_language:", e)
-    return jsonify({"status": "ok"})
-
-
-@app.route('/update_personality', methods=['POST'])
-def update_personality():
-    d = request.get_json(silent=True) or {}
-    p = d.get('personality')
-    if p not in PERSONALITY_INSTRUCTIONS:
-        return jsonify({"status": "error", "message": "شخصية غير صالحة"}), 400
-    email = session.get('user_email')
-    if email:
-        try:
-            mem = get_user_memory(email) or {}
-            mem['personality'] = p
-            save_user_memory(email, mem)
-        except Exception as e:
-            print("update_personality:", e)
-    return jsonify({"status": "ok"})
-
-
-@app.route('/change_password', methods=['POST'])
-def change_password():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
-    d = request.get_json(silent=True) or {}
-    oldp = d.get('old_password', '')
-    newp = d.get('new_password', '')
-    if not oldp:
-        return jsonify({"status": "error", "message": "اكتب كلمة المرور الحالية"}), 400
-    if not newp or len(newp) < 8:
-        return jsonify({"status": "error", "message": "كلمة المرور الجديدة لازم 8 أحرف على الأقل"}), 400
-    try:
-        r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
-            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
-            json={"email": email, "password": oldp}, timeout=15)
-    except Exception as e:
-        print(f"change_password: login request error: {e}")
-        return jsonify({"status": "error", "message": "تعذر الاتصال بخدمة المصادقة"}), 500
-    if r.status_code != 200:
-        msg = "كلمة المرور الحالية غير صحيحة"
-        try:
-            err = r.json()
-            raw = err.get("error_description") or err.get("msg") or err.get("error") or ""
-            rl = str(raw).lower()
-            if "rate" in rl or "too many" in rl:
-                msg = "حاولت عدة مرات — انتظر دقيقة ثم أعد المحاولة"
-            elif "email" in rl and "confirm" in rl:
-                msg = "حسابك غير مؤكد — افتح إيميلك واضغط رابط التأكيد"
-            elif "invalid" in rl and "grant" in rl:
-                msg = "البريد أو كلمة المرور الحالية غير صحيحة"
-            elif raw:
-                msg = str(raw)
-        except Exception:
-            pass
-        return jsonify({"status": "error", "message": msg}), 400
-    at = r.json().get('access_token')
-    if not at:
-        return jsonify({"status": "error", "message": "تعذر إنشاء الجلسة"}), 500
-    try:
-        r2 = requests.put(f"{SUPABASE_URL}/auth/v1/user",
-            headers={
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {at}",
-                "Content-Type": "application/json"
-            },
-            json={"password": newp}, timeout=15)
-    except Exception as e:
-        print(f"change_password: update request error: {e}")
-        return jsonify({"status": "error", "message": "تعذر تحديث كلمة المرور"}), 500
-    if r2.status_code == 200:
-        return jsonify({"status": "ok"}), 200
-    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if service_key:
-        try:
-            auth_user_id = None
-            for page in range(1, 11):
-                ar = requests.get(
-                    f"{SUPABASE_URL}/auth/v1/admin/users",
-                    headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
-                    params={"page": page, "per_page": 100}, timeout=15
-                )
-                if ar.status_code != 200:
-                    break
-                payload = ar.json()
-                users = payload.get("users", []) if isinstance(payload, dict) else []
-                for u in users:
-                    if (u.get("email") or "").lower() == email.lower():
-                        auth_user_id = u.get("id")
-                        break
-                if auth_user_id or len(users) < 100:
-                    break
-            if auth_user_id:
-                ur = requests.put(
-                    f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
-                    headers={"apikey": service_key, "Authorization": f"Bearer {service_key}", "Content-Type": "application/json"},
-                    json={"password": newp}, timeout=15
-                )
-                if ur.status_code == 200:
-                    return jsonify({"status": "ok"}), 200
-        except Exception as e:
-            print(f"change_password: admin fallback error: {e}")
-    err_msg = "تعذر تغيير كلمة المرور"
-    try:
-        e2 = r2.json()
-        err_msg = e2.get("msg") or e2.get("message") or e2.get("error_description") or err_msg
-    except Exception:
-        pass
-    return jsonify({"status": "error", "message": err_msg}), 400
-
-
-@app.route('/export_data')
-def export_data():
-    email = session.get('user_email')
-    if not email:
-        return "يجب تسجيل الدخول", 401
-    uid = get_user_id()
-    data = {"user_email": email, "conversations": get_user_conversations(uid), "images_count": len(get_user_images(uid))}
-    resp = jsonify(data)
-    resp.headers['Content-Disposition'] = f'attachment; filename=nibras_data_{email}.json'
-    return resp
-
-
-@app.route('/report_bug', methods=['POST'])
-def report_bug():
-    try:
-        d = request.get_json(silent=True) or {}
-        desc = (d.get('description') or '').strip()
-        if not desc or len(desc) < 3:
-            return jsonify({"status": "error"}), 400
-        sb.table("bug_reports").insert({
-            "user_email": session.get('user_email', 'ضيف'),
-            "user_role": session.get('user_role', 'guest'),
-            "type": d.get('type', 'غير محدد'),
-            "description": desc
-        }).execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/logout_all', methods=['POST'])
-def logout_all():
-    session.clear()
-    return jsonify({"status": "ok"})
-
-
-@app.route('/feedback', methods=['POST'])
-def feedback():
-    try:
-        d = request.get_json(silent=True) or {}
-        ftype = d.get('type')
-        if ftype not in ('like', 'dislike', 'unlike', 'undislike'):
-            return jsonify({"status": "error"}), 400
-        sb.table("message_feedback").insert({
-            "user_id": get_user_id(),
-            "user_email": session.get('user_email', 'guest'),
-            "conv_id": d.get('conv_id') or '',
-            "message_text": (d.get('message') or '')[:1000],
-            "feedback": ftype
-        }).execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print("feedback:", e)
-        return jsonify({"status": "error"}), 500
-
-
-@app.route('/share/view')
-def shared_view():
-    return render_template_string(SHARED_VIEW_HTML)
-
-
-@app.route('/share/<cid>')
-def shared_conversation(cid):
-    rows = load_conversation_public(cid)
-    if not rows:
-        return "المحادثة غير موجودة.", 404
-    msgs = []
-    title = "محادثة نبراس"
-    for i, row in enumerate(rows):
-        if i == 0 and row.get("title"):
-            title = row["title"]
-        if row.get("message"):
-            msgs.append({"role": "user", "content": row["message"]})
-        if row.get("response"):
-            msgs.append({"role": "assistant", "content": row["response"]})
-    return render_template_string(SPH, messages=msgs, title=title)
-
-
-@app.route('/login', methods=['GET', 'POST'])
-@limiter.limit("10 per minute")
-def login():
-    if request.method == 'POST':
-        e = request.form.get('email', '').strip().lower()
-        p = request.form.get('password', '')
-        ap = os.environ.get("ADMIN_PASSWORD")
-        if not e or "@" not in e:
-            return render_template_string(LH, error="بريد صحيح مطلوب.")
-        if e == ADMIN_EMAIL.lower():
-            if not ap or not secrets.compare_digest(p, ap):
-                return render_template_string(LH, error="كلمة مرور الأدمن غير صحيحة.")
-            session.clear()
-            session.permanent = True
-            session['user_email'] = e
-            session['is_admin'] = True
-            session['user_role'] = 'admin'
-            return redirect(url_for('index'))
-        try:
-            r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
-                headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
-                json={"email": e, "password": p}, timeout=15)
-        except Exception as ex:
-            print(f"LOGIN_EXCEPTION: {type(ex).__name__}: {ex}")
-            return render_template_string(LH, error="تعذر الاتصال.")
-        if r.status_code != 200:
-            return render_template_string(LH, error="البريد أو كلمة المرور غير صحيحة.")
-        data = r.json()
-        session.clear()
-        session.permanent = True
-        session['user_email'] = e
-        session['is_admin'] = False
-        session['user_role'] = get_user_role(e)
-        touch_user(e)
-        return redirect(url_for('index'))
-    return render_template_string(LH)
-
-
-@app.route('/signup', methods=['POST'])
-@limiter.limit("5 per hour")
-def signup():
-    e = request.form.get('email', '').strip().lower()
-    p = request.form.get('password', '')
-    name = request.form.get('name', '').strip()
-    if not e or "@" not in e or len(p) < 8:
-        return render_template_string(LH, error="بيانات غير صحيحة.")
-    if not name or len(name) < 2:
-        return render_template_string(LH, error="الاسم مطلوب.")
-    try:
-        sb.auth.sign_up({"email": e, "password": p, "options": {"email_redirect_to": f"{request.host_url.rstrip('/')}/verified", "data": {"display_name": name}}})
-        save_user_profile(e, name=name)
-        save_user_memory(e, {"name": name})
-        return render_template_string(LH, success="تم إنشاء حسابك! افتح بريدك للتأكيد.")
-    except Exception as ex:
-        print(f"SIGNUP_ERROR: {type(ex).__name__}: {ex}")
-        return render_template_string(LH, error=f"فشل: {ex}")
-
-
-@app.route('/verified')
-def verified():
-    return """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تم التحقق</title></head><body style="text-align:center;padding:50px;font-family:sans-serif;"><h2>تم تأكيد حسابك!</h2><a href="/login">تسجيل الدخول</a></body></html>"""
-
-
-@app.route('/recover', methods=['POST'])
-@limiter.limit("5 per hour")
-def recover():
-    e = request.form.get('email', '').strip().lower()
-    if not e or "@" not in e:
-        return render_template_string(LH, error="أدخل بريداً صحيحاً.")
-    try:
-        redirect_url = f"{request.host_url.rstrip('/')}/reset-password"
-        requests.post(
-            f"{SUPABASE_URL}/auth/v1/recover?redirect_to={redirect_url}",
-            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
-            json={"email": e},
-            timeout=15
-        )
-        return render_template_string(LH, success="تم إرسال رابط الاستعادة على بريدك.")
-    except Exception as ex:
-        print(f"RECOVER_ERROR: {type(ex).__name__}: {ex}")
-        return render_template_string(LH, error=f"فشل: {ex}")
-
-
-@app.route('/reset-password')
-def reset_password_page():
-    return render_template_string(RESET_HTML)
-
-
-@app.route('/update_password', methods=['POST'])
-def update_password():
-    try:
-        d = request.get_json(silent=True) or {}
-        token = d.get('access_token', '')
-        newp = d.get('new_password', '')
-        if not token:
-            return jsonify({"status": "error", "message": "الرابط غير صالح"}), 400
-        if not newp or len(newp) < 8:
-            return jsonify({"status": "error", "message": "كلمة المرور لازم 8 أحرف على الأقل"}), 400
-        r = requests.put(
-            f"{SUPABASE_URL}/auth/v1/user",
-            headers={
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            },
-            json={"password": newp},
-            timeout=15
-        )
-        if r.status_code == 200:
-            return jsonify({"status": "ok"})
-        msg = "تعذر تحديث كلمة المرور"
-        try:
-            e2 = r.json()
-            msg = e2.get("msg") or e2.get("message") or e2.get("error_description") or msg
-        except Exception:
-            pass
-        return jsonify({"status": "error", "message": msg}), 400
-    except Exception as e:
-        print(f"update_password error: {type(e).__name__}: {e}")
-        return jsonify({"status": "error", "message": "خطأ داخلي"}), 500
-
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('index'))
-
-
-ALLOWED_OAUTH_PROVIDERS = ("google",)
-
-@app.route('/auth/<provider>')
-def oauth_login(provider):
-    if provider not in ALLOWED_OAUTH_PROVIDERS:
-        return redirect(url_for('login'))
-    callback = f"{request.host_url.rstrip('/')}/auth/callback"
-    auth_url = (
-        f"{SUPABASE_URL}/auth/v1/authorize"
-        f"?provider={provider}"
-        f"&redirect_to={urllib.parse.quote(callback, safe='')}"
-    )
-    return redirect(auth_url)
-
-
-@app.route('/auth/callback')
-def oauth_callback():
-    return render_template_string(OAUTH_CALLBACK_HTML)
-
-
-@app.route('/auth/session', methods=['POST'])
-@limiter.limit("20 per minute")
-def oauth_session():
-    try:
-        d = request.get_json(silent=True) or {}
-        at = d.get('access_token')
-        code = d.get('code')
-        print(f"oauth_session: at={'yes' if at else 'no'} code={'yes' if code else 'no'}")
-        if not at or not isinstance(at, str):
-            return jsonify({"status": "error", "message": f"توكن مفقود (code={'yes' if code else 'no'})"}), 400
-        r = requests.get(
-            f"{SUPABASE_URL}/auth/v1/user",
-            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {at}"},
-            timeout=15
-        )
-        if r.status_code != 200:
-            return jsonify({"status": "error", "message": "توكن غير صالح"}), 401
-        u = r.json()
-        email = (u.get('email') or '').lower().strip()
-        if not email:
-            return jsonify({"status": "error", "message": "بريد غير موجود بالحساب"}), 400
-        session.clear()
-        session.permanent = True
-        session['user_email'] = email
-        session['is_admin'] = (email == ADMIN_EMAIL.lower())
-        session['user_role'] = get_user_role(email)
-        try:
-            meta = u.get('user_metadata') or {}
-            name = (meta.get('full_name') or meta.get('name') or email.split('@')[0]).strip()
-            if not get_user_profile(email):
-                save_user_profile(email, name=name)
-                save_user_memory(email, {"name": name})
-            touch_user(email)
-        except Exception as e:
-            print("oauth_session profile:", e)
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        print("oauth_session:", e)
-        return jsonify({"status": "error", "message": "خطأ داخلي"}), 500
-
-
-@app.route('/admin/login', methods=['GET', 'POST'])
-def admin_login():
-    if request.method == 'POST':
-        p = request.form.get('password', '')
-        ap = os.environ.get("ADMIN_PASSWORD")
-        if ap and secrets.compare_digest(p, ap):
-            session['is_admin'] = True
-            session.permanent = True
-            return redirect(url_for('admin_dashboard'))
-        return "<h2>كلمة مرور خاطئة</h2>"
-    return """<body style='text-align:center;padding:50px;font-family:sans-serif;'><form method='POST'><h2>دخول الأدمن</h2><input type='password' name='password' required><br><br><button type='submit'>دخول</button></form></body>"""
-
-
-@app.route('/admin')
-def admin_dashboard():
-    if not session.get('is_admin'):
-        return redirect(url_for('admin_login'))
-    recent, users_list, reports_list, feedback_list = [], [], [], []
-    try:
-        recent = (sb.table("assistant_chats").select("user_id,title,created_at").order("created_at", desc=True).limit(10).execute()).data or []
-    except Exception as e:
-        print(f"admin recent error: {e}")
-    try:
-        users_list = (sb.table("profiles").select("email,display_name,role").order("created_at", desc=True).limit(30).execute()).data or []
-    except Exception as e:
-        print(f"admin users error: {e}")
-    try:
-        reports_list = (sb.table("bug_reports").select("*").order("created_at", desc=True).limit(30).execute()).data or []
-    except Exception as e:
-        print(f"admin reports error: {e}")
-    try:
-        feedback_list = (sb.table("message_feedback").select("*").order("created_at", desc=True).limit(100).execute()).data or []
-    except Exception as e:
-        print(f"admin feedback error: {e}")
-    likes_count = sum(1 for f in feedback_list if f.get('feedback') == 'like')
-    dislikes_count = sum(1 for f in feedback_list if f.get('feedback') == 'dislike')
-    recent_html = "".join([f'<div class="conv-item"><b>{escape(str(r.get("title", "?")))}</b><small>{escape(str(r.get("user_id", ""))[:30])}</small></div>' for r in recent]) or "<p style='color:#8b949e;'>لا توجد</p>"
-    users_html = "".join([f'<div class="conv-item"><b>{escape(str(u.get("display_name", "?")))}</b><small>{escape(str(u.get("email", "")))} ({escape(str(u.get("role", "user")))})</small></div>' for u in users_list]) or "<p style='color:#8b949e;'>لا يوجد</p>"
-    reports_html = "".join([f'<div style="border-right:3px solid #e74c3c;padding:10px;margin:8px 0;background:#fff5f5;border-radius:8px;"><b>[{escape(str(r.get("type", "?")))}]</b> {escape(str(r.get("user_email", "?")))}<br><small>{escape(str(r.get("description", "")))}</small></div>' for r in reports_list]) or "<p style='color:#8b949e;'>لا توجد</p>"
-    feedback_html = "".join([
-        f'<div style="border-right:4px solid {"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};padding:12px;margin:10px 0;background:{"#f0fdf4" if f.get("feedback")=="like" else "#fef2f2"};border-radius:10px;">'
-        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-        f'<b style="color:{"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};font-size:14px;">'
-        f'{"إعجاب" if f.get("feedback")=="like" else "رفض"}</b>'
-        f'<small style="color:#8b949e;font-size:11px;">{escape(str(f.get("created_at",""))[:16])}</small>'
-        f'</div>'
-        f'<div style="font-size:12px;color:#5a6b7c;margin-bottom:6px;">'
-        f'{escape(str(f.get("user_email","?")))}'
-        f'</div>'
-        f'<div style="font-size:13px;color:#1a2b3c;background:#fff;padding:8px 10px;border-radius:6px;line-height:1.6;">'
-        f'{escape(str(f.get("message_text",""))[:250])}'
-        f'</div>'
-        f'</div>'
-        for f in feedback_list if f.get('feedback') in ('like', 'dislike')
-    ]) or "<p style='color:#8b949e;text-align:center;padding:20px;'>لا توجد تقييمات بعد</p>"
-    return f"""<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>لوحة الأدمن</title><style>
-    *{{box-sizing:border-box}}
-    body{{font-family:'Segoe UI',Tahoma,sans-serif;padding:16px;background:#f4f7fc;color:#1a2b3c;margin:0}}
-    .container{{max-width:700px;margin:auto}}
-    h1{{color:#4a6a8a;text-align:center;font-size:22px}}
-    h3{{color:#1a2b3c;font-size:16px;margin:0 0 12px}}
-    .card{{background:#fff;padding:18px;margin:15px 0;border-radius:15px;box-shadow:0 4px 16px rgba(0,0,0,0.04)}}
-    .stat{{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eef1f6}}
-    .stat:last-child{{border:none}}
-    .num{{color:#4a6a8a;font-weight:bold;font-size:18px}}
-    .conv-item{{padding:10px 0;border-bottom:1px solid #eef1f6}}
-    .conv-item:last-child{{border:none}}
-    .conv-item b{{font-size:14px}}
-    .conv-item small{{color:#8b949e;display:block;font-size:12px;margin-top:2px}}
-    .back{{display:block;text-align:center;color:#4a6a8a;text-decoration:none;margin-top:24px;font-weight:600;padding:12px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}}
-    </style></head><body><div class="container">
-    <h1>لوحة تحكم نبراس</h1>
-    <div class="card">
-        <div class="stat"><span>المستخدمون</span><span class="num">{len(users_list)}</span></div>
-        <div class="stat"><span>البلاغات</span><span class="num">{len(reports_list)}</span></div>
-        <div class="stat"><span>إعجابات</span><span class="num" style="color:#27ae60;">{likes_count}</span></div>
-        <div class="stat"><span>رفض</span><span class="num" style="color:#e74c3c;">{dislikes_count}</span></div>
-    </div>
-
-    <div class="card">
-        <h3>🎟️ توليد كود وصول</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-            <label style="font-size:13px;">محادثات
-                <input type="number" id="code-chat" value="4" min="1" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">بحث
-                <input type="number" id="code-search" value="4" min="0" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">صور
-                <input type="number" id="code-image" value="4" min="0" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">عدد المستخدمين
-                <input type="number" id="code-uses" value="1" min="1" max="1000" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">المدة (أيام)
-                <input type="number" id="code-days" value="7" min="1" max="365" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">ملاحظة
-                <input type="text" id="code-note" placeholder="مثلاً: لأختي" maxlength="200" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-        </div>
-        <button onclick="generateCode()" style="width:100%;padding:14px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;">توليد الكود</button>
-        <div id="generated-code" style="margin-top:14px;display:none;padding:14px;background:#f0fdf4;border-radius:12px;text-align:center;border:1px solid #86efac;">
-            <div style="font-size:12px;color:#166534;margin-bottom:6px;">✅ الكود الجديد — اضغط للنسخ:</div>
-            <div id="generated-code-text" onclick="navigator.clipboard.writeText(this.textContent);this.style.background='#bbf7d0';setTimeout(()=>this.style.background='transparent',300);" style="font-size:22px;font-weight:800;letter-spacing:3px;color:#166534;cursor:pointer;padding:8px;border-radius:8px;user-select:all;transition:background .2s;"></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>📋 الأكواد السابقة</h3>
-        <div id="codes-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
-    </div>
-
-    <script>
-    async function generateCode(){{
-        const body = {{
-            chat: parseInt(document.getElementById('code-chat').value) || 15,
-            search: parseInt(document.getElementById('code-search').value) || 2,
-            image: parseInt(document.getElementById('code-image').value) || 1,
-            max_uses: parseInt(document.getElementById('code-uses').value) || 1,
-            days: parseInt(document.getElementById('code-days').value) || 7,
-            note: document.getElementById('code-note').value || ''
-        }};
-        try{{
-            const r = await fetch('/admin/codes/generate', {{
-                method:'POST', headers:{{'Content-Type':'application/json'}},
-                body: JSON.stringify(body)
-            }});
-            const d = await r.json();
-            if(d.status === 'ok'){{
-                const codeData = d.code;
-                document.getElementById('generated-code-text').textContent = codeData.code || codeData;
-                document.getElementById('generated-code').style.display = 'block';
-                loadCodes();
-            }} else {{
-                alert(d.message || 'فشل التوليد');
-            }}
-        }}catch(e){{ alert('خطأ في الاتصال'); }}
-    }}
-    async function loadCodes(){{
-        const list = document.getElementById('codes-list');
-        try{{
-            const r = await fetch('/admin/codes/list');
-            const d = await r.json();
-            if(!d.codes || d.codes.length === 0){{
-                list.innerHTML = '<p style="color:#8b949e;">لا توجد أكواد بعد</p>';
-                return;
-            }}
-            list.innerHTML = d.codes.map(c => {{
-                const expired = c.expires_at && new Date(c.expires_at) < new Date();
-                const status = !c.active ? 'موقوف' : (expired ? 'منتهي' : 'نشط');
-                const statusColor = !c.active ? '#8b949e' : (expired ? '#e74c3c' : '#16a34a');
-                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">'
-                    +'<div>'
-                    +'<b style="letter-spacing:1px;font-size:14px;">'+c.code+'</b>'
-                    +'<span style="color:'+statusColor+';font-size:12px;margin-right:6px;">● '+status+'</span>'
-                    +'<div style="font-size:11px;color:#666;margin-top:4px;">'
-                    +c.chat_limit+' محادثة · '+c.search_limit+' بحث · '+c.image_limit+' صورة'
-                    +' · استُخدم '+c.used_count+'/'+c.max_uses
-                    +(c.note ? ' · '+c.note : '')
-                    +'</div></div>'
-                    +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-                    +'<button onclick="navigator.clipboard.writeText(\\''+c.code+'\\');this.textContent=\\'✓\\';setTimeout(()=>this.textContent=\\'نسخ\\',800);" style="padding:6px 10px;border:1px solid #4a6a8a;background:#fff;color:#4a6a8a;border-radius:8px;cursor:pointer;font-size:12px;">نسخ</button>'
-                    +'<button onclick="toggleCode('+c.id+')" style="padding:6px 10px;border:1px solid #f59e0b;background:#fff;color:#f59e0b;border-radius:8px;cursor:pointer;font-size:12px;">'+(c.active?'إيقاف':'تشغيل')+'</button>'
-                    +'<button onclick="deleteCode('+c.id+')" style="padding:6px 10px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;border-radius:8px;cursor:pointer;font-size:12px;">حذف</button>'
-                    +'</div></div>';
-            }}).join('');
-        }}catch(e){{
-            list.innerHTML = '<p style="color:#e74c3c;">تعذر التحميل</p>';
-        }}
-    }}
-    async function toggleCode(id){{
-        await fetch('/admin/codes/toggle', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id}})}});
-        loadCodes();
-    }}
-    async function deleteCode(id){{
-        if(!confirm('حذف الكود؟')) return;
-        await fetch('/admin/codes/delete', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id}})}});
-        loadCodes();
-    }}
-    loadCodes();
-    </script>
-
-    <div class="card"><h3>تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
-    <div class="card"><h3>البلاغات</h3>{reports_html}</div>
-    <div class="card"><h3>المستخدمون</h3>{users_html}</div>
-    <div class="card"><h3>آخر المحادثات</h3>{recent_html}</div>
-    <a href="/" class="back">← العودة للرئيسية</a>
-    </div>
-    </body></html>"""
-
-
-@app.route('/set_gender', methods=['POST'])
-def set_gender():
-    d = request.get_json(silent=True) or {}
-    gender = d.get('gender', 'male')
-    if gender not in ('male', 'female'):
-        gender = 'male'
-    session['voice_gender'] = gender
-    return jsonify({"status": "ok"})
-
-
-@app.route('/voice', methods=['POST'])
-@limiter.limit("30 per minute")
-def voice():
-    try:
-        d = request.get_json(silent=True) or {}
-        text = (d.get('text') or "").strip()
-        if not text or len(text) > 3000:
-            return jsonify({"audio": None})
-        return jsonify({"audio": generate_speech(text, session.get('voice_gender', 'male'))})
-    except Exception as e:
-        print(f"voice: {e}")
-        return jsonify({"audio": None})
-
-
-@app.route('/chat', methods=['POST'])
-@limiter.limit("20 per minute")
-def chat():
-    try:
-        d = request.get_json(silent=True) or {}
-        if not isinstance(d, dict):
-            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
-        raw_message = d.get("message", "")
-        if not isinstance(raw_message, str):
-            return jsonify({"status": "error", "message": "نص الرسالة غير صالح"}), 400
-        um = raw_message.strip()
-        cid = d.get("conv_id")
-        img_data = d.get("image")
-        assistant_id = d.get("assistant_id")
-        if len(um) > 12000:
-            return jsonify({"status": "error", "message": "الرسالة طويلة جدًا (الحد 12000 حرف)"}), 413
-        if not um and not img_data:
-            return jsonify({"reply": "اكتب شيء أساعدك فيه أو أرفق صورة"})
-        is_admin = bool(session.get('is_admin'))
-        user_email = session.get('user_email', '')
-        user_role = get_user_role(user_email) if user_email else 'guest'
-        is_registered = is_admin or (bool(user_email) and user_role in ('user', 'admin'))
-        uid = get_user_id()
-        lang_from_payload = d.get("lang")
-        if lang_from_payload in ('ar', 'en'):
-            user_lang = lang_from_payload
-        elif user_email:
-            user_lang = get_user_language(user_email)
-        else:
-            user_lang = 'ar'
-
-        assistant_persona_extra = ""
-        if assistant_id and is_registered:
-            try:
-                ar = sb.table("custom_assistants").select("*").eq("id", assistant_id).eq("user_id", uid).limit(1).execute()
-                if ar.data:
-                    asst = ar.data[0]
-                    assistant_persona_extra = (
-                        f"\n\n**شخصيتك الحالية:**\n"
-                        f"أنت الآن تجسّد '{asst['name']}'. {asst['persona']}\n\n"
-                        f"من الآن وصاعداً، التزم بهذه الشخصية تماماً — بأسلوبها، لهجتها، واهتماماتها. "
-                        f"لا تخرج عنها ولا تذكر أنك نبراس، أنت الآن '{asst['name']}'."
-                    )
-            except Exception as e:
-                print(f"assistant load: {e}")
-
-        usage, limits, can_chat, can_search, can_image = check_limits(
-            uid,
-            user_role if not is_admin else 'admin',
-            email=user_email or None
-        )
-        if not can_chat:
-            reply_limit = "وصل محادثاتك للحد اليومي المسموح به، شكراً لك، غداً نلتقي" if user_lang == 'ar' else "You've reached the daily limit. Thank you, see you tomorrow"
-            nid = save_message(uid, um, reply_limit, cid) if is_registered else cid
-            def limit_stream():
-                yield f"data: {json.dumps({'token': reply_limit}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
-            return Response(
-                stream_with_context(limit_stream()),
-                mimetype='text/event-stream',
-                headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
-            )
-        if is_registered and user_email:
-            try: touch_user(user_email)
-            except: pass
-        has_image = img_data is not None
-        if has_image:
-            if not isinstance(img_data, str) or len(img_data) > 7000000 or not re.fullmatch(r"data:image/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+", img_data):
-                return jsonify({"status": "error", "message": "صيغة الصورة غير صالحة أو حجمها كبير"}), 400
-            try:
-                encoded = img_data.split(",", 1)[1]
-                if len(base64.b64decode(encoded, validate=True)) > 5 * 1024 * 1024:
-                    return jsonify({"status": "error", "message": "حجم الصورة يتجاوز 5MB"}), 413
-            except Exception:
-                return jsonify({"status": "error", "message": "تعذر قراءة بيانات الصورة"}), 400
-            if not is_registered:
-                msg = "تحليل الصور للمسجلين فقط." if user_lang == 'ar' else "Image analysis is for registered users only."
-                return jsonify({"reply": msg, "conv_id": cid})
-            if not can_image:
-                msg = "وصلت للحد اليومي للصور." if user_lang == 'ar' else "You've reached the daily image limit."
-                nid = save_message(uid, um, msg, cid) if is_registered else cid
-                inc_usage(uid, "chat_count")
-                def limit_img_stream():
-                    yield f"data: {json.dumps({'token': msg}, ensure_ascii=False)}\n\n"
-                    yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
-                return Response(
-                    stream_with_context(limit_img_stream()),
-                    mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
-                )
-        user_memory = get_user_memory(user_email) if user_email else {}
-        memory_context = ""
-        if user_memory.get('name'):
-            memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
-        if is_registered:
-            server_hist = load_conversation(uid, cid) or []
-        else:
-            server_hist = []
-            client_hist = d.get("history") or []
-            if isinstance(client_hist, list):
-                items = client_hist
-                if items and isinstance(items[-1], dict) and items[-1].get("role") == "user":
-                    items = items[:-1]
-                for h in items[-15:]:
-                    if (isinstance(h, dict)
-                        and h.get("role") in ("user", "assistant")
-                        and isinstance(h.get("content"), str)):
-                        server_hist.append({
-                            "role": h["role"],
-                            "content": h["content"][:2000]
-                        })
-        if img_data and is_registered and can_image:
-            user_content = [
-                {"type": "text", "text": um or "حلل الصورة"},
-                {"type": "image_url", "image_url": {"url": img_data}}
-            ]
-            server_hist.append({"role": "user", "content": user_content})
-        else:
-            server_hist.append({"role": "user", "content": um})
-        lang_inst = LANG_INSTRUCTION.get(user_lang, "")
-        if user_email:
-            personality = get_user_memory(user_email).get('personality', 'friendly')
-        else:
-            personality = d.get('personality', 'friendly')
-        if personality not in PERSONALITY_INSTRUCTIONS:
-            personality = 'friendly'
-        personality_inst = PERSONALITY_INSTRUCTIONS.get(personality, "")
-        msgs = [{"role": "system", "content": 
-            personality_inst + "\n\n" + SP + memory_context + lang_inst + assistant_persona_extra
-        }] + server_hist[-15:]
-
-        # 📰 أول شي: جرّب Google News RSS (مجاني) للأخبار
-        news_articles = None
-        if is_registered and um and not has_image:
-            try:
-                news_query = detect_news_query(um)
-                if news_query:
-                    news_articles = fetch_news(news_query, limit=6)
-                    if news_articles:
-                        inc_usage(uid, "search_count")
-                        print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
-            except Exception as e:
-                print(f"news error: {e}")
-
-        if news_articles:
-            news_reply = format_news_reply(news_articles, user_lang)
-
-            def news_stream():
-                full = ""
-                try:
-                    prompt = (
-                        f"المستخدم سأل: {um}\n\n"
-                        f"هذي أحدث الأخبار من Google News:\n\n{news_reply}\n\n"
-                        f"رتّبها بشكل واضح بالعامي السعودي، مع كل خبر اذكر الرابط. "
-                        f"لا تخترع أي شي، ولا تحذف الروابط."
-                    )
-                    stream2 = client.chat.completions.create(
-                        model=OPENAI_MODEL,
-                        messages=[
-                            {"role": "system", "content": "أنت نبراس، لخّص الأخبار بعامي سعودي واضح، مع الروابط."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        max_completion_tokens=1500,
-                        stream=True
-                    )
-                    for chunk in stream2:
-                        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                            tok = chunk.choices[0].delta.content
-                            full += tok
-                            yield f"data: {json.dumps({'token': tok}, ensure_ascii=False)}\n\n"
-                    nid = cid
-                    if is_registered and full:
-                        nid = save_message(uid, um, full, cid)
-                    else:
-                        if not nid:
-                            nid = "guest_conv_" + secrets.token_hex(5)
-                    inc_usage(uid, "chat_count")
-                    yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
-                except Exception as e:
-                    print("news format error:", e)
-                    yield f"data: {json.dumps({'token': news_reply}, ensure_ascii=False)}\n\n"
-                    nid = cid
-                    if is_registered:
-                        nid = save_message(uid, um, news_reply, cid)
-                    else:
-                        if not nid:
-                            nid = "guest_conv_" + secrets.token_hex(5)
-                    inc_usage(uid, "chat_count")
-                    yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
-
-            return Response(
-                stream_with_context(news_stream()),
-                mimetype='text/event-stream',
-                headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
-            )
-
-        # 🚀 إذا ما فيه أخبار → OpenAI search (الطريقة القديمة)
-        if is_registered and can_search:
-            inc_usage(uid, "search_count")
-            try:
-                sr = client.responses.create(
-                    model=OPENAI_MODEL,
-                    instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
-                    input=f"ابحث عن أحدث المعلومات: {um}",
-                    tools=[{"type": "web_search"}]
-                )
-                res = ""
-                if hasattr(sr, "output_text") and sr.output_text:
-                    res = sr.output_text.strip()
-                elif getattr(sr, "output", None):
-                    try: res = sr.output[0].content[0].text
-                    except: res = ""
-                if res:
-                    msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
-            except Exception as e:
-                print(f"فشل البحث ({type(e).__name__}): {e}")
-        def generate():
-            full_reply = ""
-            try:
-                stream = client.chat.completions.create(
-                    model=OPENAI_MODEL,
-                    messages=msgs,
-                    max_completion_tokens=8000,
-                    stream=True
-                )
-                for chunk in stream:
-                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                        token = chunk.choices[0].delta.content
-                        full_reply += token
-                        yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                cleaned = '\n\n'.join([
-                    ' '.join(l.strip() for l in block.split('\n') if l.strip())
-                    for block in full_reply.split('\n\n') if block.strip()
-                ]) or ("ما قدرت أجيب رد." if user_lang == 'ar' else "I couldn't generate a response.")
-                nid = cid
-                if is_registered:
-                    nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
-                else:
-                    if not nid:
-                        nid = "guest_conv_" + secrets.token_hex(5)
-                inc_usage(uid, "chat_count")
-                if has_image and is_registered and can_image:
-                    inc_usage(uid, "image_count")
-                yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
-            except Exception as e:
-                print("stream error:", repr(e))
-                safe_error = "تعذر إكمال الطلب. حاول مرة أخرى." if user_lang == "ar" else "The request failed. Please try again."
-                yield f"data: {json.dumps({'error': safe_error}, ensure_ascii=False)}\n\n"
-        return Response(
-            stream_with_context(generate()),
-            mimetype='text/event-stream',
-            headers={
-                'Cache-Control': 'no-cache',
-                'X-Accel-Buffering': 'no',
-                'Connection': 'keep-alive'
-            }
-        )
-    except Exception as e:
-        print("chat request error:", repr(e))
-        return jsonify({"status": "error", "message": "حدث خطأ داخلي أثناء معالجة الطلب"}), 500
-
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
