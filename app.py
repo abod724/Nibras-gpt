@@ -1,6 +1,6 @@
 # ==========================================================
 #  نبراس GP - المساعد الذكي الشخصي
-#  مع نظام أكواد الوصول
+#  مع نظام أكواد الوصول + أخبار Google News
 # ==========================================================
 
 from flask import (
@@ -16,6 +16,8 @@ from supabase import create_client
 from markupsafe import escape
 import io
 import urllib.parse
+import xml.etree.ElementTree as ET
+from urllib.parse import quote_plus
 from gtts import gTTS
 
 
@@ -304,7 +306,6 @@ def get_active_access(email):
 
 def check_limits(uid, role, email=None):
     usage = get_usage_today(uid)
-    # أول شي: فحص كود الوصول النشط
     access = get_active_access(email) if email else None
     if access:
         limits = {
@@ -618,6 +619,97 @@ def generate_speech(text, gender):
     except Exception as e:
         print(f"❌ gTTS failed: {type(e).__name__}: {e}")
     return None
+
+
+# ==========================================================
+#  📰 نظام الأخبار (Google News RSS) — مجاني
+# ==========================================================
+
+_news_cache = {}
+_NEWS_CACHE_TTL = 900  # 15 دقيقة
+
+
+def fetch_news(query, limit=6):
+    """يجيب أخبار من Google News RSS — مع cache"""
+    if not query or len(query) < 2:
+        return []
+    query = query.strip()[:150]
+    now = time.time()
+    cached = _news_cache.get(query)
+    if cached and (now - cached[0]) < _NEWS_CACHE_TTL:
+        return cached[1]
+
+    url = (
+        "https://news.google.com/rss/search?q="
+        + quote_plus(query)
+        + "&hl=ar&gl=SA&ceid=SA:ar"
+    )
+    headers = {"User-Agent": "Mozilla/5.0 (NibrasGP/1.0)"}
+
+    try:
+        r = requests.get(url, headers=headers, timeout=8)
+        r.raise_for_status()
+        root = ET.fromstring(r.content)
+        articles = []
+        for item in root.findall(".//item")[:limit]:
+            title = item.findtext("title", "").strip()
+            link = item.findtext("link", "").strip()
+            pub = item.findtext("pubDate", "").strip()
+            src_el = item.find("source")
+            source = (src_el.text.strip() if src_el is not None and src_el.text else "")
+            if title and link:
+                articles.append({
+                    "title": title,
+                    "link": link,
+                    "published": pub,
+                    "source": source,
+                })
+        if len(_news_cache) > 100:
+            _news_cache.clear()
+        _news_cache[query] = (now, articles)
+        return articles
+    except (requests.RequestException, ET.ParseError) as exc:
+        print("News fetch failed:", type(exc).__name__, exc)
+        return []
+
+
+def detect_news_query(text):
+    """يكتشف إذا المستخدم يبي أخبار ويرجع الكلمات المفتاحية"""
+    if not text:
+        return None
+    t = text.strip()
+    triggers = ["أخبار", "اخبار", "خبر", "آخر أخبار", "اخر اخبار", "news",
+                "آخر الأنباء", "الجديد في", "وش صار في", "وش يصير في"]
+    tl = t.lower()
+    for kw in triggers:
+        if kw in tl:
+            clean = t
+            for remove in ["أخبار", "اخبار", "آخر أخبار", "اخر اخبار",
+                           "آخر الأنباء", "الجديد في", "وش صار في", "وش يصير في",
+                           "news"]:
+                clean = clean.replace(remove, "")
+            clean = clean.strip(" ؟?.,،عن في من ")
+            return clean if len(clean) >= 2 else t
+    return None
+
+
+def format_news_reply(articles, lang="ar"):
+    """يحوّل الأخبار لرد منسق"""
+    if not articles:
+        return "ما لقيت أخبار جديدة عن الموضوع هذا." if lang == "ar" else "No recent news found."
+    lines = []
+    for a in articles[:6]:
+        title = a["title"]
+        source = a["source"] or ""
+        link = a["link"]
+        if source:
+            lines.append(f"• {title} — {source}\n{link}")
+        else:
+            lines.append(f"• {title}\n{link}")
+    header = "📰 آخر الأخبار:\n\n" if lang == "ar" else "📰 Latest news:\n\n"
+    return header + "\n\n".join(lines)
+
+
 SHARED_VIEW_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:flex-start;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px;margin-top:20px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px;font-weight:600}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word;white-space:pre-wrap}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}.error{background:#ffe8e8;color:#c33;padding:20px;border-radius:14px;text-align:center;font-weight:600}</style></head><body><div class="container"><div class="header"><h1>محادثة نبراس</h1><a href="/">الرئيسية</a></div><div id="content"><div class="error">جاري التحميل...</div></div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div><script>
 (function(){
     var container=document.getElementById('content');
@@ -1653,7 +1745,6 @@ def redeem_code():
     uid = get_user_id()
     from datetime import timezone
 
-    # 1) دور على الكود
     try:
         r = (sb.table("access_codes").select("*")
              .eq("code", code).eq("active", True).limit(1).execute())
@@ -1664,7 +1755,6 @@ def redeem_code():
         return jsonify({"status": "error", "message": "الكود غير صحيح أو موقوف"}), 404
     row = r.data[0]
 
-    # 2) هل سبق استخدامه من نفس المستخدم؟
     try:
         ex = (sb.table("access_redemptions").select("id")
               .eq("code", code).eq("user_email", email_lc).limit(1).execute())
@@ -1673,7 +1763,6 @@ def redeem_code():
     except Exception as ex:
         print("redeem_code dup check:", ex)
 
-    # 3) فحص انتهاء الكود
     if row.get('expires_at'):
         try:
             exp_str = str(row['expires_at']).replace('Z', '+00:00')
@@ -1685,11 +1774,9 @@ def redeem_code():
         except Exception as ex:
             print("redeem_code exp check:", ex)
 
-    # 4) فحص الحد الأقصى للاستخدام
     if int(row.get('used_count', 0) or 0) >= int(row.get('max_uses', 1) or 1):
         return jsonify({"status": "error", "message": "الكود استُنفد الحد الأقصى"}), 400
 
-    # 5) احفظ التفعيل
     days = int(row.get('duration_days', 7) or 7)
     expires_user = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
     chat_lim = int(row.get('chat_limit', 15) or 15)
@@ -1712,7 +1799,6 @@ def redeem_code():
         print("redeem_code insert:", ex)
         return jsonify({"status": "error", "message": f"تعذر تفعيل الكود: {ex}"}), 500
 
-    # ⭐ 6) صفّر العدّاد اليومي عشان يشتغل حتى لو كان خلص الحد
     try:
         today = _date.today().isoformat()
         sb.table("assistant_usage").update({
@@ -2467,7 +2553,6 @@ def chat():
             except Exception as e:
                 print(f"assistant load: {e}")
 
-        # ✅ مرّر الإيميل لدالة check_limits عشان يفحص كود الوصول
         usage, limits, can_chat, can_search, can_image = check_limits(
             uid,
             user_role if not is_admin else 'admin',
@@ -2552,6 +2637,73 @@ def chat():
         msgs = [{"role": "system", "content": 
             personality_inst + "\n\n" + SP + memory_context + lang_inst + assistant_persona_extra
         }] + server_hist[-15:]
+
+        # 📰 أول شي: جرّب Google News RSS (مجاني) للأخبار
+        news_articles = None
+        if is_registered and um and not has_image:
+            try:
+                news_query = detect_news_query(um)
+                if news_query:
+                    news_articles = fetch_news(news_query, limit=6)
+                    if news_articles:
+                        inc_usage(uid, "search_count")
+                        print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
+            except Exception as e:
+                print(f"news error: {e}")
+
+        if news_articles:
+            news_reply = format_news_reply(news_articles, user_lang)
+
+            def news_stream():
+                full = ""
+                try:
+                    prompt = (
+                        f"المستخدم سأل: {um}\n\n"
+                        f"هذي أحدث الأخبار من Google News:\n\n{news_reply}\n\n"
+                        f"رتّبها بشكل واضح بالعامي السعودي، مع كل خبر اذكر الرابط. "
+                        f"لا تخترع أي شي، ولا تحذف الروابط."
+                    )
+                    stream2 = client.chat.completions.create(
+                        model=OPENAI_MODEL,
+                        messages=[
+                            {"role": "system", "content": "أنت نبراس، لخّص الأخبار بعامي سعودي واضح، مع الروابط."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        max_completion_tokens=1500,
+                        stream=True
+                    )
+                    for chunk in stream2:
+                        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                            tok = chunk.choices[0].delta.content
+                            full += tok
+                            yield f"data: {json.dumps({'token': tok}, ensure_ascii=False)}\n\n"
+                    nid = cid
+                    if is_registered and full:
+                        nid = save_message(uid, um, full, cid)
+                    else:
+                        if not nid:
+                            nid = "guest_conv_" + secrets.token_hex(5)
+                    inc_usage(uid, "chat_count")
+                    yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+                except Exception as e:
+                    print("news format error:", e)
+                    yield f"data: {json.dumps({'token': news_reply}, ensure_ascii=False)}\n\n"
+                    nid = cid
+                    if is_registered:
+                        nid = save_message(uid, um, news_reply, cid)
+                    else:
+                        if not nid:
+                            nid = "guest_conv_" + secrets.token_hex(5)
+                    inc_usage(uid, "chat_count")
+                    yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+
+            return Response(
+                stream_with_context(news_stream()),
+                mimetype='text/event-stream',
+                headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+            )
+
+        # 🚀 إذا ما فيه أخبار → OpenAI search (الطريقة القديمة)
         if is_registered and can_search:
             inc_usage(uid, "search_count")
             try:
