@@ -10,3 +10,5 @@ pywebpush
 py-vapid
 pytz
 gTTS
+markdown
+bleach
