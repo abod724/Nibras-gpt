@@ -327,3 +327,148 @@ def check_limits(uid, role, email=None):
 # ═══════════════════════════════════════════════════════════
 #  نهاية القسم 3
 # ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+#  القسم 4/8 — دوال المحادثات والصور
+# ═══════════════════════════════════════════════════════════
+
+def get_user_conversations(uid):
+    try:
+        r = (sb.table("assistant_chats")
+             .select("conv_id,title,created_at")
+             .eq("user_id", uid)
+             .order("created_at", desc=True)
+             .limit(200)
+             .execute())
+        rows = r.data or []
+    except Exception as e:
+        print("get_user_conversations:", e)
+        return []
+    seen = {}
+    for row in rows:
+        cid = row.get("conv_id")
+        if cid and cid not in seen:
+            title = (row.get("title") or "").strip() or "محادثة"
+            seen[cid] = {
+                "id": cid,
+                "conv_id": cid,
+                "title": title,
+                "timestamp": row.get("created_at")
+            }
+    return list(seen.values())
+
+
+def save_message(uid, msg, resp, cid=None):
+    if not cid:
+        cid = secrets.token_hex(5)
+    try:
+        ex = (sb.table("assistant_chats").select("id")
+              .eq("user_id", uid).eq("conv_id", cid).limit(1).execute())
+        has_prev = bool(ex.data)
+        title = None
+        if not has_prev:
+            clean_msg = (msg or "").strip()
+            clean_msg = re.sub(r'[^\w\s\u0600-\u06FF]', '', clean_msg).strip()
+            if clean_msg:
+                title = clean_msg[:30]
+                if len(clean_msg) > 30:
+                    title += "..."
+            else:
+                title = "محادثة جديدة"
+        sb.table("assistant_chats").insert({
+            "user_id": uid,
+            "conv_id": cid,
+            "message": msg,
+            "response": resp,
+            "title": title
+        }).execute()
+    except Exception as e:
+        print("save_message:", e)
+    return cid
+
+
+def load_conversation(uid, cid):
+    try:
+        r = (sb.table("assistant_chats")
+             .select("message,response,created_at")
+             .eq("user_id", uid).eq("conv_id", cid)
+             .order("created_at").execute())
+        rows = r.data or []
+    except Exception as e:
+        print("load_conversation:", e)
+        return None
+    if not rows:
+        return None
+    msgs = []
+    for row in rows:
+        if row.get("message"):
+            msgs.append({"role": "user", "content": row["message"]})
+        if row.get("response"):
+            msgs.append({"role": "assistant", "content": row["response"]})
+    return msgs
+
+
+def load_conversation_public(cid):
+    try:
+        r = (sb.table("assistant_chats")
+             .select("message,response,title,created_at,user_id")
+             .eq("conv_id", cid).order("created_at").execute())
+        return r.data or []
+    except Exception as e:
+        print("load_conversation_public:", e)
+        return []
+
+
+def delete_message_row(uid, cid, index):
+    try:
+        r = (sb.table("assistant_chats")
+             .select("id,message,response")
+             .eq("user_id", uid).eq("conv_id", cid)
+             .order("created_at").execute())
+        rows = r.data or []
+        if index < 0 or index >= len(rows):
+            return False
+        row_idx = index // 2
+        if row_idx >= len(rows):
+            return False
+        sb.table("assistant_chats").delete().eq("id", rows[row_idx]["id"]).execute()
+        return True
+    except Exception as e:
+        print("delete_message_row:", e)
+        return False
+
+
+def save_image_to_library(uid, image_url=None, image_data=None, title="", source="upload"):
+    try:
+        row = {"user_id": uid, "title": title or "صورة", "source": source}
+        if image_url:
+            row["image_url"] = image_url
+        if image_data:
+            row["image_data"] = image_data
+        r = sb.table("image_library").insert(row).execute()
+        return r.data[0] if r and r.data else None
+    except Exception as e:
+        print("save_image_to_library:", e)
+        return None
+
+
+def get_user_images(uid):
+    try:
+        r = (sb.table("image_library").select("*")
+             .eq("user_id", uid).order("created_at", desc=True).limit(200).execute())
+        return r.data or []
+    except Exception as e:
+        print("get_user_images:", e)
+        return []
+
+
+def delete_user_image(uid, image_id):
+    try:
+        sb.table("image_library").delete().eq("id", image_id).eq("user_id", uid).execute()
+        return True
+    except Exception as e:
+        print("delete_user_image:", e)
+        return False
+
+# ═══════════════════════════════════════════════════════════
+#  نهاية القسم 4
+# ═══════════════════════════════════════════════════════════
