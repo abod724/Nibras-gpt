@@ -1,7 +1,6 @@
 # ==========================================================
 #  نبراس GP - المساعد الذكي الشخصي
 #  مع نظام أكواد الوصول + أخبار Google News المنسقة كبطاقات
-#  + DDGS لجلب روابط حقيقية عند البحث
 # ==========================================================
 
 from flask import (
@@ -18,11 +17,10 @@ from markupsafe import escape, Markup
 import io
 import urllib.parse
 import xml.etree.ElementTree as ET
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus
 from gtts import gTTS
 import markdown
 import bleach
-from ddgs import DDGS
 
 from library import library_bp, view_shared_page
 
@@ -747,56 +745,6 @@ def format_news_reply(articles, lang="ar"):
         if link:
             lines.append(f"[🔗 قراءة الخبر كاملاً]({link})")
             lines.append("")
-    return "\n".join(lines)
-
-
-# ═══════════════════════════════════════════════════════════════
-#  ✅ DDGS — بحث الويب المجاني مع روابط حقيقية
-# ═══════════════════════════════════════════════════════════════
-def search_web_sources(query, max_results=5):
-    """البحث في الويب عبر DDGS وإرجاع مصادر بروابطها الحقيقية."""
-    if not query or len(query.strip()) < 2:
-        return []
-    try:
-        results = DDGS().text(
-            query.strip()[:200],
-            region="wt-wt",
-            max_results=max_results,
-            safesearch="moderate"
-        )
-        sources = []
-        for item in results or []:
-            title = (item.get("title") or "").strip()
-            url = (item.get("href") or "").strip()
-            snippet = (item.get("body") or "").strip()
-            parsed = urlparse(url)
-            if (
-                title
-                and parsed.scheme in ("http", "https")
-                and parsed.netloc
-            ):
-                sources.append({
-                    "title": title,
-                    "url": url,
-                    "snippet": snippet[:300]
-                })
-        return sources
-    except Exception as e:
-        print(f"DDGS search error: {type(e).__name__}: {e}")
-        return []
-
-
-def format_web_sources(sources):
-    """تنسيق المصادر كروابط Markdown قابلة للضغط."""
-    if not sources:
-        return ""
-    lines = ["\n\n---\n\n### 🔗 المصادر"]
-    for i, source in enumerate(sources, start=1):
-        title = source["title"].replace("[", "［").replace("]", "］")
-        url = source["url"]
-        lines.append(f"{i}. [{title}]({url})")
-        if source.get("snippet"):
-            lines.append(f"   {source['snippet']}")
     return "\n".join(lines)
 
 
@@ -3025,42 +2973,23 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        # ✅✅ بحث الويب — DDGS أولاً (روابط حقيقية)، ثم OpenAI كـ fallback
-        sources_used = []
         if is_registered and can_search:
             inc_usage(uid, "search_count")
             try:
-                ddgs_sources = search_web_sources(um, max_results=5)
-                if ddgs_sources:
-                    sources_used = ddgs_sources
-                    ctx = "\n\n".join(
-                        f"- {s['title']}\n  {s['snippet']}\n  {s['url']}"
-                        for s in ddgs_sources
-                    )
-                    msgs.append({
-                        "role": "system",
-                        "content": (
-                            "نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم). "
-                            "استخدمها للإجابة، واذكر المعلومات من المصادر بشكل دقيق:\n\n" + ctx
-                        )
-                    })
-                    print(f"🔎 DDGS: {len(ddgs_sources)} sources for '{um[:60]}'")
-                else:
-                    print("🔎 DDGS returned no results — falling back to OpenAI web_search")
-                    sr = client.responses.create(
-                        model=OPENAI_MODEL,
-                        instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
-                        input=f"ابحث عن أحدث المعلومات: {um}",
-                        tools=[{"type": "web_search"}]
-                    )
-                    res = ""
-                    if hasattr(sr, "output_text") and sr.output_text:
-                        res = sr.output_text.strip()
-                    elif getattr(sr, "output", None):
-                        try: res = sr.output[0].content[0].text
-                        except: res = ""
-                    if res:
-                        msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
+                sr = client.responses.create(
+                    model=OPENAI_MODEL,
+                    instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
+                    input=f"ابحث عن أحدث المعلومات: {um}",
+                    tools=[{"type": "web_search"}]
+                )
+                res = ""
+                if hasattr(sr, "output_text") and sr.output_text:
+                    res = sr.output_text.strip()
+                elif getattr(sr, "output", None):
+                    try: res = sr.output[0].content[0].text
+                    except: res = ""
+                if res:
+                    msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
             except Exception as e:
                 print(f"فشل البحث ({type(e).__name__}): {e}")
         def generate():
@@ -3081,9 +3010,6 @@ def chat():
                     ' '.join(l.strip() for l in block.split('\n') if l.strip())
                     for block in full_reply.split('\n\n') if block.strip()
                 ]) or ("ما قدرت أجيب رد." if user_lang == 'ar' else "I couldn't generate a response.")
-                # ✅✅ إضافة المصادر مع روابطها الحقيقية تحت الرد
-                if sources_used:
-                    cleaned += format_web_sources(sources_used)
                 nid = cid
                 if is_registered:
                     nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
