@@ -15,6 +15,7 @@ from flask_limiter.util import get_remote_address
 from supabase import create_client
 from markupsafe import escape, Markup
 import io
+import threading
 import urllib.parse
 import xml.etree.ElementTree as ET
 from urllib.parse import quote_plus
@@ -195,6 +196,146 @@ def save_user_memory(email, memory_dict):
         ).eq("email", email.lower().strip()).execute()
     except Exception as e:
         print("save_user_memory:", e)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ✅ جديد: ملخص مهارات/اهتمامات/عمل المستخدم (تراكمي)
+# ═══════════════════════════════════════════════════════════════
+PROFILE_SUMMARY_MODEL = os.environ.get("PROFILE_SUMMARY_MODEL") or OPENAI_MODEL
+PROFILE_SUMMARY_INTERVAL = 12  # كل 12 رسالة
+
+
+def get_user_profile_summary(email):
+    if not email:
+        return {}
+    try:
+        mem = get_user_memory(email) or {}
+        s = mem.get('profile_summary') or {}
+        return s if isinstance(s, dict) else {}
+    except Exception as e:
+        print("get_user_profile_summary:", e)
+        return {}
+
+
+def save_user_profile_summary(email, summary):
+    if not email or not isinstance(summary, dict):
+        return
+    try:
+        mem = get_user_memory(email) or {}
+        mem['profile_summary'] = summary
+        mem['profile_summary_updated_at'] = datetime.utcnow().isoformat()
+        save_user_memory(email, mem)
+    except Exception as e:
+        print("save_user_profile_summary:", e)
+
+
+def format_profile_summary_for_prompt(summary):
+    if not summary:
+        return ""
+    work = summary.get('work') or {}
+    skills = summary.get('skills') or {}
+    interests = summary.get('interests') or {}
+    lines = []
+
+    wparts = []
+    if work.get('current_role'): wparts.append(str(work['current_role']))
+    if work.get('field'): wparts.append(f"مجال: {work['field']}")
+    if work.get('company_type'): wparts.append(f"نوع الشركة: {work['company_type']}")
+    if wparts: lines.append("- العمل: " + " · ".join(wparts))
+    if work.get('projects'): lines.append("- مشاريع: " + "، ".join(map(str, work['projects'][:5])))
+    if work.get('tools_used'): lines.append("- أدوات: " + "، ".join(map(str, work['tools_used'][:8])))
+    if work.get('challenges'): lines.append("- تحديات: " + "، ".join(map(str, work['challenges'][:4])))
+
+    if skills.get('technical'): lines.append("- مهارات تقنية: " + "، ".join(map(str, skills['technical'][:10])))
+    if skills.get('soft'): lines.append("- مهارات شخصية: " + "، ".join(map(str, skills['soft'][:6])))
+    if skills.get('languages'): lines.append("- لغات: " + "، ".join(map(str, skills['languages'][:5])))
+    if skills.get('level'): lines.append("- المستوى: " + str(skills['level']))
+    if skills.get('learning_now'): lines.append("- يتعلم حالياً: " + "، ".join(map(str, skills['learning_now'][:6])))
+
+    if interests.get('topics'): lines.append("- اهتمامات: " + "، ".join(map(str, interests['topics'][:8])))
+    if interests.get('hobbies'): lines.append("- هوايات: " + "، ".join(map(str, interests['hobbies'][:6])))
+    if interests.get('goals'): lines.append("- أهداف: " + "، ".join(map(str, interests['goals'][:5])))
+
+    if not lines:
+        return ""
+    return "\n\n**ملف المستخدم (تراكمي — استخدمه لتخصيص ردودك دون ذكره صراحةً):**\n" + "\n".join(lines) + "\n"
+
+
+def extract_profile_summary_from_messages(existing_summary, new_messages):
+    if not new_messages:
+        return None
+    try:
+        existing_json = json.dumps(existing_summary or {}, ensure_ascii=False)
+        convo_lines = []
+        for m in new_messages[-20:]:
+            role = m.get('role', 'user')
+            content = m.get('content', '')
+            if isinstance(content, list):
+                content = ' '.join(c.get('text','') for c in content if isinstance(c, dict) and c.get('type') == 'text')
+            if not isinstance(content, str):
+                continue
+            content = content.strip()[:1500]
+            if not content:
+                continue
+            convo_lines.append(f"{'المستخدم' if role=='user' else 'المساعد'}: {content}")
+        if not convo_lines:
+            return None
+
+        system_prompt = (
+            "أنت محلل ذكي تستخرج معلومات دقيقة عن المستخدم من محادثاته مع مساعد.\n"
+            "استخرج فقط: العمل (الوظيفة/المجال/المشاريع/الأدوات/التحديات)، "
+            "المهارات (تقنية/شخصية/لغات/المستوى/يتعلم حالياً)، الاهتمامات (مواضيع/هوايات/أهداف).\n"
+            "قواعد:\n"
+            "- لا تخمّن، فقط ما ذكره المستخدم صراحة أو أكده.\n"
+            "- ادمج الجديد مع القديم دون حذف معلومة إلا إذا صححها المستخدم.\n"
+            "- أعد JSON فقط بدون شرح بنفس البنية.\n"
+            "- إذا لم يوجد جديد، أعد نفس الملخص القديم.\n"
+            "البنية:\n"
+            '{"work":{"current_role":"","field":"","company_type":"","projects":[],"tools_used":[],"challenges":[]},'
+            '"skills":{"technical":[],"soft":[],"languages":[],"level":"","learning_now":[]},'
+            '"interests":{"topics":[],"hobbies":[],"goals":[]}}'
+        )
+        user_prompt = (
+            f"الملخص الحالي:\n{existing_json}\n\n"
+            f"المحادثة الجديدة:\n" + "\n".join(convo_lines) +
+            "\n\nأعد الملخص المحدث بصيغة JSON فقط."
+        )
+
+        resp = client.chat.completions.create(
+            model=PROFILE_SUMMARY_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_completion_tokens=900,
+            response_format={"type": "json_object"}
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        content = re.sub(r"^```(?:json)?\s*", "", content)
+        content = re.sub(r"\s*```$", "", content)
+        try:
+            data = json.loads(content)
+            if isinstance(data, dict):
+                return data
+        except Exception as e:
+            print("extract profile json parse:", e)
+        return None
+    except Exception as e:
+        print("extract_profile_summary:", e)
+        return None
+
+
+def update_profile_summary_async(email, existing, new_messages):
+    def worker():
+        try:
+            updated = extract_profile_summary_from_messages(existing, new_messages)
+            if updated:
+                save_user_profile_summary(email, updated)
+                print(f"✅ profile summary updated for {email}")
+        except Exception as e:
+            print("profile summary worker:", e)
+    threading.Thread(target=worker, daemon=True).start()
+# ═══════════════════════════════════════════════════════════════
 
 
 def get_user_language(email):
@@ -1931,6 +2072,9 @@ def delete_message():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# ═══════════════════════════════════════════════════════════════
+#  ✅ معدّل: /get_memory يرجع profile_summary أيضاً
+# ═══════════════════════════════════════════════════════════════
 @app.route('/get_memory')
 def get_memory_route():
     email = session.get('user_email')
@@ -1942,11 +2086,13 @@ def get_memory_route():
             "name": mem.get('name', ''),
             "lang": mem.get('lang', 'ar'),
             "personality": mem.get('personality', 'friendly'),
-            "email": email
+            "email": email,
+            "profile_summary": mem.get('profile_summary') or {}
         })
     except Exception as e:
         print("get_memory:", e)
         return jsonify({"status": "error"}), 500
+# ═══════════════════════════════════════════════════════════════
 
 
 @app.route('/admin/codes/list')
@@ -2893,6 +3039,9 @@ def chat():
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
                 )
         user_memory = get_user_memory(user_email) if user_email else {}
+        # ✅ جديد: تحميل ملخص الملف الشخصي (عمل/مهارات/اهتمامات)
+        profile_summary = get_user_profile_summary(user_email) if user_email else {}
+        profile_context = format_profile_summary_for_prompt(profile_summary) if profile_summary else ""
         memory_context = ""
         if user_memory.get('name'):
             memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
@@ -2929,8 +3078,9 @@ def chat():
         if personality not in PERSONALITY_INSTRUCTIONS:
             personality = 'friendly'
         personality_inst = PERSONALITY_INSTRUCTIONS.get(personality, "")
+        # ✅ جديد: أضف profile_context داخل الـ system prompt
         msgs = [{"role": "system", "content": 
-            personality_inst + "\n\n" + SP + memory_context + lang_inst + assistant_persona_extra
+            personality_inst + "\n\n" + SP + memory_context + profile_context + lang_inst + assistant_persona_extra
         }] + server_hist[-15:]
 
         news_articles = None
@@ -3020,6 +3170,17 @@ def chat():
                 if has_image and is_registered and can_image:
                     inc_usage(uid, "image_count")
                 yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+
+                # ✅ جديد: تحديث ملف المستخدم التراكمي (في thread منفصل — لا يعطل الرد)
+                if is_registered and user_email and not has_image:
+                    try:
+                        pair_count = (len(server_hist) + 1) // 2
+                        if pair_count >= 2 and pair_count % 2 == 0:
+                            recent_for_summary = list(server_hist[-PROFILE_SUMMARY_INTERVAL:])
+                            recent_for_summary.append({"role": "assistant", "content": cleaned})
+                            update_profile_summary_async(user_email, profile_summary, recent_for_summary)
+                    except Exception as e:
+                        print("profile summary trigger:", e)
             except Exception as e:
                 print("stream error:", repr(e))
                 safe_error = "تعذر إكمال الطلب. حاول مرة أخرى." if user_lang == "ar" else "The request failed. Please try again."
