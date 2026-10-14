@@ -19,11 +19,9 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from urllib.parse import quote_plus
 from gtts import gTTS
-# ✅ جديد: مكتبات تنسيق Markdown
 import markdown
 import bleach
 
-# ✅ إضافة: استيراد المكتبة المستقلة (library.py)
 from library import library_bp, view_shared_page
 
 
@@ -83,7 +81,6 @@ limiter = Limiter(
 )
 limiter.init_app(app)
 
-# ✅ إضافة: تسجيل Blueprint المكتبة + مسار المشاركة القصير
 app.register_blueprint(library_bp)
 app.add_url_rule('/shared-assistant/<token>', 'shared_assistant_view', view_shared_page)
 
@@ -277,10 +274,6 @@ def inc_usage(uid, field):
         print("inc_usage:", e)
     return current
 
-
-# ==========================================================
-#  ✅ نظام أكواد الوصول - الدوال الأساسية
-# ==========================================================
 
 def get_active_access(email):
     if not email:
@@ -583,32 +576,16 @@ PERSONALITY_INSTRUCTIONS = {
 }
 
 
-# ==========================================================
-#  ✅ جديد: دالة تحويل Markdown إلى HTML منسق (بطاقات إخبارية)
-# ==========================================================
 def format_nibras_response(text):
-    """تحويل رد نبراس (Markdown) إلى HTML منسق وآمن."""
     if not isinstance(text, str):
         return ""
-
     text = text.strip()
     text = text.replace("\r\n", "\n").replace("\r", "\n")
-
-    # إزالة أسوار Markdown الخارجية إن وجدت
     text = re.sub(
         r"^\s*```(?:markdown|md)?\s*\n(.*?)\n```\s*$",
-        r"\1",
-        text,
-        flags=re.IGNORECASE | re.DOTALL
+        r"\1", text, flags=re.IGNORECASE | re.DOTALL
     )
-
-    # تحويل Markdown إلى HTML
-    html = markdown.markdown(
-        text,
-        extensions=["extra", "sane_lists", "nl2br"]
-    )
-
-    # السماح بوسوم آمنة فقط
+    html = markdown.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
     allowed_tags = set(bleach.sanitizer.ALLOWED_TAGS).union({
         "p", "h1", "h2", "h3", "h4", "h5", "h6",
         "br", "hr", "ul", "ol", "li",
@@ -616,36 +593,25 @@ def format_nibras_response(text):
         "pre", "code", "table", "thead",
         "tbody", "tr", "th", "td", "img"
     })
-
     allowed_attributes = {
         "a": ["href", "title", "rel", "target"],
         "img": ["src", "alt", "title", "width", "height"],
-        "code": ["class"],
-        "pre": ["class"],
-        "th": ["align"],
-        "td": ["align"]
+        "code": ["class"], "pre": ["class"],
+        "th": ["align"], "td": ["align"]
     }
-
     clean_html = bleach.clean(
-        html,
-        tags=allowed_tags,
-        attributes=allowed_attributes,
-        protocols={"http", "https", "mailto"},
-        strip=True
+        html, tags=allowed_tags, attributes=allowed_attributes,
+        protocols={"http", "https", "mailto"}, strip=True
     )
-
-    # إضافة حماية للروابط الخارجية
     clean_html = re.sub(
         r'<a\s+href="(https?://[^"]*)"',
         r'<a href="\1" target="_blank" rel="noopener noreferrer"',
         clean_html
     )
-
     return Markup(clean_html)
 
 
 def generate_speech(text, gender):
-    """توليد الصوت باستخدام gTTS - مع حذف الإيموجي قبل النطق"""
     try:
         emoji_pattern = re.compile(
             "["
@@ -666,37 +632,28 @@ def generate_speech(text, gender):
             u"\U0000FE00-\U0000FE0F"
             u"\U0000200D"
             u"\U000020E3"
-            "]+",
-            flags=re.UNICODE
+            "]+", flags=re.UNICODE
         )
         clean_text = emoji_pattern.sub('', text)
         clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-
         if not clean_text:
             return None
-
         tts = gTTS(text=clean_text[:4000], lang='ar', slow=False)
         buf = io.BytesIO()
         tts.write_to_fp(buf)
         audio = buf.getvalue()
         if audio:
-            print(f"✅ gTTS OK: {len(audio)} bytes")
             return base64.b64encode(audio).decode('utf-8')
     except Exception as e:
         print(f"❌ gTTS failed: {type(e).__name__}: {e}")
     return None
 
 
-# ==========================================================
-#  📰 نظام الأخبار (Google News RSS) — منسق كبطاقات
-# ==========================================================
-
 _news_cache = {}
 _NEWS_CACHE_TTL = 900
 
 
 def fetch_news(query, limit=6):
-    """يجيب أخبار من Google News RSS — مع cache"""
     if not query or len(query) < 2:
         return []
     query = query.strip()[:150]
@@ -704,14 +661,12 @@ def fetch_news(query, limit=6):
     cached = _news_cache.get(query)
     if cached and (now - cached[0]) < _NEWS_CACHE_TTL:
         return cached[1]
-
     url = (
         "https://news.google.com/rss/search?q="
         + quote_plus(query)
         + "&hl=ar&gl=SA&ceid=SA:ar"
     )
     headers = {"User-Agent": "Mozilla/5.0 (NibrasGP/1.0)"}
-
     try:
         r = requests.get(url, headers=headers, timeout=8)
         r.raise_for_status()
@@ -725,10 +680,8 @@ def fetch_news(query, limit=6):
             source = (src_el.text.strip() if src_el is not None and src_el.text else "")
             if title and link:
                 articles.append({
-                    "title": title,
-                    "link": link,
-                    "published": pub,
-                    "source": source,
+                    "title": title, "link": link,
+                    "published": pub, "source": source,
                 })
         if len(_news_cache) > 100:
             _news_cache.clear()
@@ -740,7 +693,6 @@ def fetch_news(query, limit=6):
 
 
 def detect_news_query(text):
-    """يكتشف إذا المستخدم يبي أخبار ويرجع الكلمات المفتاحية"""
     if not text:
         return None
     t = text.strip()
@@ -759,32 +711,23 @@ def detect_news_query(text):
     return None
 
 
-# ✅ جديد: إخراج Markdown منسق بدلاً من نص عادي
 def format_news_reply(articles, lang="ar"):
-    """يحوّل الأخبار لرد منسق بصيغة Markdown (لعرضها كبطاقات)"""
     if not articles:
         return "ما لقيت أخبار جديدة عن الموضوع هذا." if lang == "ar" else "No recent news found."
-
     lines = []
-    if lang == "ar":
-        lines.append("## 📰 آخر الأخبار")
-    else:
-        lines.append("## 📰 Latest News")
+    lines.append("## 📰 آخر الأخبار" if lang == "ar" else "## 📰 Latest News")
     lines.append("")
-    lines.append("تشي هذي القائمة بأحدث الأخبار المتعلقة بطلبك:")
+    lines.append("هذي القائمة بأحدث الأخبار المتعلقة بطلبك:")
     lines.append("")
-
     for i, a in enumerate(articles[:6], 1):
         title = (a.get("title") or "").strip()
         source = (a.get("source") or "").strip()
         link = (a.get("link") or "").strip()
         published = (a.get("published") or "").strip()
-
         lines.append("---")
         lines.append("")
         lines.append(f"### {i}. {title}")
         lines.append("")
-
         meta_parts = []
         if source:
             meta_parts.append(f"**المصدر:** {source}")
@@ -799,11 +742,9 @@ def format_news_reply(articles, lang="ar"):
         if meta_parts:
             lines.append(" · ".join(meta_parts))
             lines.append("")
-
         if link:
             lines.append(f"[🔗 قراءة الخبر كاملاً]({link})")
             lines.append("")
-
     return "\n".join(lines)
 
 
@@ -954,7 +895,9 @@ RESET_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UT
 </script></body></html>"""
 
 
-# ✅ تمت إضافة CSS الخاص بـ .nibras-response داخل HT
+# ═══════════════════════════════════════════════════════════════
+#  ✅ HT — تم تحديث CSS + دوال JavaScript لمكتبة المساعدين
+# ═══════════════════════════════════════════════════════════════
 HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><meta name="screen-orientation" content="portrait"><meta name="x5-orientation" content="portrait"><meta name="full-screen" content="no"><meta name="x5-fullscreen" content="false"><meta name="browsermode" content="application"><meta name="x5-page-mode" content="app"><title>نبراس GP | مساعد ذكي</title><link rel="manifest" href="/static/manifest.json"><link rel="icon" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="192x192" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="نبراس"><meta name="theme-color" content="#ffffff"><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a;--font-size-base:16px;--font-size-small:14px}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}html[data-font="small"]{--font-size-base:14px;--font-size-small:12.5px}html[data-font="medium"]{--font-size-base:16px;--font-size-small:14px}html[data-font="large"]{--font-size-base:18px;--font-size-small:16px}html[data-font="xlarge"]{--font-size-base:20px;--font-size-small:18px}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}html{-webkit-tap-highlight-color:transparent}body{-webkit-tap-highlight-color:transparent}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--text-secondary);opacity:0.7}.btn-group{display:flex;gap:8px;align-items:center}.btn{padding:7px 16px;border-radius:20px;font-size:14px;border:none;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;font-family:inherit;font-weight:600}.btn-outline{background:0 0;border:1.5px solid var(--primary-color);color:var(--primary-color);transition:all .2s}.btn-outline:hover{background:var(--primary-color);color:#fff}.user-badge{display:flex;align-items:center;gap:6px;background:var(--bg-hover);padding:6px 12px;border-radius:20px;font-size:13px;color:var(--text-primary);font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;border:none;font-family:inherit}.user-badge:hover{background:var(--border-color)}.user-badge svg{width:16px;height:16px;stroke:var(--primary-color);stroke-width:2;fill:none;flex-shrink:0}.dropdown{position:absolute;top:68px;left:12px;right:12px;background:var(--bg-dropdown);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15),0 4px 12px rgba(0,0,0,0.08);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:78vh;overflow-y:auto;padding:10px;opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}.dropdown.show{display:flex;opacity:1;transform:translateY(0)}.dropdown::-webkit-scrollbar{width:4px}.dropdown::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.dropdown .item{display:flex;align-items:center;gap:14px;padding:13px 16px;font-size:15px;color:var(--text-primary);background:transparent;border:none;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:background .15s ease,transform .1s ease;letter-spacing:-0.2px}.dropdown .item:hover{background:var(--bg-hover)}.dropdown .item:active{transform:scale(0.98)}.dropdown .item svg{width:20px;height:20px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.dropdown .section-title{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.8px;text-transform:uppercase;opacity:.7}.dropdown .conv-item{display:flex;align-items:center;gap:8px;padding:11px 16px;border:none;background:transparent;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-size:14px;color:var(--text-primary);font-weight:500;border-radius:14px;transition:background .15s ease;letter-spacing:-0.1px;position:relative}.dropdown .conv-item:hover{background:var(--bg-hover)}.dropdown .conv-item .conv-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dropdown .conv-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary-color);opacity:.4;flex-shrink:0}.dropdown .conv-item .pin-btn{background:transparent;border:none;cursor:pointer;padding:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;opacity:0.5;transition:opacity .2s,background .2s;flex-shrink:0}.dropdown .conv-item .pin-btn:hover{opacity:1;background:var(--bg-hover)}.dropdown .conv-item .pin-btn svg{width:16px;height:16px;stroke:var(--text-primary);stroke-width:2;fill:none}.dropdown .conv-item .pin-btn.pinned svg{fill:var(--primary-color);stroke:var(--primary-color)}.dropdown .pinned-item{padding:11px 16px;display:flex;align-items:center;gap:8px;border-radius:14px;transition:background .15s ease}.dropdown .pinned-item:hover{background:var(--bg-hover)}.gender-option{flex:1;padding:9px 12px;border-radius:12px;border:1px solid var(--border-color);background:transparent;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all .2s ease;font-family:inherit}.gender-option.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color);box-shadow:0 4px 12px rgba(74,106,138,0.3)}.dropdown .item.danger{color:#d32f2f}.dropdown .item.danger svg{stroke:#d32f2f;opacity:1}.dropdown .item.danger:hover{background:rgba(211,47,47,0.08)}.settings-overlay{position:fixed;inset:0;background:var(--bg-body);z-index:99999;display:none;flex-direction:column;overflow-y:auto}.settings-overlay.show{display:flex}.settings-page{max-width:500px;width:100%;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg-body)}.settings-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-app);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border-color)}.settings-header h2{font-size:18px;color:var(--text-primary);font-weight:700;margin:0}.settings-body{padding:16px;display:flex;flex-direction:column;gap:14px}.settings-card{background:var(--bg-app);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.settings-item{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.settings-item:last-child{border-bottom:none}.settings-item:hover{background:var(--bg-hover)}.settings-item .item-right{display:flex;align-items:center;gap:14px;color:var(--text-primary);font-size:15px;font-weight:600}.settings-item .item-right svg{width:22px;height:22px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0}.settings-item .chevron{width:18px;height:18px;stroke:var(--text-secondary);stroke-width:2;fill:none}.sub-page{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100000;display:none;align-items:center;justify-content:center;padding:20px}.sub-page.show{display:flex}.sub-page .modal-box{background:var(--bg-app);width:100%;max-width:420px;max-height:80vh;border-radius:22px;overflow:hidden;display:flex;flex-direction:column;animation:modalIn .25s ease;border:1px solid var(--border-color)}.sub-page-header{display:none}.sub-page-body{padding:20px;overflow-y:auto;flex:1}.sub-page-body::-webkit-scrollbar{width:4px}.sub-page-body::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.modal-title{text-align:center;font-size:17px;font-weight:700;color:var(--text-primary);padding:18px 20px;border-bottom:1px solid var(--border-color)}.modal-confirm{width:100%;padding:16px;background:transparent;border:none;border-top:1px solid var(--border-color);font-size:16px;font-weight:700;color:var(--primary-color);cursor:pointer;font-family:inherit}.modal-confirm:active{background:var(--bg-hover)}@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}.info-box{background:var(--bg-hover);padding:16px;border-radius:14px;font-size:14px;color:var(--text-secondary);line-height:1.8}.option-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.option-row{padding:18px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.option-row:last-child{border-bottom:none}.option-row:active{background:var(--bg-hover)}.option-label{display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--text-primary);font-weight:500}.check-icon{width:22px;height:22px;stroke:var(--primary-color);stroke-width:2.5;fill:none;opacity:0;transition:opacity .25s}.option-row.selected .check-icon{opacity:1}.color-grid{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.color-row{padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}.color-row:last-child{border-bottom:none}.color-row:active{background:var(--bg-hover)}.color-row-left{display:flex;align-items:center;gap:14px;font-size:15px;color:var(--text-primary);font-weight:500}.color-circle{width:26px;height:26px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);flex-shrink:0}.color-row .check-icon{opacity:0;transition:opacity .25s}.color-row.selected .check-icon{opacity:1}.lang-list{display:flex;flex-direction:column;gap:12px}.lang-card{display:flex;align-items:center;gap:16px;padding:18px 20px;background:var(--bg-app);border-radius:18px;cursor:pointer;border:2px solid var(--border-color);transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px var(--shadow-color)}.lang-card:hover{border-color:var(--primary-color);transform:translateY(-2px);box-shadow:0 8px 24px rgba(74,106,138,0.15)}.lang-card.selected{border-color:var(--primary-color);background:linear-gradient(135deg,var(--bg-app) 0%,rgba(74,106,138,0.06) 100%);box-shadow:0 6px 20px rgba(74,106,138,0.18)}.lang-flag{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.5px;box-shadow:0 2px 6px rgba(0,0,0,0.15);color:#fff}.lang-info{flex:1;display:flex;flex-direction:column;gap:3px}.lang-name{font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:-0.2px}.lang-sub{font-size:13px;color:var(--text-secondary)}.lang-check{width:26px;height:26px;stroke:var(--primary-color);stroke-width:3;fill:none;opacity:0;transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);flex-shrink:0;transform:scale(0.5)}.lang-card.selected .lang-check{opacity:1;transform:scale(1)}
 .personality-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}
 .personality-row{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}
@@ -1105,7 +1048,6 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 .user-menu-item.danger:hover{background:rgba(211,47,47,0.08)}
 .user-menu-item.danger svg{stroke:#d32f2f}
 .user-menu-sep{height:1px;background:var(--border-color);margin:4px 8px}
-/* ✅ جديد: تنسيق بطاقات الأخبار (nibras-response) */
 .nibras-response{font-size:var(--font-size-base);line-height:1.9;color:var(--text-primary);max-width:100%}
 .nibras-response h2{font-size:1.25em;font-weight:800;color:var(--primary-color);margin:4px 0 16px;padding-bottom:10px;border-bottom:2px solid var(--border-color);line-height:1.5}
 .nibras-response h3{font-size:1.05em;font-weight:750;margin:16px 0 8px;background:var(--bg-hover);padding:10px 14px;border-right:4px solid var(--primary-color);border-radius:8px;color:var(--text-primary);line-height:1.5}
@@ -1119,6 +1061,45 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 .nibras-response li{margin-bottom:8px}
 .nibras-response blockquote{border-right:4px solid var(--primary-color);margin:10px 0;padding:8px 14px;background:var(--bg-hover);border-radius:8px}
 .nibras-response img{display:block;max-width:100%;height:auto;border-radius:12px;margin:10px 0;border:1px solid var(--border-color)}
+/* ═══════════════════════════════════════════════════════════════
+   ✅ Modern Agents Library — تصميم حديث لمكتبة المساعدين
+   ═══════════════════════════════════════════════════════════════ */
+.agents-grid{display:flex;flex-direction:column;gap:12px}
+.agent-card{position:relative;padding:16px;background:var(--bg-app);border:1px solid var(--border-color);border-radius:18px;transition:all .22s cubic-bezier(.4,0,.2,1);overflow:hidden}
+.agent-card::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:linear-gradient(90deg,var(--primary-color),transparent);opacity:0;transition:opacity .25s}
+.agent-card:hover{border-color:var(--primary-color);transform:translateY(-2px);box-shadow:0 10px 26px rgba(74,106,138,0.14)}
+.agent-card:hover::before{opacity:1}
+.agent-head{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.agent-avatar{width:50px;height:50px;flex-shrink:0;border-radius:15px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;letter-spacing:-.5px;box-shadow:0 6px 16px rgba(0,0,0,0.15);position:relative;overflow:hidden}
+.agent-avatar::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.25),transparent 60%);pointer-events:none}
+.agent-info{flex:1;min-width:0}
+.agent-name{font-size:16px;font-weight:800;color:var(--text-primary);margin-bottom:3px;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-role{font-size:12.5px;color:var(--text-secondary);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-desc{font-size:13px;color:var(--text-secondary);line-height:1.75;padding:10px 12px;background:var(--bg-hover);border-radius:11px;margin-bottom:12px;border-right:3px solid var(--primary-color)}
+.agent-actions{display:flex;gap:8px}
+.agent-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:12px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .18s cubic-bezier(.4,0,.2,1);-webkit-tap-highlight-color:transparent;outline:none}
+.agent-btn svg{flex-shrink:0}
+.agent-btn:active{transform:scale(0.97)}
+.agent-btn-add{background:var(--primary-color);color:#fff;box-shadow:0 4px 14px rgba(74,106,138,0.3);flex:1}
+.agent-btn-add:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 6px 18px rgba(74,106,138,0.4)}
+.agent-btn-add:disabled{opacity:.75;cursor:not-allowed;transform:none;box-shadow:none}
+.agent-btn-added{background:rgba(16,185,129,0.12)!important;color:#10b981!important;box-shadow:none!important;border:1px solid rgba(16,185,129,0.3)!important}
+html.dark-mode .agent-btn-added{background:rgba(16,185,129,0.18)!important;color:#34d399!important}
+.agent-btn-edit{background:var(--bg-hover);color:var(--text-primary);padding:9px 14px}
+.agent-btn-edit:hover{background:var(--border-color)}
+.agent-btn-del{background:rgba(239,68,68,0.08);color:#ef4444;padding:9px 14px}
+.agent-btn-del:hover{background:rgba(239,68,68,0.16)}
+html.dark-mode .agent-btn-del{color:#f87171}
+.agent-btn-new{width:100%;margin-top:14px;padding:14px;background:transparent;color:var(--primary-color);border:1.5px dashed var(--border-color);border-radius:14px;font-size:14px}
+.agent-btn-new:hover{border-color:var(--primary-color);background:var(--bg-hover);border-style:solid}
+.agent-spinner{animation:agentSpin .8s linear infinite}
+@keyframes agentSpin{to{transform:rotate(360deg)}}
+.lib-loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:50px 20px;color:var(--text-secondary);font-size:14px}
+.lib-spinner{width:34px;height:34px;border:3px solid var(--border-color);border-top-color:var(--primary-color);border-radius:50%;animation:agentSpin .8s linear infinite}
+.lib-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:50px 20px;color:var(--text-secondary)}
+.lib-empty svg{color:var(--border-color);margin-bottom:14px;stroke-width:1.4}
+.lib-empty h4{font-size:15px;color:var(--text-primary);font-weight:700;margin-bottom:6px}
+.lib-empty p{font-size:13px;line-height:1.7;margin:0}
 </style></head><body>
 <div class="app"><div class="header"><div class="header-right"><button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg></button><button class="icon-btn" id="menuToggle" title="القائمة"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div><div class="header-left"><div class="btn-group">{% if session.get('user_email') or session.get('is_admin') %}{% if user_name %}<button type="button" class="user-badge" id="userBadge" onclick="toggleUserMenu(event)" title="{{ session.get('user_email') }}"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ user_name }}</button>{% endif %}<a href="/logout" class="btn btn-outline">خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div>
 
@@ -1500,13 +1481,175 @@ function openAssistantForm(id){editingAssistantId=id;const a=id?myAssistants.fin
 function pickAssistantColor(c){selectedAsstColor=c;document.querySelectorAll('.assistant-color-dot').forEach(el=>{el.classList.toggle('selected',el.dataset.color===c);});}
 async function saveAssistant(){const nameEl=document.getElementById('asst-name');const personaEl=document.getElementById('asst-persona');const name=(nameEl.value||'').trim();const persona=(personaEl.value||'').trim();if(name.length<2){showToast('اسم المساعد قصير جداً');return;}if(persona.length<10){showToast('اكتب وصفاً أطول للمساعد');return;}const btn=document.getElementById('asst-save-btn');btn.disabled=true;btn.textContent='جاري الحفظ...';try{const url=editingAssistantId?'/update_assistant':'/create_assistant';const body={name,persona,color:selectedAsstColor};if(editingAssistantId)body.id=editingAssistantId;const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(d.status==='ok'){showToast(editingAssistantId?'تم التعديل':'تم إنشاء المساعد');if(d.assistant&&!editingAssistantId){myAssistants.push(d.assistant);}else if(d.assistant&&editingAssistantId){const idx=myAssistants.findIndex(x=>x.id===editingAssistantId);if(idx>=0)myAssistants[idx]=d.assistant;}else{await loadAssistants();}renderAssistantMenu();loadAssistantsPage();}else{showToast(d.message||'فشل الحفظ');btn.disabled=false;btn.textContent='حفظ';}}catch(e){showToast('خطأ في الاتصال');btn.disabled=false;btn.textContent='حفظ';}}
 async function deleteAssistant(id){if(!confirm('حذف هذا المساعد؟'))return;try{const r=await fetch('/delete_assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});const d=await r.json();if(d.status==='ok'){myAssistants=myAssistants.filter(x=>x.id!==id);if(currentAssistantId===id)selectAssistant(null,false);showToast('تم الحذف');renderAssistantMenu();loadAssistantsPage();}else{showToast('فشل الحذف');}}catch(e){showToast('خطأ في الاتصال');}}
-function loadAssistantsPage(){currentSubKey='assistants';document.getElementById('subPageTitle').textContent='مساعدي الخاص';let html='';if(myAssistants.length===0){html='<div class="sp-note" style="text-align:center;padding:30px;font-size:14px;">لا يوجد مساعدون حتى الآن.<br>أنشئ مساعداً خاصاً بك</div>';}else{html='<div class="assistants-list">';myAssistants.forEach(a=>{html+='<div class="assistant-card"><div class="a-dot" style="background:'+a.color+'">'+escapeHtml(a.name.charAt(0))+'</div><div class="assistant-card-info"><div class="assistant-card-name">'+escapeHtml(a.name)+'</div><div class="assistant-card-sub">'+escapeHtml(a.persona.substring(0,60))+(a.persona.length>60?'...':'')+'</div></div><button type="button" class="assistant-card-del" onclick="deleteAssistant('+a.id+')" title="حذف"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';});html+='</div>';}html+='<button type="button" class="assistant-add-btn" onclick="openAssistantForm(null)"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إنشاء مساعد جديد</button>';document.getElementById('subPageBody').innerHTML=html;document.getElementById('subPage').classList.add('show');}
-async function loadLibraryStore(){currentSubKey='library';document.getElementById('subPageTitle').textContent='مكتبة المساعدين';const c=document.getElementById('libraryContent');if(!c)return;c.innerHTML='<div class="sp-note" style="text-align:center;padding:20px;">جاري التحميل...</div>';try{const r=await fetch('/api/library/list',{credentials:'same-origin'});const d=await r.json();const list=d.assistants||[];if(!list.length){c.innerHTML='<div class="sp-note" style="text-align:center;padding:30px;font-size:14px;">لا توجد مساعدين في المكتبة.</div>';return;}let html='<div style="display:flex;flex-direction:column;gap:10px;">';list.forEach(a=>{html+='<div class="assistant-card"><div class="a-dot" style="background:'+escapeHtml(a.color||'#4a6a8a')+'">'+escapeHtml((a.name||'?').charAt(0))+'</div><div class="assistant-card-info"><div class="assistant-card-name">'+escapeHtml(a.name)+'</div><div class="assistant-card-sub">'+escapeHtml((a.persona||'').substring(0,60))+'</div></div><button type="button" class="assistant-add-btn" style="width:auto;margin:0;padding:8px 12px;font-size:12px;" onclick="addFromLibrary('+a.id+',this)">إضافة</button></div>';});html+='</div>';c.innerHTML=html;}catch(e){c.innerHTML='<div class="sp-note" style="text-align:center;">تعذر التحميل.</div>';}}
-async function addFromLibrary(id,btn){btn.disabled=true;btn.textContent='...';try{const r=await fetch('/api/library/add',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({assistant_id:id})});const d=await r.json();if(d.status==='ok'){showToast('تمت الإضافة');btn.textContent='✓';btn.style.background='#10b981';btn.style.color='#fff';await loadAssistants();}else{showToast(d.message||'فشل');btn.disabled=false;btn.textContent='إضافة';}}catch(e){showToast('خطأ في الاتصال');btn.disabled=false;btn.textContent='إضافة';}}
+
+/* ═══════════════════════════════════════════════════════════════
+   ✅ loadAssistantsPage — تصميم حديث ببطاقات SVG
+   ═══════════════════════════════════════════════════════════════ */
+function loadAssistantsPage(){
+    currentSubKey='assistants';
+    document.getElementById('subPageTitle').textContent='مساعدي الخاص';
+
+    let html='';
+    if(myAssistants.length===0){
+        html = '<div class="lib-empty">'
+             + '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>'
+             + '<h4>لا يوجد مساعدون بعد</h4><p>أنشئ مساعدك الأول بضغطة زر</p></div>';
+    } else {
+        html = '<div class="agents-grid">';
+        myAssistants.forEach(a=>{
+            const color = (a.color && /^#[0-9a-fA-F]{3,8}$/.test(a.color)) ? a.color : '#4a6a8a';
+            const name  = String(a.name || 'مساعد');
+            const persona = String(a.persona || '');
+            const short = persona.length > 140 ? persona.slice(0,140)+'…' : persona;
+            html += ''
+              + '<div class="agent-card" data-id="' + escapeHtml(String(a.id)) + '">'
+              +   '<div class="agent-head">'
+              +     '<div class="agent-avatar" style="background:' + escapeHtml(color) + '">' + escapeHtml(name.charAt(0).toUpperCase()) + '</div>'
+              +     '<div class="agent-info">'
+              +       '<div class="agent-name">' + escapeHtml(name) + '</div>'
+              +       '<div class="agent-role">مساعدك المخصص</div>'
+              +     '</div>'
+              +   '</div>'
+              +   (short ? '<div class="agent-desc">' + escapeHtml(short) + '</div>' : '')
+              +   '<div class="agent-actions">'
+              +     '<button type="button" class="agent-btn agent-btn-edit" data-action="edit">'
+              +       '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+              +       '<span>تعديل</span>'
+              +     '</button>'
+              +     '<button type="button" class="agent-btn agent-btn-del" data-action="delete">'
+              +       '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+              +       '<span>حذف</span>'
+              +     '</button>'
+              +   '</div>'
+              + '</div>';
+        });
+        html += '</div>';
+    }
+
+    html += ''
+      + '<button type="button" class="agent-btn agent-btn-add agent-btn-new" onclick="openAssistantForm(null)">'
+      +   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      +   '<span>إنشاء مساعد جديد</span>'
+      + '</button>';
+
+    document.getElementById('subPageBody').innerHTML = html;
+    document.getElementById('subPage').classList.add('show');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ✅ loadLibraryStore — جلب المساعدين من المكتبة العامة
+   ═══════════════════════════════════════════════════════════════ */
+async function loadLibraryStore(){
+    currentSubKey='library';
+    document.getElementById('subPageTitle').textContent='مكتبة المساعدين';
+    const c=document.getElementById('libraryContent');
+    if(!c)return;
+    c.innerHTML='<div class="lib-loading"><div class="lib-spinner"></div><span>جاري التحميل...</span></div>';
+    try{
+        const r=await fetch('/api/library/list',{credentials:'same-origin'});
+        const d=await r.json();
+        const list=d.assistants||[];
+        if(!list.length){
+            c.innerHTML='<div class="lib-empty">'
+                +'<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>'
+                +'<h4>المكتبة فاضية</h4><p>لا يوجد مساعدون متاحون حالياً</p></div>';
+            return;
+        }
+        let html='<div class="agents-grid">';
+        list.forEach(a=>{
+            const color = (a.color && /^#[0-9a-fA-F]{3,8}$/.test(a.color)) ? a.color : '#4a6a8a';
+            const name  = String(a.name || 'مساعد');
+            const persona = String(a.persona || '');
+            const short = persona.length > 120 ? persona.slice(0,120)+'…' : persona;
+            html += ''
+              + '<div class="agent-card" data-id="' + escapeHtml(String(a.id)) + '">'
+              +   '<div class="agent-head">'
+              +     '<div class="agent-avatar" style="background:' + escapeHtml(color) + '">' + escapeHtml(name.charAt(0).toUpperCase()) + '</div>'
+              +     '<div class="agent-info">'
+              +       '<div class="agent-name">' + escapeHtml(name) + '</div>'
+              +       '<div class="agent-role">مساعد جاهز للاستخدام</div>'
+              +     '</div>'
+              +   '</div>'
+              +   (short ? '<div class="agent-desc">' + escapeHtml(short) + '</div>' : '')
+              +   '<div class="agent-actions">'
+              +     '<button type="button" class="agent-btn agent-btn-add" data-action="add">'
+              +       '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+              +       '<span>إضافة</span>'
+              +     '</button>'
+              +   '</div>'
+              + '</div>';
+        });
+        html += '</div>';
+        c.innerHTML = html;
+    }catch(e){
+        console.error('loadLibraryStore:', e);
+        c.innerHTML='<div class="lib-empty"><p>تعذر التحميل، حاول مرة أخرى.</p></div>';
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ✅ addFromLibrary — يدعم UUID والنصوص مع حالة تحميل أنيقة
+   ═══════════════════════════════════════════════════════════════ */
+async function addFromLibrary(id, btn){
+    if(!btn || btn.disabled) return;
+    const payloadId = /^\d+$/.test(String(id)) ? parseInt(id, 10) : String(id);
+
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="agent-spinner" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg><span>جاري...</span>';
+
+    try{
+        const r = await fetch('/api/library/add', {
+            method:'POST',
+            credentials:'same-origin',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ assistant_id: payloadId })
+        });
+        let d = {};
+        try { d = await r.json(); } catch(_) {}
+
+        if(r.ok && d.status === 'ok'){
+            showToast('✅ تمت إضافة المساعد');
+            btn.classList.add('agent-btn-added');
+            btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>تمت الإضافة</span>';
+            try { await loadAssistants(); } catch(_) {}
+        } else {
+            showToast(d.message || 'فشل الإضافة');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    }catch(e){
+        console.error('addFromLibrary:', e);
+        showToast('تعذر الاتصال بالسيرفر');
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ✅ Event Delegation — يعمل مع جميع الأزرار الديناميكية
+   ═══════════════════════════════════════════════════════════════ */
+document.addEventListener('click', function(e){
+    const actionBtn = e.target.closest('.agent-card [data-action]');
+    if(!actionBtn) return;
+    const card = actionBtn.closest('.agent-card');
+    if(!card || !card.dataset.id) return;
+    const rawId  = card.dataset.id;
+    const action = actionBtn.dataset.action;
+    const idNum  = /^\d+$/.test(rawId) ? parseInt(rawId, 10) : rawId;
+
+    if(action === 'add'){
+        addFromLibrary(rawId, actionBtn);
+    } else if(action === 'delete'){
+        deleteAssistant(idNum);
+    } else if(action === 'edit'){
+        openAssistantForm(idNum);
+    }
+});
+
 document.addEventListener('click',function(e){const menu=document.getElementById('assistantMenu');const pill=document.getElementById('assistantPill');if(!menu||!pill)return;if(!menu.contains(e.target)&&!pill.contains(e.target)){menu.classList.remove('show');}});
 if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');setTimeout(loadAssistants,300);}
 
-// ✅ تم تعديل دالة sendMessage لدعم عرض HTML المنسق للأخبار
 async function sendMessage(){
     if(iw)return;
     const msgText=ui.value.trim(),img=pid;
@@ -1573,7 +1716,6 @@ async function sendMessage(){
                 if(!line.startsWith('data: '))continue;
                 try{
                     const data=JSON.parse(line.slice(6));
-                    // ✅ جديد: التحقق من وجود HTML منسق
                     if(data.formatted_html){
                         isFormatted=true;
                         clearInterval(typingTimer);
@@ -1617,6 +1759,8 @@ window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTh
 applyLang();
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 })();</script></body></html>"""
+
+
 @app.route('/')
 def index():
     user_name = None
@@ -1861,10 +2005,6 @@ def get_memory_route():
         return jsonify({"status": "error"}), 500
 
 
-# ==========================================================
-#  ✅ نظام أكواد الوصول - Routes
-# ==========================================================
-
 @app.route('/admin/codes/list')
 def admin_codes_list():
     if not session.get('is_admin'):
@@ -2043,11 +2183,6 @@ def my_access():
         return jsonify({"access": None})
     access = get_active_access(email)
     return jsonify({"access": access})
-
-
-# ==========================================================
-#  نهاية نظام أكواد الوصول
-# ==========================================================
 
 
 @app.route('/delete_my_account', methods=['POST'])
@@ -2854,7 +2989,6 @@ def chat():
             personality_inst + "\n\n" + SP + memory_context + lang_inst + assistant_persona_extra
         }] + server_hist[-15:]
 
-        # 📰 أول شي: جرّب Google News RSS (مجاني) للأخبار
         news_articles = None
         if is_registered and um and not has_image:
             try:
@@ -2895,7 +3029,6 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        # 🚀 إذا ما فيه أخبار → OpenAI search (الطريقة القديمة)
         if is_registered and can_search:
             inc_usage(uid, "search_count")
             try:
