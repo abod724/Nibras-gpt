@@ -23,6 +23,9 @@ from gtts import gTTS
 import markdown
 import bleach
 
+# ✅ إضافة: استيراد المكتبة المستقلة (library.py)
+from library import library_bp, view_shared_page
+
 
 app = Flask(__name__, static_folder='static')
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
@@ -79,6 +82,10 @@ limiter = Limiter(
     default_limits=["500 per day", "300 per hour"]
 )
 limiter.init_app(app)
+
+# ✅ إضافة: تسجيل Blueprint المكتبة + مسار المشاركة القصير
+app.register_blueprint(library_bp)
+app.add_url_rule('/shared-assistant/<token>', 'shared_assistant_view', view_shared_page)
 
 
 @app.after_request
