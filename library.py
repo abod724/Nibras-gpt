@@ -4,14 +4,14 @@
 #  بدون إيموجي — كل الأزرار بأيقونات SVG
 # ==========================================================
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, jsonify, request, session, render_template_string, redirect
 import secrets
 
 library_bp = Blueprint('library', __name__, url_prefix='/api/library')
 
 
 # ==========================================================
-#  22 مساعد جاهز للبذور الأولية (بدون إيموجي)
+#  22 مساعد جاهز للبذور الأولية
 # ==========================================================
 SEED_ASSISTANTS = [
     {"name": "أستاذ الرياضيات", "persona": "أنت أستاذ رياضيات سعودي صبور جداً، تشرح الخطوات بالتفصيل الممل، تعطي أمثلة من الحياة اليومية، وتشجع الطالب على المحاولة. تستخدم الأرقام والحسابات بشكل واضح. لا تعطي الحل مباشرة، بل اشرح الطريقة خطوة بخطوة.", "color": "#3b82f6"},
@@ -263,6 +263,7 @@ def share_assistant():
             "views": 0
         }).execute()
 
+        # ✅ استخدام المسار الصحيح /shared-assistant/<token>
         link = f"{request.host_url.rstrip('/')}/shared-assistant/{token}"
         return jsonify({"status": "ok", "link": link, "token": token})
     except Exception as e:
@@ -386,8 +387,6 @@ def seed_library():
 
 @library_bp.route('/view/<token>', methods=['GET'])
 def view_shared_page(token):
-    from flask import render_template_string
-
     html = """<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -454,6 +453,161 @@ h1{font-size:24px;color:#1a2b3c;margin-bottom:14px;font-weight:800}
 </body>
 </html>"""
     return render_template_string(html, token=token)
+
+
+# ==========================================================
+#  صفحة مكتبة المساعدين — نفس تصميم وهوية نبراس
+# ==========================================================
+
+LIBRARY_STORE_HTML = r"""<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0">
+<title>مكتبة المساعدين - نبراس</title>
+<style>
+:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--border-input:#dce1e8;--icon-color:#4a6a8a}
+html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--border-input:#30363d;--icon-color:#58a6ff}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;width:100%;min-height:100dvh;background:var(--bg-body);overflow-x:hidden}
+body{display:flex;justify-content:center;align-items:flex-start}
+.app{width:100%;max-width:450px;min-height:100dvh;background:var(--bg-app);display:flex;flex-direction:column;box-shadow:0 0 20px var(--shadow-color);position:relative}
+.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;flex-shrink:0;background:var(--bg-header);border-bottom:1px solid var(--border-color);position:sticky;top:0;z-index:10}
+.header h1{font-size:17px;font-weight:800;color:var(--text-primary);display:flex;align-items:center;gap:8px;margin:0}
+.header h1 svg{width:20px;height:20px;stroke:var(--primary-color);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn{background:transparent;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s;text-decoration:none}
+.icon-btn:hover{background:var(--bg-hover)}
+.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.content{padding:14px;display:flex;flex-direction:column;gap:12px;flex:1;overflow-y:auto}
+.search-box{display:flex;gap:6px}
+.search-box input{flex:1;padding:12px 16px;border:1.5px solid var(--border-input);border-radius:14px;font-size:14px;background:var(--bg-input);font-family:inherit;color:var(--text-primary);transition:all .2s}
+.search-box input:focus{outline:0;border-color:var(--primary-color);background:var(--bg-app);box-shadow:0 0 0 3px rgba(74,106,138,0.1)}
+.search-box input::placeholder{color:var(--text-secondary);opacity:.7}
+.search-box button{padding:12px 18px;background:var(--primary-color);color:#fff;border:none;border-radius:14px;font-weight:700;cursor:pointer;font-family:inherit;font-size:13px;transition:background .15s}
+.search-box button:hover{background:var(--primary-hover)}
+.count{font-size:12.5px;color:var(--text-secondary);text-align:center;margin:-4px 0 4px}
+.card{background:var(--bg-app);border-radius:16px;padding:14px 16px;border:1px solid var(--border-color);box-shadow:0 1px 3px var(--shadow-color);display:flex;align-items:center;gap:12px;transition:transform .15s}
+.card:hover{transform:translateY(-1px)}
+.card .avatar{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:17px;flex-shrink:0}
+.card .info{flex:1;min-width:0}
+.card .info h3{font-size:14.5px;font-weight:700;color:var(--text-primary);margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .info p{font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .add-btn{background:var(--primary-color);color:#fff;border:none;padding:8px 14px;border-radius:11px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit;transition:all .15s;flex-shrink:0;white-space:nowrap}
+.card .add-btn:hover:not(:disabled){background:var(--primary-hover)}
+.card .add-btn:disabled{opacity:.7;cursor:not-allowed}
+.card .add-btn.added{background:#10b981}
+.card .add-btn.added:hover{background:#10b981;opacity:1}
+.loading{text-align:center;padding:50px 20px;color:var(--text-secondary);font-size:14px}
+.empty{text-align:center;padding:50px 20px;color:var(--text-secondary);font-size:14px;line-height:1.8}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:11px 22px;border-radius:30px;font-size:13.5px;z-index:9999;animation:toastIn .25s ease;max-width:90%;text-align:center}
+html.dark-mode .toast{background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>
+      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      مكتبة المساعدين
+    </h1>
+    <a href="/" class="icon-btn" title="رجوع">
+      <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>
+  </div>
+  <div class="content">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="ابحث بالاسم أو الوصف...">
+      <button onclick="searchLib()">بحث</button>
+    </div>
+    <div class="count" id="count"></div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var mode = localStorage.getItem('nibras-theme-mode') || 'system';
+  var dark = false;
+  if(mode === 'dark') dark = true;
+  else if(mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) dark = true;
+  if(dark) document.documentElement.classList.add('dark-mode');
+  var accent = localStorage.getItem('nibras-accent');
+  if(accent){
+    document.documentElement.style.setProperty('--primary-color', accent);
+    document.documentElement.style.setProperty('--primary-hover', accent);
+    document.documentElement.style.setProperty('--icon-color', accent);
+  }
+})();
+
+function showToast(m){
+  var o=document.querySelector('.toast'); if(o)o.remove();
+  var t=document.createElement('div'); t.className='toast'; t.textContent=m;
+  document.body.appendChild(t); setTimeout(function(){t.remove();},2200);
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+async function loadLib(q){
+  var list = document.getElementById('list');
+  var cnt = document.getElementById('count');
+  list.innerHTML = '<div class="loading">جاري التحميل...</div>';
+  cnt.textContent = '';
+  try{
+    var url = q ? '/api/library/search?q=' + encodeURIComponent(q) : '/api/library/list';
+    var r = await fetch(url, {credentials:'same-origin'});
+    var d = await r.json();
+    var items = d.assistants || [];
+    if(!items.length){ list.innerHTML = '<div class="empty">لا توجد مساعدين في المكتبة.<br>جرّب كلمة بحث ثانية.</div>'; return; }
+    cnt.textContent = items.length + ' مساعد متاح';
+    list.innerHTML = items.map(function(a){
+      var color = esc(a.color || '#4a6a8a');
+      var initial = esc((a.name||'?').charAt(0));
+      var name = esc(a.name);
+      var persona = esc((a.persona||'').slice(0,180));
+      var downloads = a.downloads || 0;
+      return '<div class="card">'
+        + '<div class="avatar" style="background:' + color + '">' + initial + '</div>'
+        + '<div class="info"><h3>' + name + '</h3><p>' + persona + ' · <span style="opacity:.6">' + downloads + ' ⬇</span></p></div>'
+        + '<button class="add-btn" onclick="addToMe(' + a.id + ', this)">إضافة</button>'
+        + '</div>';
+    }).join('');
+  }catch(e){ list.innerHTML = '<div class="empty">تعذر التحميل.</div>'; }
+}
+
+async function addToMe(id, btn){
+  btn.disabled = true; btn.textContent = '...';
+  try{
+    var r = await fetch('/api/library/add', {
+      method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({assistant_id: id})
+    });
+    var d = await r.json();
+    if(d.status === 'ok'){
+      btn.textContent = '✓ مضاف';
+      btn.classList.add('added');
+      showToast('✅ تمت الإضافة لحسابك');
+    } else {
+      btn.disabled = false; btn.textContent = 'إضافة';
+      showToast(d.message || 'تعذر الإضافة');
+    }
+  }catch(e){ btn.disabled = false; btn.textContent = 'إضافة'; showToast('خطأ في الاتصال'); }
+}
+
+function searchLib(){ var q = document.getElementById('searchInput').value.trim(); loadLib(q); }
+document.getElementById('searchInput').addEventListener('keydown', function(e){ if(e.key === 'Enter') searchLib(); });
+loadLib();
+</script>
+</body>
+</html>"""
+
+
+@library_bp.route('/store')
+def library_store_page():
+    """صفحة مكتبة المساعدين بنفس تصميم التطبيق"""
+    if not _is_registered():
+        return redirect('/login')
+    return render_template_string(LIBRARY_STORE_HTML)
 
 
 # ==========================================================
