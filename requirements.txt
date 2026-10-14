@@ -12,3 +12,4 @@ pytz
 gTTS
 markdown
 bleach
+ddgs
