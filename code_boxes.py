@@ -1,16 +1,12 @@
 # ==========================================================
 #  code_boxes.py
 #  ملف بايثون يحتوي على كود JavaScript الخاص بصناديق الأكواد
-#  (يُستورد في app.py)
+#  يدعم: الأكواد + الاقتباسات + الدروس (:::lesson)
 # ==========================================================
 
-# هذا المتغير يمكن استخدامه لإضافة أي وسوم <head> إضافية
 CODE_BOXES_HEAD = ""
-
-# هذا المتغير يمكن استخدامه إذا أردت فصل الـ CSS، لكن الكود الحالي يضيف الـ CSS تلقائياً عبر JS
 CODE_BOXES_CSS = ""
 
-# كود JavaScript كامل (يُحقن في الصفحة)
 CODE_BOXES_JS = """
 (() => {
     "use strict";
@@ -68,6 +64,7 @@ CODE_BOXES_JS = """
                 padding: 15px;
                 line-height: 1.9;
                 overflow-wrap: anywhere;
+                white-space: pre-wrap;
             }
 
             .nibras-box pre {
@@ -88,13 +85,29 @@ CODE_BOXES_JS = """
                 font-family: Consolas, Monaco, monospace;
             }
 
+            .nibras-box blockquote {
+                margin: 0;
+                padding: 15px;
+                border: none;
+                background: var(--code-bg, #f7f8fa);
+                border-right: 4px solid var(--primary-color, #4a6a8a);
+                font-style: normal;
+                color: inherit;
+                line-height: 1.9;
+            }
+
+            .nibras-lesson-box .nibras-box-title {
+                color: var(--primary-color, #4a6a8a);
+            }
+
             @media (max-width: 600px) {
                 .nibras-box {
                     border-radius: 11px;
                 }
 
                 .nibras-box-content,
-                .nibras-box pre {
+                .nibras-box pre,
+                .nibras-box blockquote {
                     padding: 11px;
                 }
             }
@@ -132,15 +145,46 @@ CODE_BOXES_JS = """
         }, 1800);
     }
 
-    // تحويل كتل الأكواد إلى صناديق
-    function enhanceCodeBlocks(root = document) {
-        const blocks = [];
+    // دالة مساعدة لإنشاء صندوق
+    function createBox(titleText, contentHTML, contentText, boxClass) {
+        const box = document.createElement("div");
+        box.className = "nibras-box" + (boxClass ? " " + boxClass : "");
 
-        if (root.matches?.("pre")) blocks.push(root);
+        const head = document.createElement("div");
+        head.className = "nibras-box-head";
 
-        root.querySelectorAll?.("pre").forEach(pre => {
-            blocks.push(pre);
+        const title = document.createElement("span");
+        title.className = "nibras-box-title";
+        title.textContent = titleText;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "nibras-box-copy";
+        button.textContent = "نسخ";
+
+        button.addEventListener("click", () => {
+            copyText(contentText, button);
         });
+
+        head.append(title, button);
+
+        const body = document.createElement("div");
+        body.className = "nibras-box-content";
+        if (contentHTML) {
+            body.innerHTML = contentHTML;
+        } else {
+            body.textContent = contentText || "";
+        }
+
+        box.append(head, body);
+        return box;
+    }
+
+    // ✅ معالجة الأكواد (pre > code)
+    function enhancePreBlocks(root) {
+        const blocks = [];
+        if (root.matches?.("pre")) blocks.push(root);
+        root.querySelectorAll?.("pre").forEach(pre => blocks.push(pre));
 
         blocks.forEach(pre => {
             if (pre.closest(".nibras-box")) return;
@@ -182,36 +226,61 @@ CODE_BOXES_JS = """
         });
     }
 
-    // إنشاء صندوق نص أو درس باستخدام نص عادي آمن
+    // ✅ معالجة الاقتباسات (blockquote)
+    function enhanceBlockquotes(root) {
+        const blocks = [];
+        if (root.matches?.("blockquote")) blocks.push(root);
+        root.querySelectorAll?.("blockquote").forEach(bq => blocks.push(bq));
+
+        blocks.forEach(bq => {
+            if (bq.closest(".nibras-box")) return;
+            if (!bq.parentNode) return;
+
+            const contentText = (bq.innerText || bq.textContent || "").trim();
+            const box = createBox("{اقتباس}", null, contentText, "nibras-quote-box");
+
+            // انقل الـ blockquote داخل الصندوق
+            bq.parentNode.insertBefore(box, bq);
+            const body = box.querySelector(".nibras-box-content");
+            body.innerHTML = "";
+            body.appendChild(bq);
+        });
+    }
+
+    // ✅ معالجة الدروس (:::lesson title ... :::)
+    function enhanceLessonMarkers(root) {
+        const markers = [];
+        if (root.matches?.(".nibras-lesson-marker")) markers.push(root);
+        root.querySelectorAll?.(".nibras-lesson-marker").forEach(m => markers.push(m));
+
+        markers.forEach(marker => {
+            if (!marker.parentNode) return;
+            if (marker.closest(".nibras-box")) return;
+
+            const title = marker.getAttribute("data-title") || "درس";
+            const content = marker.getAttribute("data-content") || "";
+
+            const box = createBox("📚 " + title, null, content, "nibras-lesson-box");
+            marker.parentNode.replaceChild(box, marker);
+        });
+    }
+
+    // ✅ الدالة الرئيسية لتشغيل كل التحسينات
+    function enhanceCodeBlocks(root = document) {
+        enhancePreBlocks(root);
+        enhanceBlockquotes(root);
+        enhanceLessonMarkers(root);
+    }
+
+    // إنشاء صندوق نص أو درس برمجياً
     window.NibrasCopyBox = {
         create: function (title, content) {
-            const box = document.createElement("div");
-            box.className = "nibras-box";
-
-            const head = document.createElement("div");
-            head.className = "nibras-box-head";
-
-            const heading = document.createElement("span");
-            heading.className = "nibras-box-title";
-            heading.textContent = title || "نص جاهز";
-
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "nibras-box-copy";
-            button.textContent = "نسخ";
-
-            const body = document.createElement("div");
-            body.className = "nibras-box-content";
-            body.textContent = content || "";
-
-            button.addEventListener("click", () => {
-                copyText(body.innerText, button);
-            });
-
-            head.append(heading, button);
-            box.append(head, body);
-
-            return box;
+            return createBox(
+                title || "نص جاهز",
+                null,
+                content || "",
+                null
+            );
         }
     };
 
