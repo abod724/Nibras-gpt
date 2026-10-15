@@ -1,5 +1,5 @@
 # ==========================================================
-#  code_boxes.py — صناديق الكود الأنيقة + ألوان برمجية
+#  code_boxes.py — صناديق الكود الأنيقة + كشف ذكي لنوع المحتوى
 #  يُدمج تلقائياً في HT عبر index()
 # ==========================================================
 
@@ -28,6 +28,32 @@ CODE_BOXES_CSS = """
 .nibras-copy-box pre code{background:transparent;padding:0;color:var(--text-primary);display:block}
 .nibras-copy-content p code,
 .nibras-response p code{direction:ltr;display:inline-block;padding:2px 6px;border-radius:6px;background:var(--bg-hover);border:1px solid var(--border-color);font-size:0.9em;font-family:Consolas,Monaco,monospace;color:var(--primary-color)}
+
+/* ═══ نص عادي (غير برمجي) داخل الصندوق — RTL مريح للقراءة ═══ */
+.nibras-copy-box.nibras-text-box .nibras-copy-content pre{direction:rtl;text-align:right;white-space:pre-wrap;word-wrap:break-word;font-family:'Segoe UI',Tahoma,sans-serif;font-size:14px;line-height:1.9}
+
+/* ══ تمييز لوني بسيط لكل نوع — شريط رفيع على يسار الرأس ══ */
+.nibras-copy-header{position:relative}
+.nibras-copy-header::before{content:'';position:absolute;top:0;bottom:0;right:0;width:3px;background:var(--nibras-accent,transparent);opacity:.55}
+.nibras-copy-box[data-type="python"] .nibras-copy-header::before{background:#3776ab}
+.nibras-copy-box[data-type="javascript"] .nibras-copy-header::before{background:#f7df1e}
+.nibras-copy-box[data-type="typescript"] .nibras-copy-header::before{background:#3178c6}
+.nibras-copy-box[data-type="html"] .nibras-copy-header::before{background:#e34f26}
+.nibras-copy-box[data-type="css"] .nibras-copy-header::before{background:#1572b6}
+.nibras-copy-box[data-type="bash"] .nibras-copy-header::before,
+.nibras-copy-box[data-type="shell"] .nibras-copy-header::before,
+.nibras-copy-box[data-type="shell-cmd"] .nibras-copy-header::before{background:#2e7d32}
+.nibras-copy-box[data-type="json"] .nibras-copy-header::before{background:#f59e0b}
+.nibras-copy-box[data-type="yaml"] .nibras-copy-header::before{background:#cb171e}
+.nibras-copy-box[data-type="env"] .nibras-copy-header::before{background:#8b5cf6}
+.nibras-copy-box[data-type="url"] .nibras-copy-header::before{background:#0ea5e9}
+.nibras-copy-box[data-type="email"] .nibras-copy-header::before{background:#ec4899}
+.nibras-copy-box[data-type="text"] .nibras-copy-header::before{background:#6b7280}
+.nibras-copy-box[data-type="sql"] .nibras-copy-header::before{background:#00758f}
+.nibras-copy-box[data-type="java"] .nibras-copy-header::before{background:#b07219}
+.nibras-copy-box[data-type="go"] .nibras-copy-header::before{background:#00add8}
+.nibras-copy-box[data-type="rust"] .nibras-copy-header::before{background:#dea584}
+.nibras-copy-box[data-type="php"] .nibras-copy-header::before{background:#777bb4}
 
 /* ══════════════════════════════════════════════════════
    ألوان الكود البرمجية (Highlight.js tokens)
@@ -106,6 +132,7 @@ html.dark-mode .nibras-copy-content p code{background:#0d1117;color:#79c0ff}
     .nibras-copy-button{padding:5px 9px;font-size:11px}
     .nibras-copy-button svg{width:13px;height:13px}
     .nibras-copy-content pre{font-size:12px;padding:12px}
+    .nibras-copy-box.nibras-text-box .nibras-copy-content pre{font-size:13px}
 }
 """
 
@@ -153,11 +180,34 @@ CODE_BOXES_JS = """
         default:    '<svg viewBox="0 0 24 24"><path d="M9 8l-4 4 4 4"/><path d="M15 8l4 4-4 4"/></svg>'
     };
 
+    // ═══ أيقونات الأنواع المكتشفة تلقائياً (غير برمجية) ═══
+    var DETECTED_ICONS = {
+        'shell-cmd': '<svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>',
+        'url':       '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+        'email':     '<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>',
+        'env':       '<svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+        'text':      '<svg viewBox="0 0 24 24"><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="12" x2="3" y2="12"/><line x1="21" y1="18" x2="3" y2="18"/></svg>',
+        'note':      '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+        'data':      '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>'
+    };
+
+    // ═══ اللابلات العربية للأنواع المكتشفة ═══
+    var DETECTED_LABELS = {
+        'shell-cmd': 'أمر',
+        'url':       'رابط',
+        'email':     'بريد إلكتروني',
+        'env':       'إعدادات',
+        'text':      'نص',
+        'note':      'ملاحظة',
+        'data':      'بيانات'
+    };
+
     var ICON_COPY  = '<svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
     var ICON_CHECK = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
 
     function getLangIcon(lang){
         var key = String(lang || '').toLowerCase().trim();
+        if(DETECTED_ICONS[key]) return DETECTED_ICONS[key];
         if(LANG_ICONS[key]) return LANG_ICONS[key];
         if(key === 'py') return LANG_ICONS.python;
         if(key === 'node' || key === 'nodejs') return LANG_ICONS.javascript;
@@ -171,22 +221,86 @@ CODE_BOXES_JS = """
 
     function getLangLabel(lang){
         var key = String(lang || '').toLowerCase().trim();
+        if(DETECTED_LABELS[key]) return DETECTED_LABELS[key];
         if(!key) return 'كود';
         return key;
+    }
+
+    // ═══ كشف نوع المحتوى تلقائياً عندما اللغة غير محددة ═══
+    function detectContentType(codeText, lang){
+        if(lang) return { type: 'lang', key: lang };
+        var text = (codeText || '').trim();
+        if(!text) return { type: 'skip', key: '' };
+
+        var lines = text.split(/\\r?\\n/).filter(function(l){ return l.trim().length > 0; });
+        if(lines.length === 0) return { type: 'skip', key: '' };
+        var firstLine = (lines[0] || '').trim();
+
+        // 1) رابط وحيد
+        if(/^https?:\\/\\/\\S+$/i.test(text) || /^www\\.[\\w.-]+$/i.test(text)) {
+            return { type: 'detected', key: 'url' };
+        }
+
+        // 2) بريد إلكتروني وحيد
+        if(/^[\\w.+-]+@[\\w-]+\\.[\\w.-]+$/.test(text)) {
+            return { type: 'detected', key: 'email' };
+        }
+
+        // 3) JSON صحيح
+        if((firstLine === '{' && text.slice(-1) === '}') || (firstLine === '[' && text.slice(-1) === ']')){
+            try { JSON.parse(text); return { type: 'detected', key: 'json' }; } catch(e){}
+        }
+
+        // 4) أمر سطر أوامر
+        var cmdPrefixes = /^(\\$|>|#)\\s+/;
+        var cmdWords = /^(sudo|npm|yarn|pnpm|npx|pip|pip3|python|python3|node|git|docker|docker-compose|kubectl|apt|apt-get|brew|curl|wget|chmod|chown|mkdir|rmdir|cp|mv|ls|cat|echo|grep|awk|sed|tar|zip|unzip|ssh|scp|rsync|make|go|cargo|composer|bundle|rails|dotnet|java|mvn|gradle)\\b/i;
+        if(cmdPrefixes.test(firstLine) || cmdWords.test(firstLine)) {
+            return { type: 'detected', key: 'shell-cmd' };
+        }
+
+        // 5) متغيرات بيئة KEY=VALUE (سطرين أو أكثر)
+        if(lines.length >= 2){
+            var envLines = lines.filter(function(l){ return /^[A-Z_][A-Z0-9_]*\\s*=/.test(l.trim()); });
+            if(envLines.length >= Math.max(2, lines.length - 1)) {
+                return { type: 'detected', key: 'env' };
+            }
+        }
+
+        // 6) YAML (key: value)
+        if(lines.length >= 2){
+            var yamlLines = lines.filter(function(l){ return /^\\s*[\\w-]+\\s*:\\s*.+$/.test(l) || /^\\s*-\\s+/.test(l); });
+            if(yamlLines.length >= lines.length - 1 && yamlLines.length >= 2) {
+                return { type: 'detected', key: 'yaml' };
+            }
+        }
+
+        // 7) نص عادي طويل (قصيدة، عنوان، فقرة، وصف)
+        if(text.length >= 25) {
+            // إذا فيه علامات برمجية → كود عام
+            var hasCodeSignals = /[{};]|=>|->|::|\\(\\s*\\)|function\\s|def\\s|class\\s|import\\s/i.test(text);
+            if(!hasCodeSignals){
+                return { type: 'detected', key: 'text' };
+            }
+            return { type: 'detected', key: 'default' };
+        }
+
+        // 8) نص قصير جداً (أقل من 25 حرف) → لا صندوق
+        return { type: 'skip', key: '' };
     }
 
     // ═══ تطبيق الألوان البرمجية ═══
     function highlightCode(codeEl, lang){
         if(!codeEl) return;
-        if(typeof hljs === 'undefined') return;  // المكتبة ما تحمّلت
+        if(typeof hljs === 'undefined') return;
+        // لا نطبق highlight على النصوص غير البرمجية
+        if(lang === 'text' || lang === 'url' || lang === 'email' || lang === 'env' || lang === 'shell-cmd') return;
         try{
             if(lang && hljs.getLanguage(lang)){
                 hljs.highlightElement(codeEl);
             } else {
-                // كشف تلقائي
                 hljs.highlightElement(codeEl);
             }
-        }catch(e){ /* تجاهل الأخطاء */ }
+        }catch(e){ /* تجاهل */ }
     }
 
     function enhanceCodeBlocks(container){
@@ -199,24 +313,41 @@ CODE_BOXES_JS = """
 
             var cls = codeEl.className || '';
             var langMatch = cls.match(/language-([a-z0-9+#-]+)/i);
-            var lang = langMatch ? langMatch[1].toLowerCase() : '';
+            var declaredLang = langMatch ? langMatch[1].toLowerCase() : '';
 
             // نحتفظ بالنص الأصلي قبل التلوين
             var codeText = codeEl.textContent;
             if(!codeText || !codeText.trim()) return;
 
-            // نطبق الألوان أولاً
-            if(lang){
-                // تأكد أن hljs يعرف اللغة
-                if(typeof hljs !== 'undefined' && !hljs.getLanguage(lang)){
-                    codeEl.classList.add('language-plaintext');
+            // كشف نوع المحتوى
+            var detection = detectContentType(codeText, declaredLang);
+            if(detection.type === 'skip') return; // نتركه نص عادي بدون صندوق
+
+            var lang = declaredLang;
+            var detectedKey = detection.key;
+            var isTextMode = false;
+
+            if(detection.type === 'detected'){
+                lang = detectedKey; // نستخدم المفتاح المكتشف كـ lang
+                if(detectedKey === 'text' || detectedKey === 'url' || detectedKey === 'email'){
+                    isTextMode = true;
                 }
             }
-            highlightCode(codeEl, lang);
 
-            // ثم نبني الصندوق
+            // تطبيق التلوين البرمجي فقط إذا هي لغة حقيقية
+            if(declaredLang){
+                if(typeof hljs !== 'undefined' && !hljs.getLanguage(declaredLang)){
+                    codeEl.classList.add('language-plaintext');
+                }
+                highlightCode(codeEl, declaredLang);
+            } else if(detectedKey === 'json' || detectedKey === 'yaml'){
+                highlightCode(codeEl, detectedKey);
+            }
+
+            // بناء الصندوق
             var wrapper = document.createElement('div');
-            wrapper.className = 'nibras-copy-box';
+            wrapper.className = 'nibras-copy-box' + (isTextMode ? ' nibras-text-box' : '');
+            wrapper.setAttribute('data-type', detectedKey || 'default');
 
             var header = document.createElement('div');
             header.className = 'nibras-copy-header';
