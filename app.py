@@ -27,7 +27,12 @@ import bleach
 from library import library_bp, view_shared_page
 from memory_page import MEMORY_CSS, MEMORY_HTML, MEMORY_JS
 
-
+# ✅ code_boxes: استيراد الأسماء مباشرة
+from code_boxes import (
+    CODE_BOXES_HEAD,
+    CODE_BOXES_CSS,
+    CODE_BOXES_JS,
+)
 app = Flask(__name__, static_folder='static')
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
 SECRET_KEY = os.environ.get("SECRET_KEY")
