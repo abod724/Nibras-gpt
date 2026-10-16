@@ -1881,6 +1881,7 @@ async function sendMessage(){
     let streamDone=false;
     let isFormatted=false;
     let typingTimer=null;
+    let pendingFormattedHtml=null;
     function tick(){
         if(isFormatted)return;
         if(bufferText.length>0){
@@ -1891,7 +1892,13 @@ async function sendMessage(){
         if(bufferText.length===0&&streamDone){
             clearInterval(typingTimer);
             typingTimer=null;
-            botEl.innerHTML=formatBotText(displayText);
+            if(pendingFormattedHtml){
+                botEl.classList.add('nibras-response');
+                botEl.innerHTML=pendingFormattedHtml;
+                try{enhanceCodeBlocks(botEl);}catch(e){}
+            } else {
+                botEl.innerHTML=formatBotText(displayText);
+            }
             if(displayText&&displayText.trim().length>0){
                 attachBotActions(botEl,displayText);
                 ch.push({role:'assistant',content:displayText});
@@ -1946,6 +1953,7 @@ async function sendMessage(){
                         }
                     } else if(data.done){
                         if(data.conv_id)cid=data.conv_id;
+                        if(data.formatted_html)pendingFormattedHtml=data.formatted_html;
                         streamDone=true;
                     } else if(data.error){
                         bufferText+='\n\nخطأ: '+data.error;
@@ -3347,7 +3355,9 @@ def chat():
                 inc_usage(uid, "chat_count")
                 if has_image and is_registered and can_image:
                     inc_usage(uid, "image_count")
-                yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+                # ✅ تعديل: نرسل HTML منسّق مع حدث done عشان الفرونت يعرض الأكواد والاقتباسات في صناديق
+                formatted_html = str(format_nibras_response(cleaned))
+                yield f"data: {json.dumps({'done': True, 'conv_id': nid, 'formatted_html': formatted_html}, ensure_ascii=False)}\n\n"
 
                 # ✅ جديد: تحديث ملف المستخدم التراكمي (احترام تفعيل الذاكرة)
                 if is_registered and user_email and not has_image and memory_enabled:
