@@ -637,10 +637,45 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 **ملف المعرفة:**
 {kc}
 
-**قاعدة التنسيق:**
-- اكتب ردودك في فقرات متصلة (2-4 جمل).
-- لا تضع كل جملة في سطر منفصل.
-- الفاصل الوحيد هو سطر فارغ بين الفقرات.
+**⚠️⚠️⚠️ قواعد التنسيق — إجبارية ولا تُخالف أبداً:**
+
+1. **الفقرات:**
+   - اكتب ردودك في فقرات متصلة (2-4 جمل).
+   - لا تضع كل جملة في سطر منفصل.
+   - الفاصل الوحيد هو سطر فارغ بين الفقرات.
+
+2. **الأكواد البرمجية — إلزامي:**
+   - أي كود برمجي → ضعه بين ثلاث علامات ``` مع اسم اللغة.
+   - **الصيغة الصحيحة حرفياً:**
+     ```python
+     print("Hello World")
+     ```
+   - **🚨 ممنوع تماماً** ترسم صناديق بالرموز مثل: ┌ ┐ └ ┘ │ ─ ═ ║ ╔ ╗ ╚ ╝ ┃ ━ ╱ ╲
+   - **🚨 ممنوع تماماً** تستخدم ASCII art أو ترسم مستطيلات يدوياً.
+   - **🚨 ممنوع تماماً** تحاول "تصميم" صندوق بنفسك — النظام يعرضه تلقائياً بشكل حديث.
+
+3. **الاقتباسات والحكم:**
+   - أي اقتباس أو مقولة أو حكمة → ابدأ السطر بـ `>` (علامة أكبر من).
+   - **الصيغة الصحيحة حرفياً:**
+     > النجاح ما يجي دفعة وحدة، يجي من خطوات صغيرة.
+   - **🚨 ممنوع** تكتب الاقتباس بين علامتي تنصيص "..." — هذا ما يطلع صندوق.
+   - **🚨 ممنوع** ترسم صندوق حول الاقتباس بالرموز.
+
+4. **الكود الإنلاين:**
+   - أي كلمة تقنية أو أمر → ضعها بين علامتي backtick واحدة ` `.
+   - مثال: استخدم `print()` لطباعة النص.
+
+5. **القوائم:**
+   - استخدم `-` أو `*` أو أرقام `1.` `2.` — بس مو رموز يدوية.
+
+6. **الممنوعات النهائية:**
+   - ❌ لا ترسم صناديق بأي رموز ┌ ┐ └ ┘ │ ─ ═ ║ ╔ ╗ ╚ ╝ ┃ ━ ╱ ╲
+   - ❌ لا تستخدم ASCII art.
+   - ❌ لا ترسم جداول يدوياً بالرموز.
+   - ❌ لا تكتب اقتباس بين "...".
+   - ✅ استخدم Markdown فقط: ` ``` ` للأكواد، ` > ` للاقتباسات، `|` للجداول.
+
+7. **🚨 تحذير أخير:** أنت **ممنوع تماماً** من رسم أي صناديق أو مستطيلات بالرموز. استخدم Markdown فقط. هذا أمر إجباري لا استثناء فيه. النظام يعرض الأكواد والاقتباسات في صناديق حديثة تلقائياً — فقط اكتبها بـ Markdown عادي.
 
 **قاعدة صوتية مهمة:**
 - استخدم الإيموجي مباشرة بدون وصفها بالكلام.
@@ -1203,13 +1238,7 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 .nibras-response a:hover{text-decoration:underline}
 .nibras-response ul,.nibras-response ol{padding-right:22px;padding-left:0;margin:8px 0 14px}
 .nibras-response li{margin-bottom:8px}
-/* ═══════ صندوق الاقتباس الحديث ═══════ */
-.nibras-response blockquote{position:relative;margin:16px 0;padding:18px 58px 18px 22px;background:linear-gradient(135deg,var(--bg-hover) 0%,rgba(74,106,138,0.07) 100%);border-radius:14px;border:1px solid var(--border-color);border-right:4px solid var(--primary-color);color:var(--text-primary);font-style:normal;line-height:1.85;box-shadow:0 2px 10px var(--shadow-color);overflow:hidden}
-html.dark-mode .nibras-response blockquote{background:linear-gradient(135deg,#1a2332 0%,rgba(88,166,255,0.07) 100%)}
-.nibras-response blockquote::before{content:'';position:absolute;top:16px;right:18px;width:28px;height:28px;background-color:var(--primary-color);opacity:0.28;-webkit-mask:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M6.5 10c-.8 0-1.5.3-2 .8V9.5C4.5 7.6 6.1 6 8 6V4C4.9 4 2.5 6.4 2.5 9.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2zm11 0c-.8 0-1.5.3-2 .8V9.5c0-1.9 1.6-3.5 3.5-3.5V4c-3.1 0-5.5 2.4-5.5 5.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M6.5 10c-.8 0-1.5.3-2 .8V9.5C4.5 7.6 6.1 6 8 6V4C4.9 4 2.5 6.4 2.5 9.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2zm11 0c-.8 0-1.5.3-2 .8V9.5c0-1.9 1.6-3.5 3.5-3.5V4c-3.1 0-5.5 2.4-5.5 5.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2z'/%3E%3C/svg%3E") center/contain no-repeat}
-.nibras-response blockquote p{margin:0 0 8px}
-.nibras-response blockquote p:last-child{margin-bottom:0}
-/* ═══════ صندوق الكود الحديث ═══════ */
+.nibras-response img{display:block;max-width:100%;height:auto;border-radius:12px;margin:10px 0;border:1px solid var(--border-color)}
 .nibras-response pre{position:relative;background:#0f172a;color:#e2e8f0;padding:16px 18px;border-radius:14px;margin:16px 0;overflow-x:auto;font-family:'Consolas','Monaco','Menlo','Courier New',monospace;font-size:13.5px;line-height:1.75;direction:ltr;text-align:left;border:1px solid #1e293b;box-shadow:0 8px 24px rgba(0,0,0,0.18);-webkit-overflow-scrolling:touch}
 html.dark-mode .nibras-response pre{background:#0d1117;border-color:#30363d}
 .nibras-response pre code{background:transparent;padding:0;color:inherit;font-family:inherit;font-size:inherit;border-radius:0;border:none;display:block;white-space:pre;tab-size:4}
@@ -1226,7 +1255,11 @@ html.dark-mode .code-block-wrap{background:#0d1117;border-color:#30363d}
 .code-copy-btn.copied{background:rgba(16,185,129,0.15);color:#34d399;border-color:rgba(16,185,129,0.4)}
 .code-copy-btn svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
 .code-block-wrap pre{margin:0!important;border:none!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;padding:16px 18px!important;border-top:none!important}
-.nibras-response img{display:block;max-width:100%;height:auto;border-radius:12px;margin:10px 0;border:1px solid var(--border-color)}
+.nibras-response blockquote{position:relative;margin:16px 0;padding:18px 58px 18px 22px;background:linear-gradient(135deg,var(--bg-hover) 0%,rgba(74,106,138,0.07) 100%);border-radius:14px;border:1px solid var(--border-color);border-right:4px solid var(--primary-color);color:var(--text-primary);font-style:normal;line-height:1.85;box-shadow:0 2px 10px var(--shadow-color);overflow:hidden}
+html.dark-mode .nibras-response blockquote{background:linear-gradient(135deg,#1a2332 0%,rgba(88,166,255,0.07) 100%)}
+.nibras-response blockquote::before{content:'';position:absolute;top:16px;right:18px;width:28px;height:28px;background-color:var(--primary-color);opacity:0.28;-webkit-mask:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M6.5 10c-.8 0-1.5.3-2 .8V9.5C4.5 7.6 6.1 6 8 6V4C4.9 4 2.5 6.4 2.5 9.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2zm11 0c-.8 0-1.5.3-2 .8V9.5c0-1.9 1.6-3.5 3.5-3.5V4c-3.1 0-5.5 2.4-5.5 5.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M6.5 10c-.8 0-1.5.3-2 .8V9.5C4.5 7.6 6.1 6 8 6V4C4.9 4 2.5 6.4 2.5 9.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2zm11 0c-.8 0-1.5.3-2 .8V9.5c0-1.9 1.6-3.5 3.5-3.5V4c-3.1 0-5.5 2.4-5.5 5.5v6c0 1.4 1.1 2.5 2.5 2.5s2.5-1.1 2.5-2.5V12c0-1.1-.9-2-2-2z'/%3E%3C/svg%3E") center/contain no-repeat}
+.nibras-response blockquote p{margin:0 0 8px}
+.nibras-response blockquote p:last-child{margin-bottom:0}
 .agents-grid{display:flex;flex-direction:column;gap:12px}
 .agent-card{position:relative;padding:16px;background:var(--bg-app);border:1px solid var(--border-color);border-radius:18px;transition:all .22s cubic-bezier(.4,0,.2,1);overflow:hidden}
 .agent-card::before{content:'';position:absolute;top:0;right:0;left:0;height:3px;background:linear-gradient(90deg,var(--primary-color),transparent);opacity:0;transition:opacity .25s}
@@ -1573,7 +1606,6 @@ cb.addEventListener('scroll',function(){stickBottom=isNearBottom();},{passive:tr
 cb.addEventListener('touchmove',function(){stickBottom=isNearBottom();},{passive:true});
 cb.addEventListener('wheel',function(){stickBottom=isNearBottom();},{passive:true});
 
-/* ═══════ تحويل صناديق الأكواد إلى صندوق حديث مع زر نسخ SVG ═══════ */
 function enhanceCodeBlocks(container){
     if(!container) return;
     var pres = container.querySelectorAll('pre');
