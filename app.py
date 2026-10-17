@@ -941,16 +941,92 @@ def fetch_news(query, limit=6):
                         "source": source,
                     })
 
-            feeds.append(articles)
+            
+_news_cache = {}
+_NEWS_CACHE_TTL = 900
+
+
+def fetch_news(query, limit=6):
+    if not isinstance(query, str) or len(query.strip()) < 2:
+        return []
+
+    query = query.strip()[:150]
+    limit = max(1, min(int(limit), 20))
+    now = time.time()
+
+    cached = _news_cache.get(query)
+    if cached and now - cached[0] < _NEWS_CACHE_TTL:
+        return cached[1][:limit]
+
+    normalized = re.sub(r"\s+", " ", query).strip().lower()
+
+    general_queries = {
+        "أهم أخبار السعودية والعالم اليوم",
+        "اهم اخبار السعودية والعالم اليوم",
+        "أهم الأخبار",
+        "اهم الاخبار",
+        "آخر الأخبار",
+        "اخر الاخبار",
+    }
+
+    if normalized in general_queries:
+        searches = [
+            "أخبار السعودية when:1d",
+            "أخبار الخليج when:1d",
+            "أخبار العالم when:1d",
+        ]
+    else:
+        searches = [query]
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; NibrasGP/1.0)"
+    }
+
+    feeds = []
+
+    for search_query in searches:
+        url = (
+            "https://news.google.com/rss/search?q="
+            + quote_plus(search_query)
+            + "&hl=ar&gl=SA&ceid=SA:ar"
+        )
+
+        articles = []
+
+        try:
+            response = requests.get(
+                url, headers=headers, timeout=10
+            )
+            response.raise_for_status()
+            root = ET.fromstring(response.content)
+
+            for item in root.findall(".//item"):
+                title = (item.findtext("title") or "").strip()
+                link = (item.findtext("link") or "").strip()
+                published = (item.findtext("pubDate") or "").strip()
+
+                source_element = item.find("source")
+                source = (
+                    (source_element.text or "").strip()
+                    if source_element is not None
+                    else ""
+                )
+
+                if title and link:
+                    articles.append({
+                        "title": title,
+                        "link": link,
+                        "published": published,
+                        "source": source,
+                    })
 
         except (requests.RequestException, ET.ParseError) as exc:
-            print("News fetch failed:", type(exc).__name__, exc)
-            feeds.append([])
+            print("News fetch error:", type(exc).__name__, str(exc))
+
+        feeds.append(articles)
 
     results = []
     seen = set()
-
-    # توزيع النتائج بالتناوب بين الاستعلامات
     max_items = max((len(feed) for feed in feeds), default=0)
 
     for index in range(max_items):
@@ -959,17 +1035,14 @@ def fetch_news(query, limit=6):
                 continue
 
             article = feed[index]
-            key = re.sub(
-                r"\W+", "",
-                article["title"].lower()
-            )
+            key = re.sub(r"\W+", "", article["title"].casefold())
 
             if key and key not in seen:
                 seen.add(key)
                 results.append(article)
 
-                if len(results) >= limit:
-                    break
+            if len(results) >= limit:
+                break
 
         if len(results) >= limit:
             break
@@ -978,7 +1051,6 @@ def fetch_news(query, limit=6):
         _news_cache.clear()
 
     _news_cache[query] = (now, results)
-
     return results[:limit]
 
 
