@@ -858,23 +858,128 @@ def fetch_news(query, limit=6):
         return []
 
 
-def detect_news_query(text):
-    if not text:
-        return None
-    t = text.strip()
-    triggers = ["أخبار", "اخبار", "خبر", "آخر أخبار", "اخر اخبار", "news",
-                "آخر الأنباء", "الجديد في", "وش صار في", "وش يصير في"]
-    tl = t.lower()
-    for kw in triggers:
-        if kw in tl:
-            clean = t
-            for remove in ["أخبار", "اخبار", "آخر أخبار", "اخر اخبار",
-                           "آخر الأنباء", "الجديد في", "وش صار في", "وش يصير في",
-                           "news"]:
-                clean = clean.replace(remove, "")
-            clean = clean.strip(" ؟?.,،عن في من ")
-            return clean if len(clean) >= 2 else t
-    return None
+
+_news_cache = {}
+_NEWS_CACHE_TTL = 900
+
+
+def fetch_news(query, limit=6):
+    if not query or len(query.strip()) < 2:
+        return []
+
+    query = query.strip()[:150]
+    limit = max(1, min(int(limit), 20))
+
+    now = time.time()
+    cached = _news_cache.get(query)
+
+    if cached and (now - cached[0]) < _NEWS_CACHE_TTL:
+        return cached[1][:limit]
+
+    # تمييز طلب الأخبار العامة عن طلب أخبار موضوع محدد
+    normalized = re.sub(r"\s+", " ", query).strip().lower()
+
+    general_queries = {
+        "أهم أخبار السعودية والعالم اليوم",
+        "اهم اخبار السعودية والعالم اليوم",
+        "أهم الأخبار",
+        "اهم الاخبار",
+        "آخر الأخبار",
+        "اخر الاخبار",
+    }
+
+    if normalized in general_queries:
+        searches = [
+            "أخبار السعودية OR المملكة العربية السعودية",
+            "أخبار الخليج",
+            "أخبار العالم",
+        ]
+    else:
+        # نحافظ على البحث المحدد الذي طلبه المستخدم
+        searches = [query]
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; NibrasGP/1.0)"
+    }
+
+    feeds = []
+
+    for search_query in searches:
+        url = (
+            "https://news.google.com/rss/search?q="
+            + quote_plus(search_query)
+            + "&hl=ar&gl=SA&ceid=SA:ar"
+        )
+
+        try:
+            response = requests.get(
+                url, headers=headers, timeout=8
+            )
+            response.raise_for_status()
+            root = ET.fromstring(response.content)
+
+            articles = []
+
+            for item in root.findall(".//item"):
+                title = item.findtext("title", "").strip()
+                link = item.findtext("link", "").strip()
+                published = item.findtext("pubDate", "").strip()
+
+                source_element = item.find("source")
+                source = (
+                    source_element.text.strip()
+                    if source_element is not None
+                    and source_element.text
+                    else ""
+                )
+
+                if title and link:
+                    articles.append({
+                        "title": title,
+                        "link": link,
+                        "published": published,
+                        "source": source,
+                    })
+
+            feeds.append(articles)
+
+        except (requests.RequestException, ET.ParseError) as exc:
+            print("News fetch failed:", type(exc).__name__, exc)
+            feeds.append([])
+
+    results = []
+    seen = set()
+
+    # توزيع النتائج بالتناوب بين الاستعلامات
+    max_items = max((len(feed) for feed in feeds), default=0)
+
+    for index in range(max_items):
+        for feed in feeds:
+            if index >= len(feed):
+                continue
+
+            article = feed[index]
+            key = re.sub(
+                r"\W+", "",
+                article["title"].lower()
+            )
+
+            if key and key not in seen:
+                seen.add(key)
+                results.append(article)
+
+                if len(results) >= limit:
+                    break
+
+        if len(results) >= limit:
+            break
+
+    if len(_news_cache) > 100:
+        _news_cache.clear()
+
+    _news_cache[query] = (now, results)
+
+    return results[:limit]
 
 
 def format_news_reply(articles, lang="ar"):
