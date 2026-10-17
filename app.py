@@ -815,47 +815,69 @@ def generate_speech(text, gender):
     return None
 
 
-_news_cache = {}
-_NEWS_CACHE_TTL = 900
+def detect_news_query(message):
+    """
+    يكتشف إذا كانت رسالة المستخدم طلب أخبار.
+    يرجع نص الاستعلام لو طلب أخبار، أو None لو لا.
+    """
+    if not message or not isinstance(message, str):
+        return None
+    msg = message.strip()
+    if len(msg) < 2:
+        return None
 
+    # ✅ استثناء: "اخبارك" و "كيف اخبارك" = سلام، مو طلب أخبار
+    casual_greetings = [
+        "اخبارك", "أخبارك",
+        "كيف اخبارك", "كيف أخبارك",
+        "وش اخبارك", "وش أخبارك",
+        "ايش اخبارك", "إيش أخبارك",
+        "علومك", "شخبارك", "شلونك", "شلون اخبارك",
+    ]
+    normalized_check = re.sub(r"[؟?!،,.]", "", msg).strip()
+    normalized_check = re.sub(r"\s+", " ", normalized_check).strip().lower()
+    casual_set = {g.lower() for g in casual_greetings}
+    if normalized_check in casual_set:
+        return None  # سلام عادي، مو طلب أخبار
 
-def fetch_news(query, limit=6):
-    if not query or len(query) < 2:
-        return []
-    query = query.strip()[:150]
-    now = time.time()
-    cached = _news_cache.get(query)
-    if cached and (now - cached[0]) < _NEWS_CACHE_TTL:
-        return cached[1]
-    url = (
-        "https://news.google.com/rss/search?q="
-        + quote_plus(query)
-        + "&hl=ar&gl=SA&ceid=SA:ar"
-    )
-    headers = {"User-Agent": "Mozilla/5.0 (NibrasGP/1.0)"}
-    try:
-        r = requests.get(url, headers=headers, timeout=8)
-        r.raise_for_status()
-        root = ET.fromstring(r.content)
-        articles = []
-        for item in root.findall(".//item")[:limit]:
-            title = item.findtext("title", "").strip()
-            link = item.findtext("link", "").strip()
-            pub = item.findtext("pubDate", "").strip()
-            src_el = item.find("source")
-            source = (src_el.text.strip() if src_el is not None and src_el.text else "")
-            if title and link:
-                articles.append({
-                    "title": title, "link": link,
-                    "published": pub, "source": source,
-                })
-        if len(_news_cache) > 100:
-            _news_cache.clear()
-        _news_cache[query] = (now, articles)
-        return articles
-    except (requests.RequestException, ET.ParseError) as exc:
-        print("News fetch failed:", type(exc).__name__, exc)
-        return []
+    # كلمات مفتاحية للأخبار
+    news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news"]
+    has_news_kw = any(kw in msg or kw.lower() in msg.lower() for kw in news_keywords)
+    if not has_news_kw:
+        return None
+
+    normalized = re.sub(r"\s+", " ", msg).strip()
+
+    # طلبات الأخبار العامة
+    general_markers = [
+        "أهم أخبار السعودية والعالم اليوم",
+        "اهم اخبار السعودية والعالم اليوم",
+        "أهم الأخبار", "اهم الاخبار",
+        "آخر الأخبار", "اخر الاخبار",
+        "أخبار اليوم", "اخبار اليوم",
+        "أخبار السعودية والعالم",
+        "كيف الأخبار", "كيف الاخبار",
+    ]
+    for g in general_markers:
+        if g in normalized:
+            return "أهم أخبار السعودية والعالم اليوم"
+
+    # استخراج موضوع محدد
+    topic = normalized
+    filler_words = [
+        "وش", "ايش", "إيش", "ما", "ماهي", "ماهو",
+        "أبي", "ابي", "أبغى", "ابغى", "عطني", "أعطني", "هات", "جيب",
+        "آخر", "اخر", "أهم", "اهم", "عن", "حول", "اليوم", "الآن", "الان",
+    ]
+    for word in filler_words:
+        topic = re.sub(rf"\b{re.escape(word)}\b", " ", topic)
+    topic = re.sub(r"\s+", " ", topic).strip()
+    topic = topic.replace("أخبار", "").replace("اخبار", "").replace("الأخبار", "").replace("الاخبار", "").strip()
+
+    if topic and len(topic) >= 2:
+        return topic[:150]
+
+    return "أهم أخبار السعودية والعالم اليوم"
 
 
 _news_cache = {}
