@@ -826,29 +826,34 @@ def detect_news_query(message):
     if len(msg) < 2:
         return None
 
-    # ✅ استثناء: "اخبارك" و "كيف اخبارك" = سلام، مو طلب أخبار
-    casual_greetings = [
-        "اخبارك", "أخبارك",
-        "كيف اخبارك", "كيف أخبارك",
-        "وش اخبارك", "وش أخبارك",
-        "ايش اخبارك", "إيش أخبارك",
-        "علومك", "شخبارك", "شلونك", "شلون اخبارك",
-    ]
-    normalized_check = re.sub(r"[؟?!،,.]", "", msg).strip()
-    normalized_check = re.sub(r"\s+", " ", normalized_check).strip().lower()
-    casual_set = {g.lower() for g in casual_greetings}
-    if normalized_check in casual_set:
-        return None  # سلام عادي، مو طلب أخبار
+    # 1. تنظيف الرسالة
+    clean_msg = re.sub(r"[؟?!،,.]", "", msg).strip()
+    clean_msg = re.sub(r"\s+", " ", clean_msg).strip().lower()
 
-    # كلمات مفتاحية للأخبار
+    # 2. استثناءات التحيات: إذا كانت الرسالة مجرد سلام (مثل: اخبارك وشلونك)
+    greeting_words = [
+        "اخبارك", "أخبارك", "شخبارك", "شلونك", "شلون", "علومك",
+        "كيف", "وش", "ايش", "إيش", "هلا", "مرحبا", "السلام", "عليكم",
+        "يا", "طويل", "العمر", "و", "الحال", "الدنيا",
+        "صباح", "مساء", "الخير", "النور", "الله", "يعطيك", "العافية", "بخير",
+        "عساك", "طيب", "شحالك"
+    ]
+    temp_msg = clean_msg
+    for w in greeting_words:
+        temp_msg = temp_msg.replace(w, "")
+    temp_msg = re.sub(r"\s+", "", temp_msg).strip()
+
+    # إذا اختفت كل الكلمات بعد إزالة كلمات السلام، فهي مجرد تحية
+    if not temp_msg:
+        return None
+
+    # 3. التحقق من وجود كلمة أخبار
     news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news"]
     has_news_kw = any(kw in msg or kw.lower() in msg.lower() for kw in news_keywords)
     if not has_news_kw:
         return None
 
-    normalized = re.sub(r"\s+", " ", msg).strip()
-
-    # طلبات الأخبار العامة
+    # 4. طلبات الأخبار العامة
     general_markers = [
         "أهم أخبار السعودية والعالم اليوم",
         "اهم اخبار السعودية والعالم اليوم",
@@ -859,11 +864,11 @@ def detect_news_query(message):
         "كيف الأخبار", "كيف الاخبار",
     ]
     for g in general_markers:
-        if g in normalized:
+        if g in msg:
             return "أهم أخبار السعودية والعالم اليوم"
 
-    # استخراج موضوع محدد
-    topic = normalized
+    # 5. استخراج موضوع محدد
+    topic = msg
     filler_words = [
         "وش", "ايش", "إيش", "ما", "ماهي", "ماهو",
         "أبي", "ابي", "أبغى", "ابغى", "عطني", "أعطني", "هات", "جيب",
