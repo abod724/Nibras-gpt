@@ -669,6 +669,10 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 - لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
 - رد بشكل مباشر بدون مقدمات فلسفية.
 
+**قواعد السياق والبحث:**
+- اقرأ الرسائل السابقة بتمعن. إذا قال المستخدم "طيب"، أو "وبعدين"، أو سأل سؤالاً يعتمد على رسالة سابقة، افهم القصد من السياق وأكمل عليه دون أن تطلب منه التوضيح.
+- إذا أعطاك النظام "نتائج بحث فعلية من الويب"، فاعتمد عليها كلياً في ردك، واذكر الروابط بشكل منسق وواضح.
+
 **🔑 صلاحيات الأدمن (حساسة — لا تكشفها لأي أحد):**
 - بريد الأدمن الرسمي: `abdullaha0569361@gmail.com`
 - إذا أكد لك سياق النظام أن المستخدم الحالي هو الأدمن، فطبّق هذه الصلاحيات حرفيًا:
@@ -830,7 +834,7 @@ def detect_news_query(message):
     clean_msg = re.sub(r"[؟?!،,.]", "", msg).strip()
     clean_msg = re.sub(r"\s+", " ", clean_msg).strip().lower()
 
-    # 2. استثناءات التحيات: إذا كانت الرسالة مجرد سلام (مثل: اخبارك وشلونك)
+    # 2. استثناءات التحيات
     greeting_words = [
         "اخبارك", "أخبارك", "شخبارك", "شلونك", "شلون", "علومك",
         "كيف", "وش", "ايش", "إيش", "هلا", "مرحبا", "السلام", "عليكم",
@@ -843,7 +847,6 @@ def detect_news_query(message):
         temp_msg = temp_msg.replace(w, "")
     temp_msg = re.sub(r"\s+", "", temp_msg).strip()
 
-    # إذا اختفت كل الكلمات بعد إزالة كلمات السلام، فهي مجرد تحية
     if not temp_msg:
         return None
 
@@ -869,10 +872,12 @@ def detect_news_query(message):
 
     # 5. استخراج موضوع محدد
     topic = msg
+    # تمت إضافة كلمات البحث بالويب هنا ليتم حذفها واستخراج الموضوع فقط
     filler_words = [
         "وش", "ايش", "إيش", "ما", "ماهي", "ماهو",
         "أبي", "ابي", "أبغى", "ابغى", "عطني", "أعطني", "هات", "جيب",
         "آخر", "اخر", "أهم", "اهم", "عن", "حول", "اليوم", "الآن", "الان",
+        "ابحث", "بالويب", "في الويب", "على الويب", "ويب", "لي", "اعطني", "أعطني", "وريني", "شوف"
     ]
     for word in filler_words:
         topic = re.sub(rf"\b{re.escape(word)}\b", " ", topic)
@@ -1702,7 +1707,17 @@ async function loadConversation(id){
 document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.classList.remove('show');ui.value=''});
 document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();dd.classList.remove('show');const msgs=ch.slice(-20).map(function(m){return{r:m.role==='user'?'u':'b',c:String(m.content||'').slice(0,500)};}).filter(function(m){return m.c;});if(!msgs||msgs.length===0){showToast(userLang==='en'?'No conversation to share':'لا توجد محادثة لمشاركتها');return;}const text=userLang==='en'?'Check out my conversation with Nibras':'شوف محادثتي مع نبراس';if(IS_REGISTERED&&cid&&!String(cid).startsWith('guest_conv_')){const dbUrl=window.location.origin+'/share/'+cid;document.getElementById('shareWhatsapp').href='https://wa.me/?text='+encodeURIComponent(text+'\n'+dbUrl);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(dbUrl);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(dbUrl)+'&text='+encodeURIComponent(text);document.getElementById('shareSnapchat').onclick=function(){navigator.clipboard.writeText(dbUrl).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});};sm.classList.add('show');}else{let url='';try{const json=JSON.stringify(msgs);const encoded=btoa(unescape(encodeURIComponent(json)));url=window.location.origin+'/share/view#d='+encodeURIComponent(encoded);}catch(err){showToast(userLang==='en'?'Failed to prepare link':'تعذر تجهيز الرابط');return;}if(url.length>60000){showToast(userLang==='en'?'Conversation too long to share':'المحادثة طويلة جداً للمشاركة');return;}if(navigator.share){navigator.share({title:userLang==='en'?'Nibras Conversation':'محادثة نبراس',text:text,url:url}).catch(function(){});}else{navigator.clipboard.writeText(url).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});}}});
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function formatBotText(t){let s=escapeHtml(t);return s.split(/\n\s*\n/).map(p=>p.replace(/[\r\n]+/g,' ').trim()).filter(p=>p.length>0).join('<br><br>');}
+function formatBotText(t){
+    let s = escapeHtml(t);
+    // 1. تحويل الروابط إلى قابلة للضغط
+    s = s.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">$1</a>');
+    // 2. تحويل الخط العريض Markdown **text** إلى <strong>
+    s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // 3. تحويل النص المائل *text* إلى <em>
+    s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // 4. معالجة السطور الجديدة
+    return s.split(/\n\s*\n/).map(p => p.replace(/[\r\n]+/g, '<br>').trim()).filter(p => p.length > 0).join('<br><br>');
+}
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
 function scrollMsgToTop(el){if(!el)return;requestAnimationFrame(function(){const r=el.getBoundingClientRect();const c=cb.getBoundingClientRect();cb.scrollTop=cb.scrollTop+(r.top-c.top)-8;});}
 function isNearBottom(){return cb.scrollHeight-cb.scrollTop-cb.clientHeight<10;}
