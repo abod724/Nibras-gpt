@@ -835,17 +835,21 @@ def understand_intent(message, history=None):
 أنت محلل نية الطلبات في نبراس GP.
 افهم المعنى المقصود من كلام المستخدم باللهجات العربية والسعودية، مع مراعاة سياق المحادثة.
 قرر الإجراء الأنسب:
-- news_search: إذا كان المستخدم يريد أخبارًا فعلية أو مستجدات حديثة، حتى لو طلبها بتعبير عامي غير مباشر.
+- news_search: إذا كان المستخدم يريد أخبارًا فعلية أو مستجدات حديثة، حتى لو طلبها بتعبير عامي غير مباشر (مثل: أهم الأخبار، عطني الأخبار، أخبار العالم، أخبار قوقل نيوز).
 - general_chat: إذا كان يتحدث أو يسأل سؤالًا عاديًا.
-- other_search: إذا كان يحتاج بحثًا حديثًا غير الأخبار.
+- other_search: إذا كان يحتاج بحثًا حديثًا غير الأخبار (مثل: سعر ايفون، طقس الرياض).
 - clarify: إذا تعذر تحديد المقصود فعلًا.
-لا تعتبر كل تحية طلب أخبار.
-لا تخترع معلومات أو أخبارًا.
-لا تنفذ أي بحث بنفسك؛ حدد النية فقط.
+
+قواعد مهمة جدًا:
+1. لا تعتبر كل تحية طلب أخبار (مثل: وش أخبارك = general_chat).
+2. إذا قال "أخبار قوقل نيوز" أو "جوجل نيوز"، فهذا يعني news_search والـ query يجب أن يكون "أهم الأخبار" (لا تضع قوقل نيوز في الـ query).
+3. إذا نفي الأخبار (مثل: بعيد عن الأخبار، ما أبي أخبار) فهذا general_chat.
+4. لا تنفذ أي بحث بنفسك؛ حدد النية فقط.
+
 أعد JSON فقط بهذا الشكل:
 {
   "intent": "news_search",
-  "query": "الموضوع المطلوب البحث عن أخباره",
+  "query": "الموضوع المطلوب البحث عن أخباره (بدون كلمة أخبار)",
   "reason": "سبب مختصر"
 }
 """
@@ -891,9 +895,8 @@ def fetch_news(query, limit=10):
 
     query = query.strip()[:150]
     
-    # ✅ إضافة شرط الوقت لجعل الأخبار حديثة جداً (آخر يومين)
-    if "when:" not in query:
-        query = f"{query} when:2d"
+    # ✅ شيلنا شرط when:2d عشان ما يخرب البحث
+    # قوقل نيوز ذكي ويجيب الأحدث تلقائياً لو استخدمنا الكلمة الصح
 
     limit = max(1, min(int(limit), 20))
     now = time.time()
@@ -905,19 +908,19 @@ def fetch_news(query, limit=10):
     normalized = re.sub(r"\s+", " ", query).strip().lower()
 
     general_queries = {
-        "أهم أخبار السعودية والعالم اليوم when:2d",
-        "اهم اخبار السعودية والعالم اليوم when:2d",
-        "أهم الأخبار when:2d",
-        "اهم الاخبار when:2d",
-        "آخر الأخبار when:2d",
-        "اخر الاخبار when:2d",
+        "أهم أخبار السعودية والعالم اليوم",
+        "اهم اخبار السعودية والعالم اليوم",
+        "أهم الأخبار",
+        "اهم الاخبار",
+        "آخر الأخبار",
+        "اخر الاخبار",
     }
 
     if normalized in general_queries:
         searches = [
-            "أخبار السعودية when:1d",
-            "أخبار الخليج when:1d",
-            "أخبار العالم when:1d",
+            "أخبار السعودية",
+            "أخبار الخليج",
+            "أخبار العالم",
         ]
     else:
         searches = [query]
@@ -3323,23 +3326,29 @@ def chat():
                 print(f"💬 Intent: {intent} | Query: {intent_data.get('query')} | Reason: {intent_data.get('reason')}")
 
                 if intent == "news_search":
-                    search_query = intent_data.get("query") or um
-                    # إذا كان الاستعلام عام جداً، نضيف كلمة أخبار لضمان الدقة
-                    if len(search_query.strip()) < 4 or search_query in ["العالم", "السعودية", "أخبار"]:
-                        search_query = f"أهم أخبار {search_query} اليوم"
-                    
-                    news_articles = fetch_news(search_query, limit=10)
-                    
-                    if news_articles:
-                        inc_usage(uid, "search_count")
-                        print(f"📰 Google News found for '{search_query}': {len(news_articles)} articles")
+                    if can_search or is_admin:  # ✅ التحقق من الحد
+                        search_query = intent_data.get("query") or um
+                        
+                        # ✅ تنظيف الاستعلام من كلمة "قوقل نيوز" عشان ما يبحث عن التطبيق
+                        search_query = search_query.replace("قوقل نيوز", "").replace("جوجل نيوز", "").strip()
+                        if not search_query or len(search_query) < 2 or search_query in ["العالم", "السعودية", "أخبار"]:
+                            search_query = "أهم الأخبار اليوم"
+                        elif "أخبار" not in search_query and "اخبار" not in search_query:
+                            search_query = f"أخبار {search_query}"
+                        
+                        news_articles = fetch_news(search_query, limit=10)
+                        
+                        if news_articles:
+                            inc_usage(uid, "search_count") # ✅ خصم من العداد
+                            print(f"📰 Google News found for '{search_query}': {len(news_articles)} articles")
+                        else:
+                            use_web_search = True # إذا مالقى أخبار يروح لبحث الويب
                     else:
-                        # لو قوقل نيوز ما لقى شي، نستخدم بحث الويب العادي
+                        print("⚠️ User hit search limit for news.")
+
+                elif intent == "other_search":
+                    if can_search or is_admin: # ✅ التحقق من الحد
                         use_web_search = True
-                elif intent == "other_search" or is_admin:
-                    # إذا كان بحث ويب غير الأخبار أو المستخدم أدمن
-                    use_web_search = True
-                    
             except Exception as e:
                 print(f"news intent error: {e}")
 
@@ -3371,9 +3380,13 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        if is_registered and (use_web_search or can_search) and not news_articles:
+        # ✅ بحث الويب (Web Search) مع تطبيق الحدود
+        if is_registered and use_web_search and not news_articles:
             try:
                 print(f"🔍 Performing Web Search for: {um}")
+                if not is_admin:
+                    inc_usage(uid, "search_count") # ✅ خصم من العداد للمستخدم المسجل
+                
                 sr = client.responses.create(
                     model=OPENAI_MODEL,
                     instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
