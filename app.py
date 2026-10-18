@@ -815,79 +815,70 @@ def generate_speech(text, gender):
     return None
 
 
-def detect_news_query(message):
+def understand_intent(message, history=None):
     """
-    يكتشف إذا كانت رسالة المستخدم طلب أخبار.
-    يرجع نص الاستعلام لو طلب أخبار، أو None لو لا.
+    تفهم مقصد المستخدم من كلامه الطبيعي،
+    وتحدد هل يحتاج بحث أخبار أم محادثة عادية.
     """
-    if not message or not isinstance(message, str):
-        return None
-    msg = message.strip()
-    if len(msg) < 2:
-        return None
+    history = history or []
 
-    # 1. كلمات النفي والتحويل (إذا وجدت، لا تبحث عن أخبار)
-    negative_context = [
-        "بعيد عن", "غير الأخبار", "ما أبي", "ما ابي", "لا تجيب", 
-        "وقف", "خلصنا", "بعدين", "نسيت", "بدون أخبار", "بدون اخبار", 
-        "مو الحين", "طيب بعيد"
-    ]
-    if any(neg in msg for neg in negative_context):
-        return None
+    # بناء السياق من آخر 6 رسائل
+    context_lines = []
+    for item in history[-6:]:
+        role = "المستخدم" if item.get('role') == 'user' else "المساعد"
+        content = item.get('content', '')
+        if isinstance(content, str):
+            context_lines.append(f"{role}: {content[:500]}")
+    context = "\n".join(context_lines)
 
-    # 2. تنظيف الرسالة
-    clean_msg = re.sub(r"[؟?!،,.]", "", msg).strip()
-    clean_msg = re.sub(r"\s+", " ", clean_msg).strip().lower()
+    instructions = """
+أنت محلل نية الطلبات في نبراس GP.
+افهم المعنى المقصود من كلام المستخدم باللهجات العربية والسعودية، مع مراعاة سياق المحادثة.
+قرر الإجراء الأنسب:
+- news_search: إذا كان المستخدم يريد أخبارًا فعلية أو مستجدات حديثة، حتى لو طلبها بتعبير عامي غير مباشر.
+- general_chat: إذا كان يتحدث أو يسأل سؤالًا عاديًا.
+- other_search: إذا كان يحتاج بحثًا حديثًا غير الأخبار.
+- clarify: إذا تعذر تحديد المقصود فعلًا.
+لا تعتبر كل تحية طلب أخبار.
+لا تخترع معلومات أو أخبارًا.
+لا تنفذ أي بحث بنفسك؛ حدد النية فقط.
+أعد JSON فقط بهذا الشكل:
+{
+  "intent": "news_search",
+  "query": "الموضوع المطلوب البحث عن أخباره",
+  "reason": "سبب مختصر"
+}
+"""
 
-    # 3. استثناءات التحيات
-    greeting_words = [
-        "اخبارك", "أخبارك", "شخبارك", "شلونك", "شلون", "علومك",
-        "كيف", "وش", "ايش", "إيش", "هلا", "مرحبا", "السلام", "عليكم",
-        "يا", "طويل", "العمر", "و", "الحال", "الدنيا",
-        "صباح", "مساء", "الخير", "النور", "الله", "يعطيك", "العافية", "بخير",
-        "عساك", "طيب", "شحالك"
-    ]
-    temp_msg = clean_msg
-    for w in greeting_words:
-        temp_msg = temp_msg.replace(w, "")
-    temp_msg = re.sub(r"\s+", "", temp_msg).strip()
+    try:
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": instructions},
+                {
+                    "role": "user",
+                    "content": (
+                        f"سياق المحادثة:\n{context}\n\n"
+                        f"رسالة المستخدم:\n{message}"
+                    ),
+                },
+            ],
+            response_format={"type": "json_object"},
+            temperature=0,
+            max_tokens=100
+        )
 
-    if not temp_msg:
-        return None
+        result = json.loads(response.choices[0].message.content)
+        
+        allowed = {"news_search", "general_chat", "other_search", "clarify"}
+        if result.get("intent") not in allowed:
+            return {"intent": "general_chat", "query": "", "reason": "تعذر تصنيف الطلب"}
+            
+        return result
 
-    # 4. التحقق من وجود كلمة أخبار
-    news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news"]
-    has_news_kw = any(kw in msg or kw.lower() in msg.lower() for kw in news_keywords)
-    if not has_news_kw:
-        return None
-
-    # 5. طلبات الأخبار العامة
-    general_markers = [
-        "أهم أخبار السعودية والعالم اليوم", "اهم اخبار السعودية والعالم اليوم",
-        "أهم الأخبار", "اهم الاخبار", "آخر الأخبار", "اخر الاخبار",
-        "أخبار اليوم", "اخبار اليوم", "أخبار السعودية والعالم",
-        "كيف الأخبار", "كيف الاخبار",
-    ]
-    for g in general_markers:
-        if g in msg:
-            return "أهم أخبار السعودية والعالم اليوم"
-
-    # 6. استخراج موضوع محدد
-    topic = msg
-    filler_words = [
-        "وش", "ايش", "إيش", "ما", "ماهي", "ماهو",
-        "أبي", "ابي", "أبغى", "ابغى", "عطني", "أعطني", "هات", "جيب",
-        "آخر", "اخر", "أهم", "اهم", "عن", "حول", "اليوم", "الآن", "الان",
-    ]
-    for word in filler_words:
-        topic = re.sub(rf"\b{re.escape(word)}\b", " ", topic)
-    topic = re.sub(r"\s+", " ", topic).strip()
-    topic = topic.replace("أخبار", "").replace("اخبار", "").replace("الأخبار", "").replace("الاخبار", "").strip()
-
-    if topic and len(topic) >= 2:
-        return topic[:150]
-
-    return "أهم أخبار السعودية والعالم اليوم"
+    except Exception as e:
+        print(f"⚠️ Intent Classifier Failed: {e}")
+        return {"intent": "general_chat", "query": "", "reason": "فشل الاتصال بمحلل النية"}
 
 
 _news_cache = {}
@@ -3319,35 +3310,24 @@ def chat():
         news_articles = None
         if is_registered and um and not has_image:
             try:
-                # 🔥 فلتر الذكاء الاصطناعي (تصنيف النية) - يستخدم مودلك gpt-5.6-luna
-                is_news_intent = False
-                try:
-                    intent_check = client.chat.completions.create(
-                        model=OPENAI_MODEL, 
-                        messages=[
-                            {"role": "system", "content": "أنت مصنف نوايا خبير. هل المستخدم يطلب أخباراً فعلية (مثل: عطني أخبار، وش صار اليوم، أخبار السوق) أم أنه يتحدث بشكل عام أو ينفي طلب الأخبار (مثل: بعيد عن الأخبار، الأخبار تزعل، وش أخبارك، خلنا نغير الموضوع)؟ أجب بكلمة واحدة فقط: 'نعم' إذا كان يطلب أخبار، أو 'لا' إذا كان لا يطلب."},
-                            {"role": "user", "content": um}
-                        ],
-                        max_tokens=10,
-                        temperature=0
-                    )
-                    answer = (intent_check.choices[0].message.content or "").strip()
-                    is_news_intent = "نعم" in answer
-                except Exception as e:
-                    print("Intent check failed, falling back to keyword:", e)
-                    # لو صار خطأ في الاتصال بالذكاء، نرجع للطريقة القديمة كخطة بديلة
-                    is_news_intent = True 
+                # 🔥 استدعاء دالة فهم النية الجديدة الخاصة بك
+                intent_data = understand_intent(um, server_hist)
+                intent = intent_data.get("intent")
 
-                # إذا كان فعلاً يبي أخبار، نبحث ونجيب
-                if is_news_intent:
-                    news_query = detect_news_query(um)
-                    if news_query:
-                        news_articles = fetch_news(news_query, limit=10)
-                        if news_articles:
-                            inc_usage(uid, "search_count")
-                            print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
+                if intent == "news_search":
+                    search_query = intent_data.get("query") or um
+                    # إذا كان الـ query فاضي أو قصير جداً، نرجع للدالة القديمة
+                    if not search_query or len(search_query.strip()) < 2:
+                        search_query = detect_news_query(um) or "أهم أخبار السعودية والعالم اليوم"
+
+                    news_articles = fetch_news(search_query, limit=10)
+                    if news_articles:
+                        inc_usage(uid, "search_count")
+                        print(f"📰 News found for '{search_query}': {len(news_articles)} articles")
+                else:
+                    print(f"💬 Intent: {intent} | Reason: {intent_data.get('reason')}")
             except Exception as e:
-                print(f"news error: {e}")
+                print(f"news intent error: {e}")
 
         if news_articles:
             news_md = format_news_reply(news_articles, user_lang)
