@@ -3392,6 +3392,12 @@ def chat():
         print("chat request error:", repr(e))
         return jsonify({"status": "error", "message": "حدث خطأ داخلي أثناء معالجة الطلب"}), 500
 
-
+# ==========================================
+# إثبات ملكية جوجل
+# ==========================================
+@app.route('/google2a34b4c8fc51b093.html')
+def google_verify():
+    # هذا السطر يخلي الخادم يقرأ الملف اللي أنت رفعته ويعرضه
+    return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
