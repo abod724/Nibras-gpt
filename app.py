@@ -890,6 +890,11 @@ def fetch_news(query, limit=10):
         return []
 
     query = query.strip()[:150]
+    
+    # ✅ إضافة شرط الوقت لجعل الأخبار حديثة جداً (آخر يومين)
+    if "when:" not in query:
+        query = f"{query} when:2d"
+
     limit = max(1, min(int(limit), 20))
     now = time.time()
 
@@ -900,12 +905,12 @@ def fetch_news(query, limit=10):
     normalized = re.sub(r"\s+", " ", query).strip().lower()
 
     general_queries = {
-        "أهم أخبار السعودية والعالم اليوم",
-        "اهم اخبار السعودية والعالم اليوم",
-        "أهم الأخبار",
-        "اهم الاخبار",
-        "آخر الأخبار",
-        "اخر الاخبار",
+        "أهم أخبار السعودية والعالم اليوم when:2d",
+        "اهم اخبار السعودية والعالم اليوم when:2d",
+        "أهم الأخبار when:2d",
+        "اهم الاخبار when:2d",
+        "آخر الأخبار when:2d",
+        "اخر الاخبار when:2d",
     }
 
     if normalized in general_queries:
@@ -3308,24 +3313,33 @@ def chat():
         }] + server_hist[-15:]
 
         news_articles = None
+        use_web_search = False
+
         if is_registered and um and not has_image:
             try:
-                # 🔥 استدعاء دالة فهم النية الجديدة الخاصة بك
+                # 🔥 استدعاء دالة فهم النية
                 intent_data = understand_intent(um, server_hist)
                 intent = intent_data.get("intent")
+                print(f"💬 Intent: {intent} | Query: {intent_data.get('query')} | Reason: {intent_data.get('reason')}")
 
                 if intent == "news_search":
                     search_query = intent_data.get("query") or um
-                    # إذا كان الـ query فاضي أو قصير جداً، نرجع للدالة القديمة
-                    if not search_query or len(search_query.strip()) < 2:
-                        search_query = detect_news_query(um) or "أهم أخبار السعودية والعالم اليوم"
-
+                    # إذا كان الاستعلام عام جداً، نضيف كلمة أخبار لضمان الدقة
+                    if len(search_query.strip()) < 4 or search_query in ["العالم", "السعودية", "أخبار"]:
+                        search_query = f"أهم أخبار {search_query} اليوم"
+                    
                     news_articles = fetch_news(search_query, limit=10)
+                    
                     if news_articles:
                         inc_usage(uid, "search_count")
-                        print(f"📰 News found for '{search_query}': {len(news_articles)} articles")
-                else:
-                    print(f"💬 Intent: {intent} | Reason: {intent_data.get('reason')}")
+                        print(f"📰 Google News found for '{search_query}': {len(news_articles)} articles")
+                    else:
+                        # لو قوقل نيوز ما لقى شي، نستخدم بحث الويب العادي
+                        use_web_search = True
+                elif intent == "other_search" or is_admin:
+                    # إذا كان بحث ويب غير الأخبار أو المستخدم أدمن
+                    use_web_search = True
+                    
             except Exception as e:
                 print(f"news intent error: {e}")
 
@@ -3357,9 +3371,9 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        if is_registered and can_search:
-            inc_usage(uid, "search_count")
+        if is_registered and (use_web_search or can_search) and not news_articles:
             try:
+                print(f"🔍 Performing Web Search for: {um}")
                 sr = client.responses.create(
                     model=OPENAI_MODEL,
                     instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
@@ -3376,6 +3390,7 @@ def chat():
                     msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
             except Exception as e:
                 print(f"فشل البحث ({type(e).__name__}): {e}")
+        
         def generate():
             full_reply = ""
             try:
