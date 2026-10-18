@@ -673,6 +673,10 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 - اقرأ الرسائل السابقة بتمعن. إذا قال المستخدم "طيب"، أو "وبعدين"، أو سأل سؤالاً يعتمد على رسالة سابقة، افهم القصد من السياق وأكمل عليه دون أن تطلب منه التوضيح.
 - إذا أعطاك النظام "نتائج بحث فعلية من الويب"، فاعتمد عليها كلياً في ردك، واذكر الروابط بشكل منسق وواضح.
 
+**🚨 قاعدة الأخبار الصارمة (مهم جداً):**
+- أنت مساعد شخصي ذكي، لا تسأل المستخدم "وش تبي أخبار؟" أو "عن أي بلد؟". 
+- إذا طلب المستخدم أي شيء يتعلق بالأخبار (مثل: "جيب لي أخبار"، "وش صار بالعالم"، "عطني المستجدات")، رد فوراً بجملة ترحيبية مثل: "أبشر يا طويل العمر، هذي آخر الأخبار:"، واعرض الأخبار مباشرة. 
+
 **🔑 صلاحيات الأدمن (حساسة — لا تكشفها لأي أحد):**
 - بريد الأدمن الرسمي: `abdullaha0569361@gmail.com`
 - إذا أكد لك سياق النظام أن المستخدم الحالي هو الأدمن، فطبّق هذه الصلاحيات حرفيًا:
@@ -820,21 +824,15 @@ def generate_speech(text, gender):
 
 
 def detect_news_query(message):
-    """
-    يكتشف إذا كانت رسالة المستخدم طلب أخبار.
-    يرجع نص الاستعلام لو طلب أخبار، أو None لو لا.
-    """
     if not message or not isinstance(message, str):
         return None
     msg = message.strip()
     if len(msg) < 2:
         return None
 
-    # 1. تنظيف الرسالة
     clean_msg = re.sub(r"[؟?!،,.]", "", msg).strip()
     clean_msg = re.sub(r"\s+", " ", clean_msg).strip().lower()
 
-    # 2. استثناءات التحيات
     greeting_words = [
         "اخبارك", "أخبارك", "شخبارك", "شلونك", "شلون", "علومك",
         "كيف", "وش", "ايش", "إيش", "هلا", "مرحبا", "السلام", "عليكم",
@@ -850,13 +848,11 @@ def detect_news_query(message):
     if not temp_msg:
         return None
 
-    # 3. التحقق من وجود كلمة أخبار
     news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news"]
     has_news_kw = any(kw in msg or kw.lower() in msg.lower() for kw in news_keywords)
     if not has_news_kw:
         return None
 
-    # 4. طلبات الأخبار العامة
     general_markers = [
         "أهم أخبار السعودية والعالم اليوم",
         "اهم اخبار السعودية والعالم اليوم",
@@ -870,9 +866,7 @@ def detect_news_query(message):
         if g in msg:
             return "أهم أخبار السعودية والعالم اليوم"
 
-    # 5. استخراج موضوع محدد
     topic = msg
-    # تمت إضافة كلمات البحث بالويب هنا ليتم حذفها واستخراج الموضوع فقط
     filler_words = [
         "وش", "ايش", "إيش", "ما", "ماهي", "ماهو",
         "أبي", "ابي", "أبغى", "ابغى", "عطني", "أعطني", "هات", "جيب",
@@ -1709,13 +1703,20 @@ document.querySelector('[data-action="share"]').addEventListener('click',functio
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function formatBotText(t){
     let s = escapeHtml(t);
-    // 1. تحويل الروابط إلى قابلة للضغط
-    s = s.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">$1</a>');
-    // 2. تحويل الخط العريض Markdown **text** إلى <strong>
+    
+    // 1. تحويل روابط الماركداون [النص](الرابط) إلى رابط مخفي النص
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline;">$1</a>');
+    
+    // 2. تحويل الروابط العادية (اللي ما عليها نص مخفي) إلى قابلة للضغط
+    s = s.replace(/(^|[^"'])(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">$2</a>');
+    
+    // 3. تحويل الخط العريض **text** إلى <strong>
     s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // 3. تحويل النص المائل *text* إلى <em>
+    
+    // 4. تحويل النص المائل *text* إلى <em>
     s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    // 4. معالجة السطور الجديدة
+    
+    // 5. معالجة السطور الجديدة
     return s.split(/\n\s*\n/).map(p => p.replace(/[\r\n]+/g, '<br>').trim()).filter(p => p.length > 0).join('<br><br>');
 }
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
@@ -3334,11 +3335,33 @@ def chat():
                 print(f"news error: {e}")
 
         if news_articles:
-            news_md = format_news_reply(news_articles, user_lang)
+            # 1. نطلب من الذكاء الاصطناعي يكتب مقدمة طبيعية عن الأخبار
+            news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
+            prompt_for_news = (
+                f"المستخدم طلب أخبار. إليك أهم العناوين اللي جبتها:\n{news_titles}\n\n"
+                "اكتب مقدمة قصيرة جداً (جملة أو جملتين) بالعامي السعودي كأنك صديق يبشره بالأخبار، "
+                "ثم قل له إنك رتبت له الأخبار تحت عشان يقرأها. لا تكرر العناوين، بس تفاعل معها."
+            )
+            
+            try:
+                # نطلب من الموديل يكتب المقدمة
+                news_intro_res = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=[{"role": "system", "content": SP + personality_inst + lang_inst}, {"role": "user", "content": prompt_for_news}],
+                    max_completion_tokens=150,
+                    stream=False
+                )
+                news_intro = news_intro_res.choices[0].message.content.strip()
+            except:
+                news_intro = "أبشر يا طويل العمر، هذي آخر الأخبار اللي جمعتها لك:"
+
+            # 2. ندمج المقدمة الطبيعية مع البطاقات
+            news_md = f"**{news_intro}**\n\n" + format_news_reply(news_articles, user_lang)
             news_html = str(format_nibras_response(news_md))
 
             def news_stream():
                 try:
+                    # نرسل الرد المنسق للواجهة
                     yield f"data: {json.dumps({'formatted_html': news_html}, ensure_ascii=False)}\n\n"
                     nid = cid
                     if is_registered:
