@@ -894,7 +894,7 @@ _news_cache = {}
 _NEWS_CACHE_TTL = 900
 
 
-def fetch_news(query, limit=6):
+def fetch_news(query, limit=10):
     if not isinstance(query, str) or len(query.strip()) < 2:
         return []
 
@@ -1010,7 +1010,7 @@ def format_news_reply(articles, lang="ar"):
     lines.append("")
     lines.append("هذي القائمة بأحدث الأخبار المتعلقة بطلبك:")
     lines.append("")
-    for i, a in enumerate(articles[:6], 1):
+    for i, a in enumerate(articles[:10], 1):
         title = (a.get("title") or "").strip()
         source = (a.get("source") or "").strip()
         link = (a.get("link") or "").strip()
