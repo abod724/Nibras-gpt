@@ -3408,7 +3408,7 @@ def chat():
                 items = client_hist
                 if items and isinstance(items[-1], dict) and items[-1].get("role") == "user":
                     items = items[:-1]
-                for h in items[-15:]:
+                for h in items[-40:]:
                     if (isinstance(h, dict)
                         and h.get("role") in ("user", "assistant")
                         and isinstance(h.get("content"), str)):
@@ -3448,7 +3448,7 @@ def chat():
 
         msgs = [{"role": "system", "content": 
             personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + lang_inst + assistant_persona_extra
-        }] + server_hist[-15:]
+        }] + server_hist[-40:]
 
         news_articles = None
         if is_registered and um and not has_image:
