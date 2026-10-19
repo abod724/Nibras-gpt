@@ -3622,5 +3622,33 @@ def test_k_page():
     </body></html>
     """
 
+@app.route('/test-admin')
+def test_admin_page():
+    return """
+    <html dir="rtl"><body style="font-family:sans-serif;padding:20px;text-align:center;">
+        <h2>مراجعة المعرفة (أدمن)</h2>
+        <div id="list">جاري التحميل...</div>
+        <script>
+        async function load() {
+            const r = await fetch('/api/knowledge/pending');
+            if(r.status === 403) { document.getElementById('list').innerText = '❌ يجب تسجيل الدخول كأدمن'; return; }
+            const d = await r.json();
+            if(!d.items || d.items.length === 0) { document.getElementById('list').innerText = 'لا يوجد طلبات معلقة'; return; }
+            document.getElementById('list').innerHTML = d.items.map(i => `
+                <div style="border:1px solid #ccc; margin:10px auto; padding:15px; border-radius:10px; max-width:400px; text-align:right;">
+                    <b>س: ${i.question}</b><br><br>
+                    <span>ج: ${i.answer}</span><br><br>
+                    <button onclick="approve(${i.id})" style="background:#10b981;color:white;padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:16px;width:100%;">✅ موافقة</button>
+                </div>
+            `).join('');
+        }
+        async function approve(id) {
+            await fetch('/api/knowledge/approve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})});
+            load();
+        }
+        load();
+        </script>
+    </body></html>
+    """
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
