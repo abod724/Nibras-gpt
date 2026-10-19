@@ -3599,5 +3599,29 @@ def knowledge_delete():
     except Exception as e:
         print("knowledge_delete:", e)
         return jsonify({"status": "error", "message": "تعذر الحذف"}), 500
+        
+@app.route('/test-k')
+def test_k_page():
+    return """
+    <html dir="rtl"><body style="font-family:sans-serif;padding:20px;text-align:center;">
+        <h2>إضافة سؤال تجريبي</h2>
+        <input id="q" placeholder="السؤال" style="padding:10px;width:80%;margin:5px;"><br>
+        <input id="a" placeholder="الجواب" style="padding:10px;width:80%;margin:5px;"><br>
+        <button onclick="send()" style="padding:10px 20px;margin-top:10px;background:#4a6a8a;color:#fff;border:none;border-radius:5px;">إرسال</button>
+        <p id="msg" style="color:green;margin-top:15px;"></p>
+        <script>
+        function send(){
+            fetch('/api/knowledge/submit', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({question:document.getElementById('q').value, answer:document.getElementById('a').value})
+            }).then(r=>r.json()).then(d=>{
+                document.getElementById('msg').innerText = d.status==='ok' ? '✅ تمت الإضافة بنجاح! روح افتح رابط /api/knowledge/list' : '❌ فشل';
+            });
+        }
+        </script>
+    </body></html>
+    """
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
