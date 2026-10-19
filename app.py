@@ -3083,6 +3083,11 @@ def admin_dashboard():
         <div id="knowledge-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
     </div>
 
+    <div class="card">
+        <h3>🧠 المعرفة المتعلمة تلقائياً</h3>
+        <div id="learned-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
+    </div>
+
     <script>
     async function generateCode(){{
         const body = {{
@@ -3184,6 +3189,33 @@ def admin_dashboard():
         loadKnowledge();
     }}
     loadKnowledge();
+
+    async function loadLearned() {{
+        const list = document.getElementById('learned-list');
+        try {{
+            const r = await fetch('/api/knowledge/list');
+            const d = await r.json();
+            if(!d.items || d.items.length === 0) {{
+                list.innerHTML = '<p style="color:#8b949e;">لم يتعلم نبراس شيئاً بعد</p>';
+                return;
+            }}
+            list.innerHTML = d.items.map(function(i) {{
+                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;background:#f0fdf4;">'
+                    + '<b>س: ' + i.question + '</b><br>'
+                    + '<span style="color:#166534;">ج: ' + i.answer + '</span><br><br>'
+                    + '<button onclick="deleteKnowledge(' + i.id + ')" style="padding:6px 14px;border:none;background:#e74c3c;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;">🗑️ حذف</button>'
+                    + '</div>';
+            }}).join('');
+        }} catch(e) {{
+            list.innerHTML = '<p style="color:red;">خطأ في التحميل</p>';
+        }}
+    }}
+    async function deleteKnowledge(id) {{
+        if(!confirm('حذف هذه المعلومة من ذاكرة نبراس؟')) return;
+        await fetch('/api/knowledge/delete', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id}})}});
+        loadLearned();
+    }}
+    loadLearned();
     </script>
 
     <div class="card"><h3>تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
