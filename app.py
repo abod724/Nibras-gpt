@@ -3078,6 +3078,11 @@ def admin_dashboard():
         <div id="codes-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
     </div>
 
+    <div class="card">
+        <h3>🧠 مراجعة المعرفة الجديدة</h3>
+        <div id="knowledge-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
+    </div>
+
     <script>
     async function generateCode(){{
         const body = {{
@@ -3146,6 +3151,39 @@ def admin_dashboard():
         loadCodes();
     }}
     loadCodes();
+
+    async function loadKnowledge() {{
+        const list = document.getElementById('knowledge-list');
+        try {{
+            const r = await fetch('/api/knowledge/pending');
+            const d = await r.json();
+            if(!d.items || d.items.length === 0) {{
+                list.innerHTML = '<p style="color:#8b949e;">لا توجد طلبات معلقة حالياً</p>';
+                return;
+            }}
+            list.innerHTML = d.items.map(function(i) {{
+                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;background:#fafbfc;">'
+                    + '<b>س: ' + i.question + '</b><br>'
+                    + '<span style="color:#4a6a8a;">ج: ' + i.answer + '</span><br><br>'
+                    + '<button onclick="approveKnowledge(' + i.id + ')" style="padding:8px 16px;border:none;background:#27ae60;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;">✅ موافقة</button> '
+                    + '<button onclick="rejectKnowledge(' + i.id + ')" style="padding:8px 16px;border:none;background:#e74c3c;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;">❌ رفض</button>'
+                    + '</div>';
+            }}).join('');
+        }} catch(e) {{
+            list.innerHTML = '<p style="color:red;">خطأ في التحميل</p>';
+        }}
+    }}
+    async function approveKnowledge(id) {{
+        await fetch('/api/knowledge/approve', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id}})}});
+        loadKnowledge();
+    }}
+    async function rejectKnowledge(id) {{
+        let reason = prompt('اكتب سبب الرفض:');
+        if(!reason) return;
+        await fetch('/api/knowledge/reject', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id, reason: reason}})}});
+        loadKnowledge();
+    }}
+    loadKnowledge();
     </script>
 
     <div class="card"><h3>تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
@@ -3471,8 +3509,7 @@ def chat():
 # ==========================================
 @app.route('/google2a34b4c8fc51b093.html')
 def google_verify():
-    # هذا السطر يخلي الخادم يقرأ الملف اللي أنت رفعته ويعرضه
-   return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
+    return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
 
 # ═══════════════════════════════════════════════════════════════
 #  ✅ المعرفة المشتركة — knowledge_review endpoints
@@ -3599,56 +3636,6 @@ def knowledge_delete():
     except Exception as e:
         print("knowledge_delete:", e)
         return jsonify({"status": "error", "message": "تعذر الحذف"}), 500
-        
-@app.route('/test-k')
-def test_k_page():
-    return """
-    <html dir="rtl"><body style="font-family:sans-serif;padding:20px;text-align:center;">
-        <h2>إضافة سؤال تجريبي</h2>
-        <input id="q" placeholder="السؤال" style="padding:10px;width:80%;margin:5px;"><br>
-        <input id="a" placeholder="الجواب" style="padding:10px;width:80%;margin:5px;"><br>
-        <button onclick="send()" style="padding:10px 20px;margin-top:10px;background:#4a6a8a;color:#fff;border:none;border-radius:5px;">إرسال</button>
-        <p id="msg" style="color:green;margin-top:15px;"></p>
-        <script>
-        function send(){
-            fetch('/api/knowledge/submit', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({question:document.getElementById('q').value, answer:document.getElementById('a').value})
-            }).then(r=>r.json()).then(d=>{
-                document.getElementById('msg').innerText = d.status==='ok' ? '✅ تمت الإضافة بنجاح! روح افتح رابط /api/knowledge/list' : '❌ فشل';
-            });
-        }
-        </script>
-    </body></html>
-    """
 
-@app.route('/test-admin')
-def test_admin_page():
-    return """
-    <html dir="rtl"><body style="font-family:sans-serif;padding:20px;text-align:center;">
-        <h2>مراجعة المعرفة (أدمن)</h2>
-        <div id="list">جاري التحميل...</div>
-        <script>
-        async function load() {
-            const r = await fetch('/api/knowledge/pending');
-            if(r.status === 403) { document.getElementById('list').innerText = '❌ يجب تسجيل الدخول كأدمن'; return; }
-            const d = await r.json();
-            if(!d.items || d.items.length === 0) { document.getElementById('list').innerText = 'لا يوجد طلبات معلقة'; return; }
-            document.getElementById('list').innerHTML = d.items.map(i => `
-                <div style="border:1px solid #ccc; margin:10px auto; padding:15px; border-radius:10px; max-width:400px; text-align:right;">
-                    <b>س: ${i.question}</b><br><br>
-                    <span>ج: ${i.answer}</span><br><br>
-                    <button onclick="approve(${i.id})" style="background:#10b981;color:white;padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:16px;width:100%;">✅ موافقة</button>
-                </div>
-            `).join('');
-        }
-        async function approve(id) {
-            await fetch('/api/knowledge/approve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})});
-            load();
-        }
-        load();
-        </script>
-    </body></html>
-    """
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
