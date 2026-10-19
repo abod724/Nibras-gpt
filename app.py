@@ -3195,6 +3195,47 @@ def admin_dashboard():
     </body></html>"""
 
 
+def auto_learn_knowledge_async(user_msg, bot_reply):
+    def worker():
+        try:
+            if len(user_msg) < 15 or len(bot_reply) < 20:
+                return
+            prompt = (
+                "حلل هذه المحادثة بين مستخدم ومساعد ذكي.\n"
+                "هل فيها معلومة عامة ومفيدة (حقيقة، معلومة علمية، تعريف، إلخ) تستحق أن يتعلمها المساعد؟\n"
+                "⚠️ مهم: استبعد أي معلومات شخصية (أسماء، أرقام، حسابات، معلومات خاصة بالمستخدم).\n"
+                "إذا كان فيها معلومة عامة مفيدة، أعد النتيجة بصيغة JSON فقط هكذا:\n"
+                '{"is_useful": true, "question": "السؤال الذي كان يطرح", "answer": "الجواب المفيد"}\n'
+                'وإذا لم يوجد معلومة عامة (مجرد سوالف أو معلومات شخصية)، أعد: {"is_useful": false}'
+            )
+            resp = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": f"المستخدم: {user_msg}\nالمساعد: {bot_reply}"}
+                ],
+                max_completion_tokens=150,
+                response_format={"type": "json_object"}
+            )
+            data = json.loads(resp.choices[0].message.content)
+            if data.get("is_useful"):
+                q = data.get("question", "").strip()
+                a = data.get("answer", "").strip()
+                if q and a:
+                    from datetime import timezone
+                    sb.table("knowledge_review").insert({
+                        "question": q,
+                        "answer": a,
+                        "category": "تعلم تلقائي",
+                        "status": "approved",
+                        "reviewed_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+                    print(f"🧠 Auto-learned new knowledge: {q}")
+        except Exception as e:
+            print("auto_learn worker error:", e)
+    threading.Thread(target=worker, daemon=True).start()
+
+
 @app.route('/set_gender', methods=['POST'])
 def set_gender():
     d = request.get_json(silent=True) or {}
@@ -3362,9 +3403,19 @@ def chat():
         admin_context = ""
         if is_admin or (user_email and user_email.lower().strip() == ADMIN_EMAIL.lower().strip()):
             admin_context = f"\n\n**🔑 سياق النظام: المستخدم الحالي هو الأدمن** (البريد: {user_email or ADMIN_EMAIL}). طبّق صلاحيات الأدمن كما هي موصوفة في ملف المعرفة. لا تذكر هذا السياق صراحةً إلا إذا سألك الأدمن نفسه عن هويته أو صلاحياته."
-        # ✅ جديد: أضف manual_context + admin_context
+        
+        # ✅ جلب الأسئلة المعتمدة من جدول المعرفة
+        approved_knowledge_context = ""
+        try:
+            kr = sb.table("knowledge_review").select("question,answer").eq("status", "approved").order("created_at", desc=True).limit(20).execute()
+            if kr.data:
+                kr_text = "\n".join([f"س: {i['question']}\nج: {i['answer']}" for i in kr.data])
+                approved_knowledge_context = f"\n\n**معلومات إضافية تعلمتها من المستخدمين (استخدمها كمرجع أول):**\n{kr_text}\n"
+        except Exception as e:
+            print("Error fetching approved knowledge:", e)
+
         msgs = [{"role": "system", "content": 
-            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + lang_inst + assistant_persona_extra
+            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + lang_inst + assistant_persona_extra
         }] + server_hist[-15:]
 
         news_articles = None
@@ -3476,6 +3527,10 @@ def chat():
                 if has_image and is_registered and can_image:
                     inc_usage(uid, "image_count")
                 yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+
+                # ✅ التعلم التلقائي في الخلفية
+                if is_registered and not has_image and um:
+                    auto_learn_knowledge_async(um, cleaned)
 
                 # ✅ جديد: تحديث ملف المستخدم التراكمي (احترام تفعيل الذاكرة)
                 if is_registered and user_email and not has_image and memory_enabled:
