@@ -3455,7 +3455,7 @@ def chat():
             try:
                 news_query = detect_news_query(um)
                 if news_query:
-                    news_articles = fetch_news(news_query, limit=6)
+                    news_articles = fetch_news(news_query, limit=10)
                     if news_articles:
                         inc_usage(uid, "search_count")
                         print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
