@@ -3472,6 +3472,132 @@ def chat():
 @app.route('/google2a34b4c8fc51b093.html')
 def google_verify():
     # هذا السطر يخلي الخادم يقرأ الملف اللي أنت رفعته ويعرضه
-    return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
+   return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
+
+# ═══════════════════════════════════════════════════════════════
+#  ✅ المعرفة المشتركة — knowledge_review endpoints
+# ═══════════════════════════════════════════════════════════════
+
+@app.route('/api/knowledge/submit', methods=['POST'])
+@limiter.limit("20 per hour")
+def knowledge_submit():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    d = request.get_json(silent=True) or {}
+    question = (d.get('question') or '').strip()
+    answer = (d.get('answer') or '').strip()
+    category = (d.get('category') or 'عام').strip()[:100]
+    if not question or not answer:
+        return jsonify({"status": "error", "message": "السؤال والجواب مطلوبان"}), 400
+    if len(question) > 2000:
+        return jsonify({"status": "error", "message": "السؤال طويل جداً (الحد 2000 حرف)"}), 413
+    if len(answer) > 20000:
+        return jsonify({"status": "error", "message": "الجواب طويل جداً (الحد 20000 حرف)"}), 413
+    try:
+        r = sb.table("knowledge_review").insert({
+            "question": question,
+            "answer": answer,
+            "category": category,
+            "status": "pending"
+        }).execute()
+        return jsonify({"status": "ok", "item": r.data[0] if r.data else None})
+    except Exception as e:
+        print("knowledge_submit:", e)
+        return jsonify({"status": "error", "message": "تعذر حفظ الطلب"}), 500
+
+
+@app.route('/api/knowledge/list')
+def knowledge_list():
+    try:
+        r = (sb.table("knowledge_review")
+             .select("id,question,answer,category,created_at")
+             .eq("status", "approved")
+             .order("created_at", desc=True)
+             .limit(100).execute())
+        return jsonify({"items": r.data or []})
+    except Exception as e:
+        print("knowledge_list:", e)
+        return jsonify({"items": [], "error": "تعذر التحميل"}), 500
+
+
+@app.route('/api/knowledge/pending')
+def knowledge_pending():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    try:
+        r = (sb.table("knowledge_review")
+             .select("*")
+             .eq("status", "pending")
+             .order("created_at", desc=True)
+             .limit(200).execute())
+        return jsonify({"items": r.data or []})
+    except Exception as e:
+        print("knowledge_pending:", e)
+        return jsonify({"items": [], "error": "تعذر التحميل"}), 500
+
+
+@app.route('/api/knowledge/approve', methods=['POST'])
+def knowledge_approve():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    from datetime import timezone
+    try:
+        r = sb.table("knowledge_review").update({
+            "status": "approved",
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": None
+        }).eq("id", kid).eq("status", "pending").execute()
+        if not r.data:
+            return jsonify({"status": "error", "message": "السجل غير موجود أو تم معالجته مسبقاً"}), 404
+        return jsonify({"status": "ok", "item": r.data[0]})
+    except Exception as e:
+        print("knowledge_approve:", e)
+        return jsonify({"status": "error", "message": "تعذر الاعتماد"}), 500
+
+
+@app.route('/api/knowledge/reject', methods=['POST'])
+def knowledge_reject():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    reason = (d.get('reason') or '').strip()[:500]
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    if not reason:
+        return jsonify({"status": "error", "message": "سبب الرفض مطلوب"}), 400
+    from datetime import timezone
+    try:
+        r = sb.table("knowledge_review").update({
+            "status": "rejected",
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": reason
+        }).eq("id", kid).eq("status", "pending").execute()
+        if not r.data:
+            return jsonify({"status": "error", "message": "السجل غير موجود أو تم معالجته مسبقاً"}), 404
+        return jsonify({"status": "ok", "item": r.data[0]})
+    except Exception as e:
+        print("knowledge_reject:", e)
+        return jsonify({"status": "error", "message": "تعذر الرفض"}), 500
+
+
+@app.route('/api/knowledge/delete', methods=['POST'])
+def knowledge_delete():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    try:
+        sb.table("knowledge_review").delete().eq("id", kid).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("knowledge_delete:", e)
+        return jsonify({"status": "error", "message": "تعذر الحذف"}), 500
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
