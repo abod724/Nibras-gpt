@@ -1945,7 +1945,7 @@ async function sendMessage(){
             }
         }
     }
-    typingTimer=setInterval(tick,40);
+    typingTimer=setInterval(tick,30);
     try{
         const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         if(!r.ok){
