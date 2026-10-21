@@ -480,17 +480,30 @@ def get_user_conversations(uid):
     except Exception as e:
         print("get_user_conversations:", e)
         return []
+        
     seen = {}
     for row in rows:
         cid = row.get("conv_id")
-        if cid and cid not in seen:
-            title = (row.get("title") or "").strip() or "محادثة"
+        if not cid:
+            continue
+            
+        if cid not in seen:
             seen[cid] = {
                 "id": cid,
                 "conv_id": cid,
-                "title": title,
+                "title": "",
                 "timestamp": row.get("created_at")
             }
+            
+        if not seen[cid]["title"]:
+            t = (row.get("title") or "").strip()
+            if t:
+                seen[cid]["title"] = t
+                
+    for cid in seen:
+        if not seen[cid]["title"]:
+            seen[cid]["title"] = "محادثة"
+
     return list(seen.values())
 
 
@@ -657,6 +670,9 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 - لا تضع كل جملة في سطر منفصل.
 - الفاصل الوحيد هو سطر فارغ بين الفقرات.
 
+**🚨 قاعدة الروابط (مهمة):**
+- ممنوع تماماً تقطيع الروابط (URLs) إلى سطرين. اكتب الرابط كاملاً في سطر واحد متصل.
+
 **قاعدة صوتية مهمة:**
 - استخدم الإيموجي مباشرة بدون وصفها بالكلام.
 - لا تكتب أبداً "وجه مبتسم" أو "شمس" أو "قلب أحمر" أو أي وصف حرفي للإيموجي.
@@ -765,6 +781,10 @@ def format_nibras_response(text):
         r"^\s*```(?:markdown|md)?\s*\n(.*?)\n```\s*$",
         r"\1", text, flags=re.IGNORECASE | re.DOTALL
     )
+    
+    # إصلاح الروابط المقطوعة (إذا كان فيه سطر جديد داخل الرابط)
+    text = re.sub(r'(https?://[^\s\n]+)[ \t]*\n[ \t]*([a-zA-Z0-9/_\-?=&%#.]+)', r'\1\2', text)
+
     html = markdown.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
     allowed_tags = set(bleach.sanitizer.ALLOWED_TAGS).union({
         "p", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -783,11 +803,14 @@ def format_nibras_response(text):
         html, tags=allowed_tags, attributes=allowed_attributes,
         protocols={"http", "https", "mailto"}, strip=True
     )
-    clean_html = re.sub(
-        r'<a\s+href="(https?://[^"]*)"',
-        r'<a href="\1" target="_blank" rel="noopener noreferrer"',
-        clean_html
+    
+    # ✅ التحويل الآمن للروابط
+    clean_html = bleach.linkify(
+        clean_html,
+        callbacks=[bleach.callbacks.nofollow, bleach.callbacks.target_blank],
+        skip_tags=["pre", "code"]
     )
+    
     return Markup(clean_html)
 
 
@@ -2011,6 +2034,25 @@ mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
 window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;
 applyLang();
+// ☀️ أخبار الصباح التلقائية (مرة واحدة فقط في اليوم)
+setTimeout(function(){
+    try {
+        var now = new Date();
+        var hour = now.getHours();
+        
+        var today = now.getFullYear() + "-" + (now.getMonth()+1) + "-" + now.getDate();
+        var lastNewsDate = localStorage.getItem('nibras_morning_news_date');
+        
+        if (hour >= 5 && hour < 11 && lastNewsDate !== today) {
+            localStorage.setItem('nibras_morning_news_date', today);
+            ui.value = "جيب لي أخبار اليوم";
+            sendMessage();
+        }
+    } catch(e) {
+        console.log("Morning news error:", e);
+    }
+}, 1500);
+
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 {{ memory_js|safe }}
 })();</script></body></html>"""
