@@ -480,17 +480,30 @@ def get_user_conversations(uid):
     except Exception as e:
         print("get_user_conversations:", e)
         return []
+        
     seen = {}
     for row in rows:
         cid = row.get("conv_id")
-        if cid and cid not in seen:
-            title = (row.get("title") or "").strip() or "محادثة"
+        if not cid:
+            continue
+            
+        if cid not in seen:
             seen[cid] = {
                 "id": cid,
                 "conv_id": cid,
-                "title": title,
+                "title": "",
                 "timestamp": row.get("created_at")
             }
+            
+        if not seen[cid]["title"]:
+            t = (row.get("title") or "").strip()
+            if t:
+                seen[cid]["title"] = t
+                
+    for cid in seen:
+        if not seen[cid]["title"]:
+            seen[cid]["title"] = "محادثة"
+
     return list(seen.values())
 
 
@@ -657,6 +670,9 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 - لا تضع كل جملة في سطر منفصل.
 - الفاصل الوحيد هو سطر فارغ بين الفقرات.
 
+**🚨 قاعدة الروابط (مهمة):**
+- ممنوع تماماً تقطيع الروابط (URLs) إلى سطرين. اكتب الرابط كاملاً في سطر واحد متصل.
+
 **قاعدة صوتية مهمة:**
 - استخدم الإيموجي مباشرة بدون وصفها بالكلام.
 - لا تكتب أبداً "وجه مبتسم" أو "شمس" أو "قلب أحمر" أو أي وصف حرفي للإيموجي.
@@ -765,6 +781,10 @@ def format_nibras_response(text):
         r"^\s*```(?:markdown|md)?\s*\n(.*?)\n```\s*$",
         r"\1", text, flags=re.IGNORECASE | re.DOTALL
     )
+    
+    # إصلاح الروابط المقطوعة (إذا كان فيه سطر جديد داخل الرابط)
+    text = re.sub(r'(https?://[^\s\n]+)[ \t]*\n[ \t]*([a-zA-Z0-9/_\-?=&%#.]+)', r'\1\2', text)
+
     html = markdown.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
     allowed_tags = set(bleach.sanitizer.ALLOWED_TAGS).union({
         "p", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -783,11 +803,14 @@ def format_nibras_response(text):
         html, tags=allowed_tags, attributes=allowed_attributes,
         protocols={"http", "https", "mailto"}, strip=True
     )
-    clean_html = re.sub(
-        r'<a\s+href="(https?://[^"]*)"',
-        r'<a href="\1" target="_blank" rel="noopener noreferrer"',
-        clean_html
+    
+    # ✅ التحويل الآمن للروابط
+    clean_html = bleach.linkify(
+        clean_html,
+        callbacks=[bleach.callbacks.nofollow, bleach.callbacks.target_blank],
+        skip_tags=["pre", "code"]
     )
+    
     return Markup(clean_html)
 
 
@@ -1010,7 +1033,7 @@ def format_news_reply(articles, lang="ar"):
     lines.append("")
     lines.append("هذي القائمة بأحدث الأخبار المتعلقة بطلبك:")
     lines.append("")
-    for i, a in enumerate(articles[:6], 1):
+    for i, a in enumerate(articles[:10], 1):
         title = (a.get("title") or "").strip()
         source = (a.get("source") or "").strip()
         link = (a.get("link") or "").strip()
@@ -1189,7 +1212,7 @@ RESET_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UT
 # ═══════════════════════════════════════════════════════════════
 #  ✅ HT — يحتوي على {{ memory_css }} و {{ memory_html }} و {{ memory_js }}
 # ═══════════════════════════════════════════════════════════════
-HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><meta name="screen-orientation" content="portrait"><meta name="x5-orientation" content="portrait"><meta name="full-screen" content="no"><meta name="x5-fullscreen" content="false"><meta name="browsermode" content="application"><meta name="x5-page-mode" content="app"><title>نبراس GP | مساعد ذكي</title><link rel="manifest" href="/static/manifest.json"><link rel="icon" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="192x192" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="نبراس"><meta name="theme-color" content="#ffffff"><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a;--font-size-base:16px;--font-size-small:14px}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}html[data-font="small"]{--font-size-base:14px;--font-size-small:12.5px}html[data-font="medium"]{--font-size-base:16px;--font-size-small:14px}html[data-font="large"]{--font-size-base:18px;--font-size-small:16px}html[data-font="xlarge"]{--font-size-base:20px;--font-size-small:18px}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}html{-webkit-tap-highlight-color:transparent}body{-webkit-tap-highlight-color:transparent}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--text-secondary);opacity:0.7}.btn-group{display:flex;gap:8px;align-items:center}.btn{padding:7px 16px;border-radius:20px;font-size:14px;border:none;cursor:pointer;text-decoration:none;display:inline-block;text-align:center;font-family:inherit;font-weight:600}.btn-outline{background:0 0;border:1.5px solid var(--primary-color);color:var(--primary-color);transition:all .2s}.btn-outline:hover{background:var(--primary-color);color:#fff}.user-badge{display:flex;align-items:center;gap:6px;background:var(--bg-hover);padding:6px 12px;border-radius:20px;font-size:13px;color:var(--text-primary);font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;border:none;font-family:inherit}.user-badge:hover{background:var(--border-color)}.user-badge svg{width:16px;height:16px;stroke:var(--primary-color);stroke-width:2;fill:none;flex-shrink:0}.dropdown{position:absolute;top:68px;left:12px;right:12px;background:var(--bg-dropdown);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15),0 4px 12px rgba(0,0,0,0.08);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:78vh;overflow-y:auto;padding:10px;opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}.dropdown.show{display:flex;opacity:1;transform:translateY(0)}.dropdown::-webkit-scrollbar{width:4px}.dropdown::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.dropdown .item{display:flex;align-items:center;gap:14px;padding:13px 16px;font-size:15px;color:var(--text-primary);background:transparent;border:none;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:background .15s ease,transform .1s ease;letter-spacing:-0.2px}.dropdown .item:hover{background:var(--bg-hover)}.dropdown .item:active{transform:scale(0.98)}.dropdown .item svg{width:20px;height:20px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.dropdown .section-title{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.8px;text-transform:uppercase;opacity:.7}.dropdown .conv-item{display:flex;align-items:center;gap:8px;padding:11px 16px;border:none;background:transparent;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-size:14px;color:var(--text-primary);font-weight:500;border-radius:14px;transition:background .15s ease;letter-spacing:-0.1px;position:relative;user-select:none}.dropdown .conv-item:hover{background:var(--bg-hover)}.dropdown .conv-item .conv-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dropdown .conv-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary-color);opacity:.4;flex-shrink:0}.dropdown .conv-item .pin-btn{background:transparent;border:none;cursor:pointer;padding:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;opacity:0.5;transition:opacity .2s,background .2s;flex-shrink:0}.dropdown .conv-item .pin-btn:hover{opacity:1;background:var(--bg-hover)}.dropdown .conv-item .pin-btn svg{width:16px;height:16px;stroke:var(--text-primary);stroke-width:2;fill:none}.dropdown .conv-item .pin-btn.pinned svg{fill:var(--primary-color);stroke:var(--primary-color)}.dropdown .pinned-item{padding:11px 16px;display:flex;align-items:center;gap:8px;border-radius:14px;transition:background .15s ease}.dropdown .pinned-item:hover{background:var(--bg-hover)}.dropdown .conv-item.long-pressing{transform:scale(0.96);background:var(--bg-hover);transition:all .2s;}
+HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><meta name="screen-orientation" content="portrait"><meta name="x5-orientation" content="portrait"><meta name="full-screen" content="no"><meta name="x5-fullscreen" content="false"><meta name="browsermode" content="application"><meta name="x5-page-mode" content="app"><title>نبراس GP | مساعد ذكي</title><link rel="manifest" href="/static/manifest.json"><link rel="icon" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="192x192" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="نبراس"><meta name="theme-color" content="#ffffff"><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a;--font-size-base:16px;--font-size-small:14px}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}html[data-font="small"]{--font-size-base:14px;--font-size-small:12.5px}html[data-font="medium"]{--font-size-base:16px;--font-size-small:14px}html[data-font="large"]{--font-size-base:18px;--font-size-small:16px}html[data-font="xlarge"]{--font-size-base:20px;--font-size-small:18px}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}html{-webkit-tap-highlight-color:transparent}body{-webkit-tap-highlight-color:transparent}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--icon-color);opacity:0.5}.dropdown{position:absolute;top:68px;left:12px;right:12px;background:var(--bg-dropdown);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15),0 4px 12px rgba(0,0,0,0.08);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:78vh;overflow-y:auto;padding:10px;opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}.dropdown.show{display:flex;opacity:1;transform:translateY(0)}.dropdown::-webkit-scrollbar{width:4px}.dropdown::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.dropdown .item{display:flex;align-items:center;gap:14px;padding:13px 16px;font-size:15px;color:var(--text-primary);background:transparent;border:none;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:background .15s ease,transform .1s ease;letter-spacing:-0.2px}.dropdown .item:hover{background:var(--bg-hover)}.dropdown .item:active{transform:scale(0.98)}.dropdown .item svg{width:20px;height:20px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.dropdown .section-title{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.8px;text-transform:uppercase;opacity:.7}.dropdown .conv-item{display:flex;align-items:center;gap:8px;padding:11px 16px;border:none;background:transparent;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-size:14px;color:var(--text-primary);font-weight:500;border-radius:14px;transition:background .15s ease;letter-spacing:-0.1px;position:relative;user-select:none}.dropdown .conv-item:hover{background:var(--bg-hover)}.dropdown .conv-item .conv-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dropdown .conv-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary-color);opacity:.4;flex-shrink:0}.dropdown .conv-item .pin-btn{background:transparent;border:none;cursor:pointer;padding:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;opacity:0.5;transition:opacity .2s,background .2s;flex-shrink:0}.dropdown .conv-item .pin-btn:hover{opacity:1;background:var(--bg-hover)}.dropdown .conv-item .pin-btn svg{width:16px;height:16px;stroke:var(--text-primary);stroke-width:2;fill:none}.dropdown .conv-item .pin-btn.pinned svg{fill:var(--primary-color);stroke:var(--primary-color)}.dropdown .pinned-item{padding:11px 16px;display:flex;align-items:center;gap:8px;border-radius:14px;transition:background .15s ease}.dropdown .pinned-item:hover{background:var(--bg-hover)}.dropdown .conv-item.long-pressing{transform:scale(0.96);background:var(--bg-hover);transition:all .2s;}
 .gender-option{flex:1;padding:9px 12px;border-radius:12px;border:1px solid var(--border-color);background:transparent;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all .2s ease;font-family:inherit}.gender-option.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color);box-shadow:0 4px 12px rgba(74,106,138,0.3)}.dropdown .item.danger{color:#d32f2f}.dropdown .item.danger svg{stroke:#d32f2f;opacity:1}.dropdown .item.danger:hover{background:rgba(211,47,47,0.08)}.settings-overlay{position:fixed;inset:0;background:var(--bg-body);z-index:99999;display:none;flex-direction:column;overflow-y:auto}.settings-overlay.show{display:flex}.settings-page{max-width:500px;width:100%;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg-body)}.settings-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-app);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border-color)}.settings-header h2{font-size:18px;color:var(--text-primary);font-weight:700;margin:0}.settings-body{padding:16px;display:flex;flex-direction:column;gap:14px}.settings-card{background:var(--bg-app);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.settings-item{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.settings-item:last-child{border-bottom:none}.settings-item:hover{background:var(--bg-hover)}.settings-item .item-right{display:flex;align-items:center;gap:14px;color:var(--text-primary);font-size:15px;font-weight:600}.settings-item .item-right svg{width:22px;height:22px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0}.settings-item .chevron{width:18px;height:18px;stroke:var(--text-secondary);stroke-width:2;fill:none}.sub-page{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100000;display:none;align-items:center;justify-content:center;padding:20px}.sub-page.show{display:flex}.sub-page .modal-box{background:var(--bg-app);width:100%;max-width:420px;max-height:80vh;border-radius:22px;overflow:hidden;display:flex;flex-direction:column;animation:modalIn .25s ease;border:1px solid var(--border-color)}.sub-page-header{display:none}.sub-page-body{padding:20px;overflow-y:auto;flex:1}.sub-page-body::-webkit-scrollbar{width:4px}.sub-page-body::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.modal-title{text-align:center;font-size:17px;font-weight:700;color:var(--text-primary);padding:18px 20px;border-bottom:1px solid var(--border-color)}.modal-confirm{width:100%;padding:16px;background:transparent;border:none;border-top:1px solid var(--border-color);font-size:16px;font-weight:700;color:var(--primary-color);cursor:pointer;font-family:inherit}.modal-confirm:active{background:var(--bg-hover)}@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}.info-box{background:var(--bg-hover);padding:16px;border-radius:14px;font-size:14px;color:var(--text-secondary);line-height:1.8}.option-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.option-row{padding:18px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.option-row:last-child{border-bottom:none}.option-row:active{background:var(--bg-hover)}.option-label{display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--text-primary);font-weight:500}.check-icon{width:22px;height:22px;stroke:var(--primary-color);stroke-width:2.5;fill:none;opacity:0;transition:opacity .25s}.option-row.selected .check-icon{opacity:1}.color-grid{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.color-row{padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}.color-row:last-child{border-bottom:none}.color-row:active{background:var(--bg-hover)}.color-row-left{display:flex;align-items:center;gap:14px;font-size:15px;color:var(--text-primary);font-weight:500}.color-circle{width:26px;height:26px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);flex-shrink:0}.color-row .check-icon{opacity:0;transition:opacity .25s}.color-row.selected .check-icon{opacity:1}.lang-list{display:flex;flex-direction:column;gap:12px}.lang-card{display:flex;align-items:center;gap:16px;padding:18px 20px;background:var(--bg-app);border-radius:18px;cursor:pointer;border:2px solid var(--border-color);transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px var(--shadow-color)}.lang-card:hover{border-color:var(--primary-color);transform:translateY(-2px);box-shadow:0 8px 24px rgba(74,106,138,0.15)}.lang-card.selected{border-color:var(--primary-color);background:linear-gradient(135deg,var(--bg-app) 0%,rgba(74,106,138,0.06) 100%);box-shadow:0 6px 20px rgba(74,106,138,0.18)}.lang-flag{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.5px;box-shadow:0 2px 6px rgba(0,0,0,0.15);color:#fff}.lang-info{flex:1;display:flex;flex-direction:column;gap:3px}.lang-name{font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:-0.2px}.lang-sub{font-size:13px;color:var(--text-secondary)}.lang-check{width:26px;height:26px;stroke:var(--primary-color);stroke-width:3;fill:none;opacity:0;transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);flex-shrink:0;transform:scale(0.5)}.lang-card.selected .lang-check{opacity:1;transform:scale(1)}
 .personality-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}
 .personality-row{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}
@@ -1332,15 +1355,6 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 .sp-hero-icon svg{width:22px;height:22px;stroke:currentColor;stroke-width:2;fill:none}
 .sp-hero-title{font-size:15.5px;font-weight:700;color:var(--text-primary);margin:0 0 3px}
 .sp-hero-sub{font-size:12.5px;color:var(--text-secondary);margin:0;line-height:1.5}
-.user-menu{position:fixed;background:var(--bg-dropdown);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.2);border:1px solid var(--border-color);padding:6px;z-index:300;min-width:220px;display:none}
-.user-menu.show{display:block;animation:modalIn .18s ease}
-.user-menu-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-primary);border:none;background:transparent;width:100%;text-align:right;font-family:inherit;transition:background .15s}
-.user-menu-item:hover{background:var(--bg-hover)}
-.user-menu-item svg{width:18px;height:18px;stroke:currentColor;stroke-width:2;fill:none;flex-shrink:0}
-.user-menu-item.danger{color:#d32f2f}
-.user-menu-item.danger:hover{background:rgba(211,47,47,0.08)}
-.user-menu-item.danger svg{stroke:#d32f2f}
-.user-menu-sep{height:1px;background:var(--border-color);margin:4px 8px}
 .nibras-response{font-size:var(--font-size-base);line-height:1.9;color:var(--text-primary);max-width:100%}
 .nibras-response h2{font-size:1.25em;font-weight:800;color:var(--primary-color);margin:4px 0 16px;padding-bottom:10px;border-bottom:2px solid var(--border-color);line-height:1.5}
 .nibras-response h3{font-size:1.05em;font-weight:750;margin:16px 0 8px;background:var(--bg-hover);padding:10px 14px;border-right:4px solid var(--primary-color);border-radius:8px;color:var(--text-primary);line-height:1.5}
@@ -1401,22 +1415,22 @@ html.dark-mode .agent-btn-del{color:#f87171}
 .context-menu-sep{height:1px;background:var(--border-color);margin:4px 8px}
 {{ memory_css|safe }}
 </style></head><body>
-<div class="app"><div class="header"><div class="header-right"><button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg></button><button class="icon-btn" id="menuToggle" title="القائمة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="14" y2="15"/></svg></button></div><div class="header-left"><div class="btn-group">{% if session.get('user_email') or session.get('is_admin') %}{% if user_name %}<button type="button" class="user-badge" id="userBadge" onclick="toggleUserMenu(event)" title="{{ session.get('user_email') }}"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{{ user_name }}</button>{% endif %}<a href="/logout" class="btn btn-outline">خروج</a>{% else %}<a href="/login" class="btn btn-outline">دخول</a>{% endif %}</div></div></div>
-
-<div class="user-menu" id="userMenu">
-    <button class="user-menu-item" onclick="openSubPage('general');toggleUserMenu(null)">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="3"/><path d="M6.5 20a5.5 5.5 0 0 1 11 0"/></svg>
-        <span>حسابي</span>
-    </button>
-    <div class="user-menu-sep"></div>
-    <button class="user-menu-item danger" onclick="deleteMyAccount();toggleUserMenu(null)">
-        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
-        <span>حذف حسابي</span>
-    </button>
-    <button class="user-menu-item danger" onclick="window.location.href='/logout'">
-        <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        <span>تسجيل الخروج</span>
-    </button>
+<div class="app">
+<div class="header">
+    <div class="header-right">
+        <button class="icon-btn" id="menuToggle" title="القائمة">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="14" y2="15"/></svg>
+        </button>
+    </div>
+    <div class="header-left">
+        <button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <line x1="23" y1="9" x2="17" y2="15"/>
+                <line x1="17" y1="9" x2="23" y2="15"/>
+            </svg>
+        </button>
+    </div>
 </div>
 
 <!-- Context Menu -->
@@ -1441,10 +1455,30 @@ html.dark-mode .agent-btn-del{color:#f87171}
     <button class="item" onclick="window.location.href='/library'"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>مكتبتي</button>
     <button class="item" data-action="share"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>مشاركة المحادثة</button>
     <button class="item" onclick="openSettings()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>الإعدادات</button>
+    
     <div class="section-title">مثبت</div>
     <div id="pinnedList"><div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;font-weight:500;">لا توجد محادثات مثبتة</div></div>
     <div class="section-title">المحادثات الأخيرة</div>
     <div id="historyList"></div>
+
+    <div class="section-title">حسابي</div>
+    {% if session.get('user_email') or session.get('is_admin') %}
+        {% if user_name %}
+        <div class="item" style="cursor:default; color:var(--text-secondary);">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {{ user_name }}
+        </div>
+        {% endif %}
+        <a href="/logout" class="item danger" style="text-decoration:none;">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            تسجيل الخروج
+        </a>
+    {% else %}
+        <a href="/login" class="item" style="text-decoration:none;">
+            <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            تسجيل الدخول
+        </a>
+    {% endif %}
 </div>
 
 <div id="settingsModal" class="settings-overlay">
@@ -1599,33 +1633,11 @@ function getPinnedLocal(){try{return JSON.parse(localStorage.getItem('nibras_pin
 function savePinnedLocal(arr){try{localStorage.setItem('nibras_pinned',JSON.stringify(arr));}catch(e){}}
 async function togglePin(cid,wasPinned,btnEl){if(IS_REGISTERED){const url=wasPinned?'/unpin_conversation':'/pin_conversation';try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid})});if(r.ok){btnEl.classList.toggle('pinned',!wasPinned);showToast(wasPinned?(userLang==='en'?'Unpinned':'تم إلغاء التثبيت'):(userLang==='en'?'Pinned':'تم التثبيت'));loadPinned();}}catch(e){showToast(userLang==='en'?'Connection failed':'فشل الاتصال');}}else{let arr=getPinnedLocal();if(wasPinned){arr=arr.filter(x=>x!==cid);showToast(userLang==='en'?'Unpinned':'تم إلغاء التثبيت');}else{if(!arr.includes(cid))arr.push(cid);showToast(userLang==='en'?'Pinned locally':'تم التثبيت محلياً');}savePinnedLocal(arr);btnEl.classList.toggle('pinned',!wasPinned);loadPinned();}}
 mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();loadPinned();}});
-
-function toggleUserMenu(e){
-    if(e) e.stopPropagation();
-    const menu = document.getElementById('userMenu');
-    const badge = document.getElementById('userBadge');
-    if(!menu || !badge) return;
-    if(menu.classList.contains('show')){
-        menu.classList.remove('show');
-        return;
-    }
-    const rect = badge.getBoundingClientRect();
-    const menuW = 220;
-    let left = rect.left;
-    if(left + menuW > window.innerWidth - 8){
-        left = window.innerWidth - menuW - 8;
-    }
-    menu.style.left = Math.max(8, left) + 'px';
-    menu.style.top = (rect.bottom + 8) + 'px';
-    menu.classList.add('show');
-}
 document.addEventListener('click', function(e){
-    const menu = document.getElementById('userMenu');
-    const badge = document.getElementById('userBadge');
-    if(!menu || !badge) return;
-    if(!menu.contains(e.target) && !badge.contains(e.target)){
-        menu.classList.remove('show');
-    }
+    const dd = document.getElementById('dropdown');
+    const mt = document.getElementById('menuToggle');
+    if(!dd || !mt) return;
+    if(!dd.contains(e.target) && !mt.contains(e.target)) dd.classList.remove('show');
 });
 
 function openSettings(){document.getElementById('settingsModal').classList.add('show');document.getElementById('dropdown').classList.remove('show');}
@@ -2064,7 +2076,7 @@ async function sendMessage(){
             }
         }
     }
-    typingTimer=setInterval(tick,15);
+    typingTimer=setInterval(tick,30);
     try{
         const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         if(!r.ok){
@@ -2128,9 +2140,27 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
-window.toggleUserMenu=toggleUserMenu;
-window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;
+window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;
 applyLang();
+// ☀️ أخبار الصباح التلقائية (مرة واحدة فقط في اليوم)
+setTimeout(function(){
+    try {
+        var now = new Date();
+        var hour = now.getHours();
+        
+        var today = now.getFullYear() + "-" + (now.getMonth()+1) + "-" + now.getDate();
+        var lastNewsDate = localStorage.getItem('nibras_morning_news_date');
+        
+        if (hour >= 5 && hour < 11 && lastNewsDate !== today) {
+            localStorage.setItem('nibras_morning_news_date', today);
+            ui.value = "جيب لي أخبار اليوم";
+            sendMessage();
+        }
+    } catch(e) {
+        console.log("Morning news error:", e);
+    }
+}, 1500);
+
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 {{ memory_js|safe }}
 })();</script></body></html>"""
@@ -3227,6 +3257,16 @@ def admin_dashboard():
         <div id="codes-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
     </div>
 
+    <div class="card">
+        <h3>🧠 مراجعة المعرفة الجديدة</h3>
+        <div id="knowledge-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
+    </div>
+
+    <div class="card">
+        <h3>🧠 المعرفة المتعلمة تلقائياً</h3>
+        <div id="learned-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
+    </div>
+
     <script>
     async function generateCode(){{
         const body = {{
@@ -3295,6 +3335,66 @@ def admin_dashboard():
         loadCodes();
     }}
     loadCodes();
+
+    async function loadKnowledge() {{
+        const list = document.getElementById('knowledge-list');
+        try {{
+            const r = await fetch('/api/knowledge/pending');
+            const d = await r.json();
+            if(!d.items || d.items.length === 0) {{
+                list.innerHTML = '<p style="color:#8b949e;">لا توجد طلبات معلقة حالياً</p>';
+                return;
+            }}
+            list.innerHTML = d.items.map(function(i) {{
+                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;background:#fafbfc;">'
+                    + '<b>س: ' + i.question + '</b><br>'
+                    + '<span style="color:#4a6a8a;">ج: ' + i.answer + '</span><br><br>'
+                    + '<button onclick="approveKnowledge(' + i.id + ')" style="padding:8px 16px;border:none;background:#27ae60;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;">✅ موافقة</button> '
+                    + '<button onclick="rejectKnowledge(' + i.id + ')" style="padding:8px 16px;border:none;background:#e74c3c;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;">❌ رفض</button>'
+                    + '</div>';
+            }}).join('');
+        }} catch(e) {{
+            list.innerHTML = '<p style="color:red;">خطأ في التحميل</p>';
+        }}
+    }}
+    async function approveKnowledge(id) {{
+        await fetch('/api/knowledge/approve', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id}})}});
+        loadKnowledge();
+    }}
+    async function rejectKnowledge(id) {{
+        let reason = prompt('اكتب سبب الرفض:');
+        if(!reason) return;
+        await fetch('/api/knowledge/reject', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id, reason: reason}})}});
+        loadKnowledge();
+    }}
+    loadKnowledge();
+
+    async function loadLearned() {{
+        const list = document.getElementById('learned-list');
+        try {{
+            const r = await fetch('/api/knowledge/list');
+            const d = await r.json();
+            if(!d.items || d.items.length === 0) {{
+                list.innerHTML = '<p style="color:#8b949e;">لم يتعلم نبراس شيئاً بعد</p>';
+                return;
+            }}
+            list.innerHTML = d.items.map(function(i) {{
+                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;background:#f0fdf4;">'
+                    + '<b>س: ' + i.question + '</b><br>'
+                    + '<span style="color:#166534;">ج: ' + i.answer + '</span><br><br>'
+                    + '<button onclick="deleteKnowledge(' + i.id + ')" style="padding:6px 14px;border:none;background:#e74c3c;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;">🗑️ حذف</button>'
+                    + '</div>';
+            }}).join('');
+        }} catch(e) {{
+            list.innerHTML = '<p style="color:red;">خطأ في التحميل</p>';
+        }}
+    }}
+    async function deleteKnowledge(id) {{
+        if(!confirm('حذف هذه المعلومة من ذاكرة نبراس؟')) return;
+        await fetch('/api/knowledge/delete', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id}})}});
+        loadLearned();
+    }}
+    loadLearned();
     </script>
 
     <div class="card"><h3>تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
@@ -3304,6 +3404,51 @@ def admin_dashboard():
     <a href="/" class="back">← العودة للرئيسية</a>
     </div>
     </body></html>"""
+
+
+def auto_learn_knowledge_async(user_msg, bot_reply):
+    def worker():
+        try:
+            if len(user_msg) < 15 or len(bot_reply) < 20:
+                return
+            prompt = (
+                "أنت فلتر ذكي جداً. مهمتك تحليل المحادثة لمعرفة إذا كان (المستخدم) قدم معلومة جديدة أو صحح خطأ للمساعد.\n"
+                "⚠️ قاعدة صارمة: إذا كان المستخدم يسأل سؤالاً والمساعد هو اللي جاوب، فهذا ليس تعليماً! تجاهله تماماً (لأننا لا نريد المساعد أن يتعلم من نفسه).\n"
+                "اعتبره مفيداً (is_useful: true) فقط في الحالات التالية:\n"
+                "1. المستخدم قال للمساعد: 'أنت غلطان، الصح هو كذا...'\n"
+                "2. المستخدم أعطى معلومة جديدة صراحة (مثل: 'ترى نبراس يشتغل على بورت 5000').\n"
+                "3. المستخدم أعطى معلومة عن نفسه أو شغله (مثل: 'أنا مدير شركة التمور').\n"
+                "إذا تحقق الشرط، أعد JSON فقط بهذا الشكل:\n"
+                '{"is_useful": true, "question": "السؤال أو الموضوع", "answer": "المعلومة الصحيحة أو الجديدة"}\n'
+                "إذا كانت مجرد أسئلة وأجوبة عامة، أعد:\n"
+                '{"is_useful": false}'
+            )
+            resp = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": f"المستخدم: {user_msg}\nالمساعد: {bot_reply}"}
+                ],
+                max_completion_tokens=150,
+                response_format={"type": "json_object"}
+            )
+            data = json.loads(resp.choices[0].message.content)
+            if data.get("is_useful"):
+                q = data.get("question", "").strip()
+                a = data.get("answer", "").strip()
+                if q and a:
+                    from datetime import timezone
+                    sb.table("knowledge_review").insert({
+                        "question": q,
+                        "answer": a,
+                        "category": "تعلم تلقائي",
+                        "status": "approved",
+                        "reviewed_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+                    print(f"🧠 Auto-learned new knowledge: {q}")
+        except Exception as e:
+            print("auto_learn worker error:", e)
+    threading.Thread(target=worker, daemon=True).start()
 
 
 @app.route('/set_gender', methods=['POST'])
@@ -3446,7 +3591,7 @@ def chat():
                 items = client_hist
                 if items and isinstance(items[-1], dict) and items[-1].get("role") == "user":
                     items = items[:-1]
-                for h in items[-15:]:
+                for h in items[-40:]:
                     if (isinstance(h, dict)
                         and h.get("role") in ("user", "assistant")
                         and isinstance(h.get("content"), str)):
@@ -3473,17 +3618,27 @@ def chat():
         admin_context = ""
         if is_admin or (user_email and user_email.lower().strip() == ADMIN_EMAIL.lower().strip()):
             admin_context = f"\n\n**🔑 سياق النظام: المستخدم الحالي هو الأدمن** (البريد: {user_email or ADMIN_EMAIL}). طبّق صلاحيات الأدمن كما هي موصوفة في ملف المعرفة. لا تذكر هذا السياق صراحةً إلا إذا سألك الأدمن نفسه عن هويته أو صلاحياته."
-        # ✅ جديد: أضف manual_context + admin_context
+        
+        # ✅ جلب الأسئلة المعتمدة من جدول المعرفة
+        approved_knowledge_context = ""
+        try:
+            kr = sb.table("knowledge_review").select("question,answer").eq("status", "approved").order("created_at", desc=True).limit(20).execute()
+            if kr.data:
+                kr_text = "\n".join([f"س: {i['question']}\nج: {i['answer']}" for i in kr.data])
+                approved_knowledge_context = f"\n\n**معلومات إضافية تعلمتها من المستخدمين (استخدمها كمرجع أول):**\n{kr_text}\n"
+        except Exception as e:
+            print("Error fetching approved knowledge:", e)
+
         msgs = [{"role": "system", "content": 
-            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + lang_inst + assistant_persona_extra
-        }] + server_hist[-15:]
+            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + lang_inst + assistant_persona_extra
+        }] + server_hist[-40:]
 
         news_articles = None
         if is_registered and um and not has_image:
             try:
                 news_query = detect_news_query(um)
                 if news_query:
-                    news_articles = fetch_news(news_query, limit=6)
+                    news_articles = fetch_news(news_query, limit=10)
                     if news_articles:
                         inc_usage(uid, "search_count")
                         print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
@@ -3588,6 +3743,10 @@ def chat():
                     inc_usage(uid, "image_count")
                 yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
 
+                # ✅ التعلم التلقائي في الخلفية
+                if is_registered and not has_image and um:
+                    auto_learn_knowledge_async(um, cleaned)
+
                 # ✅ جديد: تحديث ملف المستخدم التراكمي (احترام تفعيل الذاكرة)
                 if is_registered and user_email and not has_image and memory_enabled:
                     try:
@@ -3620,7 +3779,133 @@ def chat():
 # ==========================================
 @app.route('/google2a34b4c8fc51b093.html')
 def google_verify():
-    # هذا السطر يخلي الخادم يقرأ الملف اللي أنت رفعته ويعرضه
     return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
+
+# ═══════════════════════════════════════════════════════════════
+#  ✅ المعرفة المشتركة — knowledge_review endpoints
+# ═══════════════════════════════════════════════════════════════
+
+@app.route('/api/knowledge/submit', methods=['POST'])
+@limiter.limit("20 per hour")
+def knowledge_submit():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    d = request.get_json(silent=True) or {}
+    question = (d.get('question') or '').strip()
+    answer = (d.get('answer') or '').strip()
+    category = (d.get('category') or 'عام').strip()[:100]
+    if not question or not answer:
+        return jsonify({"status": "error", "message": "السؤال والجواب مطلوبان"}), 400
+    if len(question) > 2000:
+        return jsonify({"status": "error", "message": "السؤال طويل جداً (الحد 2000 حرف)"}), 413
+    if len(answer) > 20000:
+        return jsonify({"status": "error", "message": "الجواب طويل جداً (الحد 20000 حرف)"}), 413
+    try:
+        r = sb.table("knowledge_review").insert({
+            "question": question,
+            "answer": answer,
+            "category": category,
+            "status": "pending"
+        }).execute()
+        return jsonify({"status": "ok", "item": r.data[0] if r.data else None})
+    except Exception as e:
+        print("knowledge_submit:", e)
+        return jsonify({"status": "error", "message": "تعذر حفظ الطلب"}), 500
+
+
+@app.route('/api/knowledge/list')
+def knowledge_list():
+    try:
+        r = (sb.table("knowledge_review")
+             .select("id,question,answer,category,created_at")
+             .eq("status", "approved")
+             .order("created_at", desc=True)
+             .limit(100).execute())
+        return jsonify({"items": r.data or []})
+    except Exception as e:
+        print("knowledge_list:", e)
+        return jsonify({"items": [], "error": "تعذر التحميل"}), 500
+
+
+@app.route('/api/knowledge/pending')
+def knowledge_pending():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    try:
+        r = (sb.table("knowledge_review")
+             .select("*")
+             .eq("status", "pending")
+             .order("created_at", desc=True)
+             .limit(200).execute())
+        return jsonify({"items": r.data or []})
+    except Exception as e:
+        print("knowledge_pending:", e)
+        return jsonify({"items": [], "error": "تعذر التحميل"}), 500
+
+
+@app.route('/api/knowledge/approve', methods=['POST'])
+def knowledge_approve():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    from datetime import timezone
+    try:
+        r = sb.table("knowledge_review").update({
+            "status": "approved",
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": None
+        }).eq("id", kid).eq("status", "pending").execute()
+        if not r.data:
+            return jsonify({"status": "error", "message": "السجل غير موجود أو تم معالجته مسبقاً"}), 404
+        return jsonify({"status": "ok", "item": r.data[0]})
+    except Exception as e:
+        print("knowledge_approve:", e)
+        return jsonify({"status": "error", "message": "تعذر الاعتماد"}), 500
+
+
+@app.route('/api/knowledge/reject', methods=['POST'])
+def knowledge_reject():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    reason = (d.get('reason') or '').strip()[:500]
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    if not reason:
+        return jsonify({"status": "error", "message": "سبب الرفض مطلوب"}), 400
+    from datetime import timezone
+    try:
+        r = sb.table("knowledge_review").update({
+            "status": "rejected",
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": reason
+        }).eq("id", kid).eq("status", "pending").execute()
+        if not r.data:
+            return jsonify({"status": "error", "message": "السجل غير موجود أو تم معالجته مسبقاً"}), 404
+        return jsonify({"status": "ok", "item": r.data[0]})
+    except Exception as e:
+        print("knowledge_reject:", e)
+        return jsonify({"status": "error", "message": "تعذر الرفض"}), 500
+
+
+@app.route('/api/knowledge/delete', methods=['POST'])
+def knowledge_delete():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    try:
+        sb.table("knowledge_review").delete().eq("id", kid).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("knowledge_delete:", e)
+        return jsonify({"status": "error", "message": "تعذر الحذف"}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
