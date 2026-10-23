@@ -1,9 +1,3 @@
-# ==========================================================
-#  نبراس GP - المساعد الذكي الشخصي
-#  مع نظام أكواد الوصول + أخبار Google News المنسقة كبطاقات
-#  + صفحة الذاكرة (memory_page.py)
-# ==========================================================
-
 from flask import (
     Flask, request, jsonify, render_template_string,
     session, redirect, url_for, send_from_directory,
@@ -1438,16 +1432,16 @@ html.dark-mode .agent-btn-del{color:#f87171}
 <!-- Context Menu -->
 <div class="context-menu-backdrop" id="ctxBackdrop" onclick="hideContextMenu()"></div>
 <div class="context-menu" id="convContextMenu">
-    <button class="context-menu-item" onclick="ctxAction('pin')">
+    <button class="context-menu-item" onclick="ctxAction('pin', event)">
         <svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
         <span id="ctxPinText">تثبيت</span>
     </button>
-    <button class="context-menu-item" onclick="ctxAction('rename')">
+    <button class="context-menu-item" onclick="ctxAction('rename', event)">
         <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         <span>إعادة تسمية</span>
     </button>
     <div class="context-menu-sep"></div>
-    <button class="context-menu-item danger" onclick="ctxAction('delete')">
+    <button class="context-menu-item danger" onclick="ctxAction('delete', event)">
         <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
         <span>حذف المحادثة</span>
     </button>
@@ -1742,20 +1736,27 @@ function showContextMenu(e, convId, isPinned) {
     
     let x = e.clientX;
     let y = e.clientY;
-    menu.style.display = 'flex';
+    
+    // نضيف كلاس show أولاً ليأخذ الـ display:flex من الـ CSS
+    menu.classList.add('show');
+    
     const menuRect = menu.getBoundingClientRect();
     if (x + menuRect.width > window.innerWidth) x -= menuRect.width;
     if (y + menuRect.height > window.innerHeight) y -= menuRect.height;
     menu.style.left = Math.max(10, x) + 'px';
     menu.style.top = Math.max(10, y) + 'px';
-    menu.classList.add('show');
+    
     if (backdrop) backdrop.classList.add('show');
 }
 
 function hideContextMenu() {
     const menu = document.getElementById('convContextMenu');
     const backdrop = document.getElementById('ctxBackdrop');
-    if (menu) menu.classList.remove('show');
+    if (menu) {
+        menu.classList.remove('show');
+        // إزالة أي inline style للتأكد من إخفاء القائمة
+        menu.style.display = '';
+    }
     if (backdrop) backdrop.classList.remove('show');
 }
 
@@ -1763,7 +1764,8 @@ function hideContextMenu() {
 window.addEventListener('scroll', hideContextMenu, { passive: true });
 window.addEventListener('touchmove', hideContextMenu, { passive: true });
 
-async function ctxAction(action) {
+async function ctxAction(action, event) {
+    if (event) event.stopPropagation();
     hideContextMenu();
     if (!ctxConvId) return;
 
