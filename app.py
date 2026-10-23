@@ -664,8 +664,11 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 - لا تضع كل جملة في سطر منفصل.
 - الفاصل الوحيد هو سطر فارغ بين الفقرات.
 
-**🚨 قاعدة الروابط (مهمة):**
+**🚨 قاعدة الروابط (مهمة جداً):**
 - ممنوع تماماً تقطيع الروابط (URLs) إلى سطرين. اكتب الرابط كاملاً في سطر واحد متصل.
+- **ممنوع كتابة الروابط الخام** (مثل `https://...`). إذا أردت ذكر رابط، استخدم صيغة الماركداون: `[اسم الموقع](الرابط)`.
+- مثال صح: `[سبق](https://sabq.org/)`
+- مثال خطأ: `https://sabq.org/`
 
 **قاعدة صوتية مهمة:**
 - استخدم الإيموجي مباشرة بدون وصفها بالكلام.
@@ -1051,7 +1054,10 @@ def format_news_reply(articles, lang="ar"):
             lines.append(" · ".join(meta_parts))
             lines.append("")
         if link:
-            lines.append(f"[🔗 قراءة الخبر كاملاً]({link})")
+            if source:
+                lines.append(f"[🔗 اقرأ من {source}]({link})")
+            else:
+                lines.append(f"[🔗 قراءة الخبر كاملاً]({link})")
             lines.append("")
     return "\n".join(lines)
 
@@ -1846,8 +1852,11 @@ function formatBotText(t){
     // 1. تحويل روابط الماركداون [النص](الرابط) إلى رابط مخفي النص
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline;">$1</a>');
     
-    // 2. تحويل الروابط العادية (اللي ما عليها نص مخفي) إلى قابلة للضغط
-    s = s.replace(/(^|[^"'])(https?:\/\/[^\s]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">$2</a>');
+    // 2. تحويل الروابط العادية (اللي ما عليها نص مخفي) إلى قابلة للضغط وإظهار اسم النطاق فقط
+    s = s.replace(/(^|[^"'])(https?:\/\/([^\/\s]+)[^\s]*)/g, function(match, p1, fullUrl, domain) {
+        let cleanDomain = domain.replace(/^www\./, '');
+        return p1 + '<a href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">' + cleanDomain + '</a>';
+    });
     
     // 3. تحويل الخط العريض **text** إلى <strong>
     s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
