@@ -1405,6 +1405,8 @@ html.dark-mode .agent-btn-del{color:#f87171}
 .lib-empty h4{font-size:15px;color:var(--text-primary);font-weight:700;margin-bottom:6px}
 .lib-empty p{font-size:13px;line-height:1.7;margin:0}
 /* Context Menu */
+.context-menu-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 99998; display: none; opacity: 0; transition: opacity 0.2s; }
+.context-menu-backdrop.show { display: block; opacity: 1; }
 .context-menu{position:fixed;background:var(--bg-dropdown);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.2);border:1px solid var(--border-color);padding:6px;z-index:99999;display:none;flex-direction:column;min-width:180px;animation:modalIn .15s ease}
 .context-menu.show{display:flex}
 .context-menu-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border:none;background:transparent;font-size:14px;font-weight:600;color:var(--text-primary);border-radius:10px;cursor:pointer;font-family:inherit;text-align:right;transition:background .15s}
@@ -1434,6 +1436,7 @@ html.dark-mode .agent-btn-del{color:#f87171}
 </div>
 
 <!-- Context Menu -->
+<div class="context-menu-backdrop" id="ctxBackdrop" onclick="hideContextMenu()"></div>
 <div class="context-menu" id="convContextMenu">
     <button class="context-menu-item" onclick="ctxAction('pin')">
         <svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
@@ -1733,6 +1736,7 @@ function showContextMenu(e, convId, isPinned) {
     ctxConvId = convId;
     ctxIsPinned = isPinned;
     const menu = document.getElementById('convContextMenu');
+    const backdrop = document.getElementById('ctxBackdrop');
     const pinText = document.getElementById('ctxPinText');
     pinText.textContent = isPinned ? (userLang==='en'?'Unpin':'إلغاء التثبيت') : (userLang==='en'?'Pin':'تثبيت');
     
@@ -1745,16 +1749,22 @@ function showContextMenu(e, convId, isPinned) {
     menu.style.left = Math.max(10, x) + 'px';
     menu.style.top = Math.max(10, y) + 'px';
     menu.classList.add('show');
+    if (backdrop) backdrop.classList.add('show');
 }
 
-document.addEventListener('click', function(e) {
+function hideContextMenu() {
     const menu = document.getElementById('convContextMenu');
-    if (menu && !menu.contains(e.target)) menu.classList.remove('show');
-});
+    const backdrop = document.getElementById('ctxBackdrop');
+    if (menu) menu.classList.remove('show');
+    if (backdrop) backdrop.classList.remove('show');
+}
+
+// إغلاق القائمة تلقائياً إذا قام المستخدم بالتمرير (Scroll)
+window.addEventListener('scroll', hideContextMenu, { passive: true });
+window.addEventListener('touchmove', hideContextMenu, { passive: true });
 
 async function ctxAction(action) {
-    const menu = document.getElementById('convContextMenu');
-    menu.classList.remove('show');
+    hideContextMenu();
     if (!ctxConvId) return;
 
     if (action === 'pin') {
@@ -2140,7 +2150,7 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
-window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;
+window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;
 applyLang();
 // ☀️ أخبار الصباح التلقائية (مرة واحدة فقط في اليوم)
 setTimeout(function(){
