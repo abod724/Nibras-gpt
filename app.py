@@ -1438,6 +1438,15 @@ html[data-theme="neon"] {
     --modal-bg: rgba(0,0,0,0.7);
     --accent-color: #00f2fe;
 }
+
+/* 🔥 التعديل: تلوين خط مربع الكتابة بالأبيض في وضع النيون */
+html[data-theme="neon"] .input-area textarea {
+    color: #ffffff !important;
+}
+html[data-theme="neon"] .input-area textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
 html[data-theme="neon"] body {
     background:
         radial-gradient(circle at 20% 0%, rgba(0, 242, 254, 0.08) 0%, transparent 40%),
@@ -1646,12 +1655,6 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(0, 24
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <line x1="23" y1="9" x2="17" y2="15"/>
                 <line x1="17" y1="9" x2="23" y2="15"/>
-            </svg>
-        </button>
-        <button class="icon-btn" id="quickSettingsBtn" title="الإعدادات" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
         </button>
     </div>
@@ -1904,7 +1907,7 @@ function setTheme(t){
 }
 
 /* ═══════════════════════════════════════════════════════════ */
-/*  🆕 SVG Buttons Wiring — New chat + Quick settings          */
+/*  🆕 SVG Buttons Wiring — New chat                          */
 /* ═══════════════════════════════════════════════════════════ */
 (function wireNewHeaderButtons(){
     var newChatBtn = document.getElementById('newChatBtn');
@@ -1912,12 +1915,6 @@ function setTheme(t){
         newChatBtn.addEventListener('click', function(){
             var trigger = document.querySelector('[data-action="new"]');
             if (trigger) trigger.click();
-        });
-    }
-    var quickSettings = document.getElementById('quickSettingsBtn');
-    if (quickSettings) {
-        quickSettings.addEventListener('click', function(){
-            if (typeof openSettings === 'function') openSettings();
         });
     }
 })();
