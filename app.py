@@ -194,9 +194,6 @@ def save_user_memory(email, memory_dict):
         print("save_user_memory:", e)
 
 
-# ═══════════════════════════════════════════════════════════════
-#  ✅ ملخص الملف الشخصي (عمل/مهارات/اهتمامات) — تراكمي تلقائي
-# ═══════════════════════════════════════════════════════════════
 PROFILE_SUMMARY_MODEL = os.environ.get("PROFILE_SUMMARY_MODEL") or OPENAI_MODEL
 PROFILE_SUMMARY_INTERVAL = 12
 
@@ -332,7 +329,6 @@ def update_profile_summary_async(email, existing, new_messages):
         except Exception as e:
             print("profile summary worker:", e)
     threading.Thread(target=worker, daemon=True).start()
-# ═══════════════════════════════════════════════════════════════
 
 
 def get_user_language(email):
@@ -779,7 +775,6 @@ def format_nibras_response(text):
         r"\1", text, flags=re.IGNORECASE | re.DOTALL
     )
     
-    # إصلاح الروابط المقطوعة (إذا كان فيه سطر جديد داخل الرابط)
     text = re.sub(r'(https?://[^\s\n]+)[ \t]*\n[ \t]*([a-zA-Z0-9/_\-?=&%#.]+)', r'\1\2', text)
 
     html = markdown.markdown(text, extensions=["extra", "sane_lists", "nl2br"])
@@ -801,7 +796,6 @@ def format_nibras_response(text):
         protocols={"http", "https", "mailto"}, strip=True
     )
     
-    # ✅ التحويل الآمن للروابط
     clean_html = bleach.linkify(
         clean_html,
         callbacks=[bleach.callbacks.nofollow, bleach.callbacks.target_blank],
@@ -1209,9 +1203,6 @@ RESET_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UT
 </script></body></html>"""
 
 
-# ═══════════════════════════════════════════════════════════════
-#  ✅ HT — يحتوي على {{ memory_css }} و {{ memory_html }} و {{ memory_js }}
-# ═══════════════════════════════════════════════════════════════
 HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=5.0"/><meta name="screen-orientation" content="portrait"><meta name="x5-orientation" content="portrait"><meta name="full-screen" content="no"><meta name="x5-fullscreen" content="false"><meta name="browsermode" content="application"><meta name="x5-page-mode" content="app"><title>نبراس GP | مساعد ذكي</title><link rel="manifest" href="/static/manifest.json"><link rel="icon" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="192x192" href="/static/icon-192.png"><link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="نبراس"><meta name="theme-color" content="#ffffff"><style>:root{--bg-body:#f4f7fc;--bg-app:#fff;--bg-header:#fff;--border-color:#eaeef2;--text-primary:#111;--text-secondary:#5a6b7c;--bg-input:#f5f7fa;--bg-bot-msg:transparent;--bg-user-msg:#e0f2fa;--bg-dropdown:#fff;--bg-hover:#f5f7fa;--shadow-color:rgba(0,0,0,0.08);--primary-color:#4a6a8a;--primary-hover:#3a5a7a;--send-shadow:rgba(74,106,138,0.2);--danger-bg:#fde8e8;--danger-color:#a33;--placeholder-color:#9aabbc;--icon-color:#4a6a8a;--border-input:#dce1e8;--send-bg:#4a6a8a;--send-hover:#3a5a7a;--modal-bg:rgba(0,0,0,0.5);--accent-color:#4a6a8a;--font-size-base:16px;--font-size-small:14px}html.dark-mode{--bg-body:#0d1117;--bg-app:#161b22;--bg-header:#161b22;--border-color:#30363d;--text-primary:#c9d1d9;--text-secondary:#8b949e;--bg-input:#21262d;--bg-user-msg:#1a3a4a;--bg-dropdown:#161b22;--bg-hover:#21262d;--shadow-color:rgba(0,0,0,0.5);--primary-color:#58a6ff;--primary-hover:#79c0ff;--send-shadow:rgba(88,166,255,0.2);--danger-bg:#2d1b1b;--danger-color:#f85149;--placeholder-color:#484f58;--icon-color:#58a6ff;--border-input:#30363d;--send-bg:#238636;--send-hover:#2ea043;--modal-bg:rgba(0,0,0,0.7);--accent-color:#58a6ff}html[data-font="small"]{--font-size-base:14px;--font-size-small:12.5px}html[data-font="medium"]{--font-size-base:16px;--font-size-small:14px}html[data-font="large"]{--font-size-base:18px;--font-size-small:16px}html[data-font="xlarge"]{--font-size-base:20px;--font-size-small:18px}*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}html{-webkit-tap-highlight-color:transparent}body{-webkit-tap-highlight-color:transparent}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-body)}body{display:flex;justify-content:center;align-items:center;position:relative}.app{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-width:450px;margin:0 auto;background:var(--bg-app);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 20px var(--shadow-color)}@media(min-width:600px){.app{top:50%;left:50%;transform:translate(-50%,-50%);bottom:auto;right:auto;height:100dvh;max-height:100dvh;border-radius:20px}}.header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;flex-shrink:0;background:var(--bg-header)}.header-right{display:flex;align-items:center;gap:6px}.header-left{display:flex;align-items:center;gap:6px}.icon-btn{background:0 0;border:none;color:var(--icon-color);cursor:pointer;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s,opacity .2s}.icon-btn:hover{background:var(--bg-hover)}.icon-btn svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}.icon-btn.voice-on{color:var(--primary-color);opacity:1}.icon-btn.voice-off{color:var(--icon-color);opacity:0.5}.dropdown{position:absolute;top:68px;left:12px;right:12px;background:var(--bg-dropdown);border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.15),0 4px 12px rgba(0,0,0,0.08);display:none;flex-direction:column;z-index:100;border:1px solid var(--border-color);max-height:78vh;overflow-y:auto;padding:10px;opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease}.dropdown.show{display:flex;opacity:1;transform:translateY(0)}.dropdown::-webkit-scrollbar{width:4px}.dropdown::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.dropdown .item{display:flex;align-items:center;gap:14px;padding:13px 16px;font-size:15px;color:var(--text-primary);background:transparent;border:none;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-weight:600;border-radius:14px;transition:background .15s ease,transform .1s ease;letter-spacing:-0.2px}.dropdown .item:hover{background:var(--bg-hover)}.dropdown .item:active{transform:scale(0.98)}.dropdown .item svg{width:20px;height:20px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0;stroke-linecap:round;stroke-linejoin:round;opacity:.85}.dropdown .section-title{padding:16px 16px 6px;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.8px;text-transform:uppercase;opacity:.7}.dropdown .conv-item{display:flex;align-items:center;gap:8px;padding:11px 16px;border:none;background:transparent;width:100%;text-align:right;cursor:pointer;font-family:inherit;font-size:14px;color:var(--text-primary);font-weight:500;border-radius:14px;transition:background .15s ease;letter-spacing:-0.1px;position:relative;user-select:none}.dropdown .conv-item:hover{background:var(--bg-hover)}.dropdown .conv-item .conv-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dropdown .conv-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--primary-color);opacity:.4;flex-shrink:0}.dropdown .conv-item .pin-btn{background:transparent;border:none;cursor:pointer;padding:4px;border-radius:8px;display:flex;align-items:center;justify-content:center;opacity:0.5;transition:opacity .2s,background .2s;flex-shrink:0}.dropdown .conv-item .pin-btn:hover{opacity:1;background:var(--bg-hover)}.dropdown .conv-item .pin-btn svg{width:16px;height:16px;stroke:var(--text-primary);stroke-width:2;fill:none}.dropdown .conv-item .pin-btn.pinned svg{fill:var(--primary-color);stroke:var(--primary-color)}.dropdown .pinned-item{padding:11px 16px;display:flex;align-items:center;gap:8px;border-radius:14px;transition:background .15s ease}.dropdown .pinned-item:hover{background:var(--bg-hover)}.dropdown .conv-item.long-pressing{transform:scale(0.96);background:var(--bg-hover);transition:all .2s;}
 .gender-option{flex:1;padding:9px 12px;border-radius:12px;border:1px solid var(--border-color);background:transparent;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:all .2s ease;font-family:inherit}.gender-option.active{background:var(--primary-color);color:#fff;border-color:var(--primary-color);box-shadow:0 4px 12px rgba(74,106,138,0.3)}.dropdown .item.danger{color:#d32f2f}.dropdown .item.danger svg{stroke:#d32f2f;opacity:1}.dropdown .item.danger:hover{background:rgba(211,47,47,0.08)}.settings-overlay{position:fixed;inset:0;background:var(--bg-body);z-index:99999;display:none;flex-direction:column;overflow-y:auto}.settings-overlay.show{display:flex}.settings-page{max-width:500px;width:100%;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg-body)}.settings-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--bg-app);position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border-color)}.settings-header h2{font-size:18px;color:var(--text-primary);font-weight:700;margin:0}.settings-body{padding:16px;display:flex;flex-direction:column;gap:14px}.settings-card{background:var(--bg-app);border-radius:18px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.settings-item{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.settings-item:last-child{border-bottom:none}.settings-item:hover{background:var(--bg-hover)}.settings-item .item-right{display:flex;align-items:center;gap:14px;color:var(--text-primary);font-size:15px;font-weight:600}.settings-item .item-right svg{width:22px;height:22px;stroke:var(--text-primary);stroke-width:1.8;fill:none;flex-shrink:0}.settings-item .chevron{width:18px;height:18px;stroke:var(--text-secondary);stroke-width:2;fill:none}.sub-page{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100000;display:none;align-items:center;justify-content:center;padding:20px}.sub-page.show{display:flex}.sub-page .modal-box{background:var(--bg-app);width:100%;max-width:420px;max-height:80vh;border-radius:22px;overflow:hidden;display:flex;flex-direction:column;animation:modalIn .25s ease;border:1px solid var(--border-color)}.sub-page-header{display:none}.sub-page-body{padding:20px;overflow-y:auto;flex:1}.sub-page-body::-webkit-scrollbar{width:4px}.sub-page-body::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:4px}.modal-title{text-align:center;font-size:17px;font-weight:700;color:var(--text-primary);padding:18px 20px;border-bottom:1px solid var(--border-color)}.modal-confirm{width:100%;padding:16px;background:transparent;border:none;border-top:1px solid var(--border-color);font-size:16px;font-weight:700;color:var(--primary-color);cursor:pointer;font-family:inherit}.modal-confirm:active{background:var(--bg-hover)}@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}.info-box{background:var(--bg-hover);padding:16px;border-radius:14px;font-size:14px;color:var(--text-secondary);line-height:1.8}.option-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.option-row{padding:18px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .2s}.option-row:last-child{border-bottom:none}.option-row:active{background:var(--bg-hover)}.option-label{display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--text-primary);font-weight:500}.check-icon{width:22px;height:22px;stroke:var(--primary-color);stroke-width:2.5;fill:none;opacity:0;transition:opacity .25s}.option-row.selected .check-icon{opacity:1}.color-grid{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}.color-row{padding:16px 20px;border-bottom:1px solid var(--border-color);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}.color-row:last-child{border-bottom:none}.color-row:active{background:var(--bg-hover)}.color-row-left{display:flex;align-items:center;gap:14px;font-size:15px;color:var(--text-primary);font-weight:500}.color-circle{width:26px;height:26px;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.15);flex-shrink:0}.color-row .check-icon{opacity:0;transition:opacity .25s}.color-row.selected .check-icon{opacity:1}.lang-list{display:flex;flex-direction:column;gap:12px}.lang-card{display:flex;align-items:center;gap:16px;padding:18px 20px;background:var(--bg-app);border-radius:18px;cursor:pointer;border:2px solid var(--border-color);transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 3px var(--shadow-color)}.lang-card:hover{border-color:var(--primary-color);transform:translateY(-2px);box-shadow:0 8px 24px rgba(74,106,138,0.15)}.lang-card.selected{border-color:var(--primary-color);background:linear-gradient(135deg,var(--bg-app) 0%,rgba(74,106,138,0.06) 100%);box-shadow:0 6px 20px rgba(74,106,138,0.18)}.lang-flag{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;letter-spacing:-0.5px;box-shadow:0 2px 6px rgba(0,0,0,0.15);color:#fff}.lang-info{flex:1;display:flex;flex-direction:column;gap:3px}.lang-name{font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:-0.2px}.lang-sub{font-size:13px;color:var(--text-secondary)}.lang-check{width:26px;height:26px;stroke:var(--primary-color);stroke-width:3;fill:none;opacity:0;transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);flex-shrink:0;transform:scale(0.5)}.lang-card.selected .lang-check{opacity:1;transform:scale(1)}
 .personality-list{display:flex;flex-direction:column;background:var(--bg-app);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px var(--shadow-color)}
@@ -1415,21 +1406,252 @@ html.dark-mode .agent-btn-del{color:#f87171}
 .context-menu-item.danger svg{stroke:#ef4444}
 .context-menu-item svg{width:18px;height:18px;stroke:currentColor;stroke-width:2;fill:none;flex-shrink:0}
 .context-menu-sep{height:1px;background:var(--border-color);margin:4px 8px}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/*  🎨 NEON THEME — Full SVG Button Styling                        */
+/*  يُطبَّق عند: html[data-theme="neon"]                            */
+/* ═══════════════════════════════════════════════════════════════ */
+html[data-theme="neon"] {
+    --bg-body: #07090e;
+    --bg-app: #0a0d14;
+    --bg-header: #121723;
+    --border-color: #1f293d;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --bg-input: #121723;
+    --bg-bot-msg: transparent;
+    --bg-user-msg: rgba(0, 242, 254, 0.12);
+    --msg-user-text: #e2e8f0;
+    --bg-dropdown: #121723;
+    --bg-hover: #1a2030;
+    --shadow-color: rgba(0, 242, 254, 0.08);
+    --primary-color: #00f2fe;
+    --primary-hover: #00d4e0;
+    --send-shadow: rgba(0, 242, 254, 0.3);
+    --danger-bg: #2d1b1b;
+    --danger-color: #f85149;
+    --placeholder-color: #64748b;
+    --icon-color: #00f2fe;
+    --border-input: #1f293d;
+    --send-bg: #00f2fe;
+    --send-hover: #00d4e0;
+    --modal-bg: rgba(0,0,0,0.7);
+    --accent-color: #00f2fe;
+}
+html[data-theme="neon"] body {
+    background:
+        radial-gradient(circle at 20% 0%, rgba(0, 242, 254, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 80% 100%, rgba(121, 40, 202, 0.08) 0%, transparent 40%),
+        #07090e;
+}
+html[data-theme="neon"] .app {
+    box-shadow: 0 0 40px rgba(0, 242, 254, 0.12), 0 0 80px rgba(121, 40, 202, 0.08);
+}
+html[data-theme="neon"] .header {
+    background: linear-gradient(180deg, #121723 0%, #0a0d14 100%);
+    border-bottom: 1px solid rgba(0, 242, 254, 0.15);
+    position: relative;
+}
+html[data-theme="neon"] .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #00f2fe, transparent);
+    animation: headerGlow 3s ease-in-out infinite;
+}
+@keyframes headerGlow {
+    0%, 100% { opacity: 0.3; }
+    50%      { opacity: 0.7; }
+}
+html[data-theme="neon"] .icon-btn {
+    background: rgba(0, 242, 254, 0.05);
+    border: 1px solid rgba(0, 242, 254, 0.15);
+    border-radius: 12px;
+    width: 40px;
+    height: 40px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+html[data-theme="neon"] .icon-btn:hover {
+    background: rgba(0, 242, 254, 0.12);
+    border-color: rgba(0, 242, 254, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.35);
+}
+html[data-theme="neon"] .icon-btn:active {
+    transform: translateY(0) scale(0.95);
+}
+html[data-theme="neon"] .icon-btn svg {
+    stroke: #00f2fe;
+    filter: drop-shadow(0 0 4px rgba(0, 242, 254, 0.7));
+    transition: filter 0.25s ease;
+    width: 20px;
+    height: 20px;
+}
+html[data-theme="neon"] .icon-btn:hover svg {
+    filter: drop-shadow(0 0 8px rgba(0, 242, 254, 1));
+}
+html[data-theme="neon"] .icon-btn.voice-on {
+    background: rgba(0, 242, 254, 0.2);
+    border-color: #00f2fe;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+}
+html[data-theme="neon"] .icon-btn.voice-off { opacity: 0.6; }
+html[data-theme="neon"] .icon-btn.accent-btn {
+    background: linear-gradient(135deg, rgba(0, 242, 254, 0.18), rgba(121, 40, 202, 0.18));
+    border-color: rgba(0, 242, 254, 0.4);
+}
+html[data-theme="neon"] .icon-btn.accent-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 242, 254, 0.3), rgba(121, 40, 202, 0.3));
+    box-shadow: 0 0 25px rgba(0, 242, 254, 0.5);
+}
+html[data-theme="neon"] .input-area {
+    background: #121723;
+    border: 1px solid rgba(0, 242, 254, 0.2);
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.05);
+    transition: all 0.25s ease;
+}
+html[data-theme="neon"] .input-area:focus-within {
+    border-color: rgba(0, 242, 254, 0.5);
+    box-shadow: 0 0 30px rgba(0, 242, 254, 0.2);
+}
+html[data-theme="neon"] .input-area .btn-icon,
+html[data-theme="neon"] .input-area .plus-btn {
+    background: rgba(0, 242, 254, 0.05);
+    border: 1px solid rgba(0, 242, 254, 0.15);
+    width: 38px;
+    height: 38px;
+    transition: all 0.25s ease;
+}
+html[data-theme="neon"] .input-area .btn-icon:hover,
+html[data-theme="neon"] .input-area .plus-btn:hover {
+    background: rgba(0, 242, 254, 0.15);
+    border-color: rgba(0, 242, 254, 0.4);
+    box-shadow: 0 0 12px rgba(0, 242, 254, 0.3);
+}
+html[data-theme="neon"] .input-area .btn-icon svg,
+html[data-theme="neon"] .input-area .plus-btn svg {
+    stroke: #00f2fe;
+    filter: drop-shadow(0 0 3px rgba(0, 242, 254, 0.5));
+}
+html[data-theme="neon"] .input-area .mic-btn.listening {
+    background: rgba(255, 0, 128, 0.15);
+    border-color: rgba(255, 0, 128, 0.5);
+    animation: micPulse 1s ease-in-out infinite;
+}
+html[data-theme="neon"] .input-area .mic-btn.listening svg {
+    stroke: #ff0080;
+    filter: drop-shadow(0 0 6px rgba(255, 0, 128, 0.8));
+}
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 128, 0.3); }
+    50%      { box-shadow: 0 0 25px rgba(255, 0, 128, 0.7); }
+}
+html[data-theme="neon"] .input-area .send {
+    background: linear-gradient(135deg, #00f2fe 0%, #7928ca 100%);
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.5), 0 0 40px rgba(121, 40, 202, 0.3);
+    animation: sendPulse 2s ease-in-out infinite;
+}
+html[data-theme="neon"] .input-area .send:hover {
+    background: linear-gradient(135deg, #00d4e0 0%, #8b3fe0 100%);
+    transform: scale(1.08);
+    box-shadow: 0 0 30px rgba(0, 242, 254, 0.8), 0 0 60px rgba(121, 40, 202, 0.5);
+}
+html[data-theme="neon"] .input-area .send svg {
+    stroke: #ffffff;
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+}
+@keyframes sendPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(0, 242, 254, 0.5), 0 0 40px rgba(121, 40, 202, 0.3); }
+    50%      { box-shadow: 0 0 30px rgba(0, 242, 254, 0.8), 0 0 60px rgba(121, 40, 202, 0.5); }
+}
+html[data-theme="neon"] .plus-options {
+    background: #121723;
+    border: 1px solid rgba(0, 242, 254, 0.2);
+    box-shadow: 0 8px 30px rgba(0, 242, 254, 0.15);
+}
+html[data-theme="neon"] .plus-options .option-btn {
+    background: rgba(0, 242, 254, 0.05);
+    border: 1px solid rgba(0, 242, 254, 0.15);
+}
+html[data-theme="neon"] .plus-options .option-btn:hover {
+    background: rgba(0, 242, 254, 0.15);
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+}
+html[data-theme="neon"] .plus-options .option-btn svg {
+    stroke: #00f2fe;
+    filter: drop-shadow(0 0 3px rgba(0, 242, 254, 0.5));
+}
+html[data-theme="neon"] .dropdown .item svg {
+    stroke: #00f2fe;
+    filter: drop-shadow(0 0 2px rgba(0, 242, 254, 0.4));
+}
+html[data-theme="neon"] .dropdown .item.danger svg {
+    stroke: #f85149;
+    filter: drop-shadow(0 0 2px rgba(248, 81, 73, 0.4));
+}
+html[data-theme="neon"] .settings-item .item-right svg {
+    stroke: #00f2fe;
+    filter: drop-shadow(0 0 2px rgba(0, 242, 254, 0.3));
+}
+html[data-theme="neon"] .msg-actions button svg {
+    stroke: #94a3b8;
+    transition: all 0.2s ease;
+}
+html[data-theme="neon"] .msg-actions button:hover svg {
+    stroke: #00f2fe;
+    filter: drop-shadow(0 0 4px rgba(0, 242, 254, 0.6));
+}
+html[data-theme="neon"] .msg.user {
+    background: linear-gradient(135deg, rgba(0, 242, 254, 0.18), rgba(121, 40, 202, 0.18));
+    color: #e2e8f0;
+    border: 1px solid rgba(0, 242, 254, 0.25);
+}
+html[data-theme="neon"] .nibras-response h2 {
+    color: #00f2fe;
+    border-bottom-color: rgba(0, 242, 254, 0.3);
+}
+html[data-theme="neon"] .nibras-response h3 {
+    background: rgba(0, 242, 254, 0.05);
+    border-right-color: #00f2fe;
+}
+html[data-theme="neon"] .nibras-response a { color: #00f2fe; }
+html[data-theme="neon"] .typing-dots { color: #00f2fe; }
+html[data-theme="neon"] ::-webkit-scrollbar-thumb { background: rgba(0, 242, 254, 0.3); }
+html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(0, 242, 254, 0.6); }
+/* ═══════════════════════════════════════════════════════════════ */
 {{ memory_css|safe }}
 </style></head><body>
 <div class="app">
 <div class="header">
     <div class="header-right">
         <button class="icon-btn" id="menuToggle" title="القائمة">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="14" y2="15"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="3" y1="15" x2="14" y2="15"/>
+            </svg>
+        </button>
+        <button class="icon-btn accent-btn" id="newChatBtn" title="محادثة جديدة" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" opacity="0.35"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
         </button>
     </div>
     <div class="header-left">
-        <button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت">
+        <button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <line x1="23" y1="9" x2="17" y2="15"/>
                 <line x1="17" y1="9" x2="23" y2="15"/>
+            </svg>
+        </button>
+        <button class="icon-btn" id="quickSettingsBtn" title="الإعدادات" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
         </button>
     </div>
@@ -1645,14 +1867,75 @@ document.addEventListener('click', function(e){
 
 function openSettings(){document.getElementById('settingsModal').classList.add('show');document.getElementById('dropdown').classList.remove('show');}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
-function setTheme(t){const h=document.documentElement;if(t==='dark'){h.classList.add('dark-mode');localStorage.setItem('nibras-theme','dark')}else{h.classList.remove('dark-mode');localStorage.setItem('nibras-theme','light')}}
+
+function setTheme(t){
+    const h = document.documentElement;
+    const ACCENT_PROPS = [
+        '--primary-color','--accent-color','--send-bg','--send-hover',
+        '--primary-hover','--icon-color','--send-shadow',
+        '--msg-user-bg','--msg-user-text'
+    ];
+    h.removeAttribute('data-theme');
+
+    if (t === 'neon') {
+        h.classList.remove('dark-mode');
+        h.setAttribute('data-theme', 'neon');
+        ACCENT_PROPS.forEach(p => h.style.removeProperty(p));
+        localStorage.setItem('nibras-theme', 'neon');
+    }
+    else if (t === 'dark') {
+        h.classList.add('dark-mode');
+        const savedAccent = localStorage.getItem('nibras-accent');
+        const savedName   = localStorage.getItem('nibras-accent-name');
+        if (savedAccent && typeof setAccentColor === 'function') {
+            setAccentColor(savedAccent, savedName || 'مخصص');
+        }
+        localStorage.setItem('nibras-theme', 'dark');
+    }
+    else {
+        h.classList.remove('dark-mode');
+        const savedAccent = localStorage.getItem('nibras-accent');
+        const savedName   = localStorage.getItem('nibras-accent-name');
+        if (savedAccent && typeof setAccentColor === 'function') {
+            setAccentColor(savedAccent, savedName || 'مخصص');
+        }
+        localStorage.setItem('nibras-theme', 'light');
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  🆕 SVG Buttons Wiring — New chat + Quick settings          */
+/* ═══════════════════════════════════════════════════════════ */
+(function wireNewHeaderButtons(){
+    var newChatBtn = document.getElementById('newChatBtn');
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', function(){
+            var trigger = document.querySelector('[data-action="new"]');
+            if (trigger) trigger.click();
+        });
+    }
+    var quickSettings = document.getElementById('quickSettingsBtn');
+    if (quickSettings) {
+        quickSettings.addEventListener('click', function(){
+            if (typeof openSettings === 'function') openSettings();
+        });
+    }
+})();
+
 function getContrastColor(hex){try{const r=parseInt(hex.slice(1,3),16);const g=parseInt(hex.slice(3,5),16);const b=parseInt(hex.slice(5,7),16);const lum=(0.299*r+0.587*g+0.114*b)/255;return lum>0.6?'#111111':'#ffffff';}catch(e){return '#111111';}}
 function setAccentColor(color,name){const h=document.documentElement;h.style.setProperty('--primary-color',color);h.style.setProperty('--accent-color',color);h.style.setProperty('--send-bg',color);h.style.setProperty('--send-hover',color);h.style.setProperty('--primary-hover',color);h.style.setProperty('--icon-color',color);h.style.setProperty('--send-shadow',color+'33');h.style.setProperty('--msg-user-bg',color);h.style.setProperty('--msg-user-text',getContrastColor(color));const lbl=document.getElementById('currentColorLabel');if(lbl)lbl.textContent=name;const dot=document.getElementById('currentColorDot');if(dot)dot.style.background=color;localStorage.setItem('nibras-accent',color);localStorage.setItem('nibras-accent-name',name);}
 (function initTheme(){const mode=localStorage.getItem('nibras-theme-mode')||'system';if(mode==='system'){const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;setTheme(prefersDark?'dark':'light');}else{setTheme(mode);}})();
 const savedAccent=localStorage.getItem('nibras-accent');const savedAccentName=localStorage.getItem('nibras-accent-name');
-if(savedAccent){setAccentColor(savedAccent,savedAccentName||'مخصص');}
+const currentThemeMode = localStorage.getItem('nibras-theme-mode') || 'system';
+const isNeonMode = currentThemeMode === 'neon' || document.documentElement.getAttribute('data-theme') === 'neon';
+if(savedAccent && !isNeonMode){setAccentColor(savedAccent,savedAccentName||'مخصص');}
 const subPagesContent={
-    theme:'<div class="option-list"><div class="option-row" data-theme="system" onclick="selectTheme(\'system\')"><div class="option-label"><span>النظام (افتراضي)</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div><div class="option-row" data-theme="light" onclick="selectTheme(\'light\')"><div class="option-label"><span>فاتح</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div><div class="option-row" data-theme="dark" onclick="selectTheme(\'dark\')"><div class="option-label"><span>داكن</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div>',
+    theme:'<div class="option-list">'+
+        '<div class="option-row" data-theme="system" onclick="selectTheme(\'system\')"><div class="option-label"><span>النظام (افتراضي)</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+        '<div class="option-row" data-theme="light" onclick="selectTheme(\'light\')"><div class="option-label"><span>فاتح</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+        '<div class="option-row" data-theme="dark" onclick="selectTheme(\'dark\')"><div class="option-label"><span>داكن</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+        '<div class="option-row" data-theme="neon" onclick="selectTheme(\'neon\')"><div class="option-label"><span>⚡ نيون (جديد)</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+    '</div>',
     color:'<div class="color-grid"><div class="color-row" data-color="#4a6a8a" onclick="selectColor(\'#4a6a8a\',\'أزرق داكن\')"><div class="color-row-left"><div class="color-circle" style="background:#4a6a8a;"></div><span>أزرق داكن (افتراضي)</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#1a1a1a" onclick="selectColor(\'#1a1a1a\',\'أسود\')"><div class="color-row-left"><div class="color-circle" style="background:#1a1a1a;"></div><span>أسود</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#10b981" onclick="selectColor(\'#10b981\',\'أخضر\')"><div class="color-row-left"><div class="color-circle" style="background:#10b981;"></div><span>أخضر</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#fbbf24" onclick="selectColor(\'#fbbf24\',\'أصفر\')"><div class="color-row-left"><div class="color-circle" style="background:#fbbf24;"></div><span>أصفر</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#ec4899" onclick="selectColor(\'#ec4899\',\'وردي\')"><div class="color-row-left"><div class="color-circle" style="background:#ec4899;"></div><span>وردي</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#f97316" onclick="selectColor(\'#f97316\',\'برتقالي\')"><div class="color-row-left"><div class="color-circle" style="background:#f97316;"></div><span>برتقالي</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#8b5cf6" onclick="selectColor(\'#8b5cf6\',\'أرجواني\')"><div class="color-row-left"><div class="color-circle" style="background:#8b5cf6;"></div><span>أرجواني</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
     fontSize:'<div class="fontsize-list"><div class="fontsize-row" data-fs="small" onclick="selectFontSize(\'small\',\'صغير\')"><div class="fontsize-row-left"><div class="fontsize-label">صغير</div><div class="fontsize-sample" style="font-size:13px;">نموذج من الخط الصغير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="medium" onclick="selectFontSize(\'medium\',\'متوسط\')"><div class="fontsize-row-left"><div class="fontsize-label">متوسط</div><div class="fontsize-sample" style="font-size:15px;">نموذج من الخط المتوسط</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="large" onclick="selectFontSize(\'large\',\'كبير\')"><div class="fontsize-row-left"><div class="fontsize-label">كبير</div><div class="fontsize-sample" style="font-size:17px;">نموذج من الخط الكبير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="xlarge" onclick="selectFontSize(\'xlarge\',\'ضخم\')"><div class="fontsize-row-left"><div class="fontsize-label">ضخم</div><div class="fontsize-sample" style="font-size:19px;">نموذج من الخط الضخم</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
     personality:'<div class="personality-list"><div class="personality-row" data-p="friendly" onclick="selectPersonality(\'friendly\',\'ودود\')"><div class="personality-text"><div class="personality-name">ودود</div><div class="personality-sub">دافئ ومريح</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="concise" onclick="selectPersonality(\'concise\',\'مختصر\')"><div class="personality-text"><div class="personality-name">مختصر</div><div class="personality-sub">ردود قصيرة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="detailed" onclick="selectPersonality(\'detailed\',\'مفصّل\')"><div class="personality-text"><div class="personality-name">مفصّل</div><div class="personality-sub">شرح عميق</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="formal" onclick="selectPersonality(\'formal\',\'رسمي\')"><div class="personality-text"><div class="personality-name">رسمي</div><div class="personality-sub">احترافي ومهني</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="teacher" onclick="selectPersonality(\'teacher\',\'معلّم\')"><div class="personality-text"><div class="personality-name">معلّم</div><div class="personality-sub">يشرح خطوة بخطوة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="playful" onclick="selectPersonality(\'playful\',\'فرفوش\')"><div class="personality-text"><div class="personality-name">فرفوش</div><div class="personality-sub">مرح ومزح خفيف</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
@@ -1716,7 +1999,17 @@ function selectPersonality(p,name){userPersonality=p;try{localStorage.setItem('n
 function selectFontSize(size,name){userFontSize=size;try{localStorage.setItem('nibras-font-size',size);}catch(e){}applyFontSize(size);document.querySelectorAll('.fontsize-row').forEach(c=>{c.classList.toggle('selected',c.dataset.fs===size);});}
 function selectTheme(t){if(t==='system'){const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;setTheme(prefersDark?'dark':'light');}else{setTheme(t);}localStorage.setItem('nibras-theme-mode',t);markSelectedTheme(t);}
 function markSelectedTheme(t){document.querySelectorAll('.option-row').forEach(el=>{if(el.dataset.theme===t)el.classList.add('selected');else el.classList.remove('selected');});}
-function selectColor(color,name){setAccentColor(color,name);markSelectedColor(color);}
+function selectColor(color, name){
+    const h = document.documentElement;
+    if (h.getAttribute('data-theme') === 'neon') {
+        h.removeAttribute('data-theme');
+        h.classList.add('dark-mode');
+        localStorage.setItem('nibras-theme', 'dark');
+        localStorage.setItem('nibras-theme-mode', 'dark');
+    }
+    setAccentColor(color, name);
+    markSelectedColor(color);
+}
 function markSelectedColor(color){document.querySelectorAll('.color-row').forEach(el=>{if(el.dataset.color===color)el.classList.add('selected');else el.classList.remove('selected');});}
 async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
 function saveGeneral(){const n=(document.getElementById('sp-name').value||'').trim();if(!n||n.length<2){showToast('اكتب اسم صحيح');return;}if(!IS_REGISTERED){showToast('سجّل دخولك أولاً');return;}fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,lang:userLang})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم الحفظ');closeSubPage();setTimeout(()=>location.reload(),500);}else{showToast(d.message||'فشل الحفظ');}}).catch(()=>showToast('تعذر الاتصال بالسيرفر'));}
@@ -1743,7 +2036,6 @@ function showContextMenu(e, convId, isPinned) {
     let x = e.clientX;
     let y = e.clientY;
     
-    // نضيف كلاس show أولاً ليأخذ الـ display:flex من الـ CSS
     menu.classList.add('show');
     
     const menuRect = menu.getBoundingClientRect();
@@ -1760,13 +2052,11 @@ function hideContextMenu() {
     const backdrop = document.getElementById('ctxBackdrop');
     if (menu) {
         menu.classList.remove('show');
-        // إزالة أي inline style للتأكد من إخفاء القائمة
         menu.style.display = '';
     }
     if (backdrop) backdrop.classList.remove('show');
 }
 
-// إغلاق القائمة تلقائياً إذا قام المستخدم بالتمرير (Scroll)
 window.addEventListener('scroll', hideContextMenu, { passive: true });
 window.addEventListener('touchmove', hideContextMenu, { passive: true });
 
@@ -1834,9 +2124,7 @@ async function loadConversation(id){
             cid=id;
             d.messages.slice(-50).forEach(function(m){
                 const s=m.role==='user'?'user':'bot';
-                // نحفظ النص الأصلي (الخام) في المصفوفة ليتذكره الذكاء الاصطناعي
                 ch.push({role:m.role,content:m.content});
-                // نعرض النص المنسق (HTML) في الواجهة
                 addMessage(m.display_content||m.content, s, true, null, null, m.is_html, m.content);
             });
             dd.classList.remove('show');
@@ -1849,22 +2137,16 @@ function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){retur
 function formatBotText(t){
     let s = escapeHtml(t);
     
-    // 1. تحويل روابط الماركداون [النص](الرابط) إلى رابط مخفي النص
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline;">$1</a>');
     
-    // 2. تحويل الروابط العادية (اللي ما عليها نص مخفي) إلى قابلة للضغط وإظهار اسم النطاق فقط
     s = s.replace(/(^|[^"'])(https?:\/\/([^\/\s]+)[^\s]*)/g, function(match, p1, fullUrl, domain) {
         let cleanDomain = domain.replace(/^www\./, '');
         return p1 + '<a href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">' + cleanDomain + '</a>';
     });
     
-    // 3. تحويل الخط العريض **text** إلى <strong>
     s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    // 4. تحويل النص المائل *text* إلى <em>
     s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
     
-    // 5. معالجة السطور الجديدة
     return s.split(/\n\s*\n/).map(p => p.replace(/[\r\n]+/g, '<br>').trim()).filter(p => p.length > 0).join('<br><br>');
 }
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
@@ -2163,7 +2445,6 @@ mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
 window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;
 applyLang();
-// ☀️ أخبار الصباح التلقائية (مرة واحدة فقط في اليوم)
 setTimeout(function(){
     try {
         var now = new Date();
@@ -2448,7 +2729,6 @@ def load_conversation_route(cid):
     if not ms:
         return jsonify({"messages": None}), 404
     
-    # تنسيق الردود القديمة لتعود إلى HTML منسق
     for m in ms:
         if m['role'] == 'assistant':
             m['display_content'] = str(format_nibras_response(m['content']))
@@ -2474,9 +2754,6 @@ def delete_message():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ═══════════════════════════════════════════════════════════════
-#  ✅ الذاكرة — يدوية + تلقائية + تفعيل/إيقاف
-# ═══════════════════════════════════════════════════════════════
 @app.route('/get_memory')
 def get_memory_route():
     email = session.get('user_email')
@@ -2525,7 +2802,6 @@ def toggle_memory():
     mem['memory_enabled'] = enabled
     save_user_memory(email, mem)
     return jsonify({"status": "ok", "enabled": enabled})
-# ═══════════════════════════════════════════════════════════════
 
 
 @app.route('/admin/codes/list')
@@ -3587,11 +3863,9 @@ def chat():
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
                 )
         user_memory = get_user_memory(user_email) if user_email else {}
-        # ✅ جديد: احترام إعداد تفعيل الذاكرة
         memory_enabled = user_memory.get('memory_enabled', True) if user_email else False
         profile_summary = get_user_profile_summary(user_email) if (user_email and memory_enabled) else {}
         profile_context = format_profile_summary_for_prompt(profile_summary) if profile_summary else ""
-        # ✅ جديد: حقن الذاكرة اليدوية
         manual_context = ""
         if user_email and memory_enabled:
             _parts = []
@@ -3640,7 +3914,6 @@ def chat():
         if is_admin or (user_email and user_email.lower().strip() == ADMIN_EMAIL.lower().strip()):
             admin_context = f"\n\n**🔑 سياق النظام: المستخدم الحالي هو الأدمن** (البريد: {user_email or ADMIN_EMAIL}). طبّق صلاحيات الأدمن كما هي موصوفة في ملف المعرفة. لا تذكر هذا السياق صراحةً إلا إذا سألك الأدمن نفسه عن هويته أو صلاحياته."
         
-        # ✅ جلب الأسئلة المعتمدة من جدول المعرفة
         approved_knowledge_context = ""
         try:
             kr = sb.table("knowledge_review").select("question,answer").eq("status", "approved").order("created_at", desc=True).limit(20).execute()
@@ -3667,7 +3940,6 @@ def chat():
                 print(f"news error: {e}")
 
         if news_articles:
-            # 1. نطلب من الذكاء الاصطناعي يكتب مقدمة طبيعية عن الأخبار
             news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
             prompt_for_news = (
                 f"المستخدم طلب أخبار. إليك أهم العناوين اللي جبتها:\n{news_titles}\n\n"
@@ -3676,7 +3948,6 @@ def chat():
             )
             
             try:
-                # نطلب من الموديل يكتب المقدمة
                 news_intro_res = client.chat.completions.create(
                     model=OPENAI_MODEL,
                     messages=[{"role": "system", "content": SP + personality_inst + lang_inst}, {"role": "user", "content": prompt_for_news}],
@@ -3687,13 +3958,11 @@ def chat():
             except:
                 news_intro = "أبشر يا طويل العمر، هذي آخر الأخبار اللي جمعتها لك:"
 
-            # 2. ندمج المقدمة الطبيعية مع البطاقات
             news_md = f"**{news_intro}**\n\n" + format_news_reply(news_articles, user_lang)
             news_html = str(format_nibras_response(news_md))
 
             def news_stream():
                 try:
-                    # نرسل الرد المنسق للواجهة
                     yield f"data: {json.dumps({'formatted_html': news_html}, ensure_ascii=False)}\n\n"
                     nid = cid
                     if is_registered:
@@ -3764,11 +4033,9 @@ def chat():
                     inc_usage(uid, "image_count")
                 yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
 
-                # ✅ التعلم التلقائي في الخلفية
                 if is_registered and not has_image and um:
                     auto_learn_knowledge_async(um, cleaned)
 
-                # ✅ جديد: تحديث ملف المستخدم التراكمي (احترام تفعيل الذاكرة)
                 if is_registered and user_email and not has_image and memory_enabled:
                     try:
                         pair_count = (len(server_hist) + 1) // 2
@@ -3795,16 +4062,11 @@ def chat():
         print("chat request error:", repr(e))
         return jsonify({"status": "error", "message": "حدث خطأ داخلي أثناء معالجة الطلب"}), 500
 
-# ==========================================
-# إثبات ملكية جوجل
-# ==========================================
+
 @app.route('/google2a34b4c8fc51b093.html')
 def google_verify():
     return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
 
-# ═══════════════════════════════════════════════════════════════
-#  ✅ المعرفة المشتركة — knowledge_review endpoints
-# ═══════════════════════════════════════════════════════════════
 
 @app.route('/api/knowledge/submit', methods=['POST'])
 @limiter.limit("20 per hour")
