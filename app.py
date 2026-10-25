@@ -1498,7 +1498,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 </style></head><body>
 <div class="app">
 
-   <div class="header">
+<div class="header">
     <div class="header-right">
         <button class="icon-btn" id="menuToggle" title="القائمة">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
