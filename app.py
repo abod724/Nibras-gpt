@@ -1498,21 +1498,31 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 </style></head><body>
 <div class="app">
 
-<div class="header-left">
-    <button class="icon-btn accent-btn" id="newChatBtn" title="محادثة جديدة" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" opacity="0.35"/>
-            <line x1="12" y1="8" x2="12" y2="16"/>
-            <line x1="8" y1="12" x2="16" y2="12"/>
-        </svg>
-    </button>
-    <button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-            <line x1="23" y1="9" x2="17" y2="15"/>
-            <line x1="17" y1="9" x2="23" y2="15"/>
-        </svg>
-    </button>
+<div class="header">
+    <div class="header-right">
+        <button class="icon-btn" id="menuToggle" title="القائمة">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="3" y1="15" x2="14" y2="15"/>
+            </svg>
+        </button>
+    </div>
+    <div class="header-left">
+        <button class="icon-btn accent-btn" id="newChatBtn" title="محادثة جديدة" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" opacity="0.35"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+        </button>
+        <button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <line x1="23" y1="9" x2="17" y2="15"/>
+                <line x1="17" y1="9" x2="23" y2="15"/>
+            </svg>
+        </button>
+    </div>
 </div>
 <!-- Context Menu -->
 <div class="context-menu-backdrop" id="ctxBackdrop" onclick="hideContextMenu()"></div>
