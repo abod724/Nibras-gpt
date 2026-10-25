@@ -1523,8 +1523,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
             </svg>
         </button>
     </div>
-</div> 
-
+</div>
 <!-- Context Menu -->
 <div class="context-menu-backdrop" id="ctxBackdrop" onclick="hideContextMenu()"></div>
 <div class="context-menu" id="convContextMenu">
