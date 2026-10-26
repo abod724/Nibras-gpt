@@ -14,7 +14,6 @@ import threading
 import urllib.parse
 import xml.etree.ElementTree as ET
 from urllib.parse import quote_plus
-from gtts import gTTS
 import markdown
 import bleach
 
@@ -807,40 +806,42 @@ def format_nibras_response(text):
 
 def generate_speech(text, gender):
     try:
+        # تنظيف النص من الإيموجي والرموز
         emoji_pattern = re.compile(
             "["
-            u"\U0001F600-\U0001F64F"
-            u"\U0001F300-\U0001F5FF"
-            u"\U0001F680-\U0001F6FF"
-            u"\U0001F1E0-\U0001F1FF"
-            u"\U0001F900-\U0001F9FF"
-            u"\U0001FA00-\U0001FAFF"
-            u"\U00002600-\U000026FF"
-            u"\U00002700-\U000027BF"
-            u"\U0001F000-\U0001F02F"
-            u"\U0001F0A0-\U0001F0FF"
-            u"\U00002B00-\U00002BFF"
-            u"\U0001F780-\U0001F7FF"
-            u"\U0001F800-\U0001F8FF"
-            u"\U00002190-\U000021FF"
-            u"\U0000FE00-\U0000FE0F"
-            u"\U0000200D"
-            u"\U000020E3"
+            u"\U0001F600-\U0001F64F" u"\U0001F300-\U0001F5FF" u"\U0001F680-\U0001F6FF"
+            u"\U0001F1E0-\U0001F1FF" u"\U0001F900-\U0001F9FF" u"\U0001FA00-\U0001FAFF"
+            u"\U00002600-\U000026FF" u"\U00002700-\U000027BF" u"\U0001F000-\U0001F02F"
+            u"\U0001F0A0-\U0001F0FF" u"\U00002B00-\U00002BFF" u"\U0001F780-\U0001F7FF"
+            u"\U0001F800-\U0001F8FF" u"\U00002190-\U000021FF" u"\U0000FE00-\U0000FE0F"
+            u"\U0000200D" u"\U000020E3"
             "]+", flags=re.UNICODE
         )
         clean_text = emoji_pattern.sub('', text)
         clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
         if not clean_text:
             return None
-        tts = gTTS(text=clean_text[:4000], lang='ar', slow=False)
-        buf = io.BytesIO()
-        tts.write_to_fp(buf)
-        audio = buf.getvalue()
-        if audio:
-            return base64.b64encode(audio).decode('utf-8')
+
+        # اختيار الصوت حسب الجنس (onyx للذكر، nova للأنثى)
+        voice_name = "onyx" if gender == "male" else "nova"
+
+        # استدعاء OpenAI TTS
+        response = client.audio.speech.create(
+            model="gpt-4o-mini-tts", 
+            voice=voice_name,
+            input=clean_text[:4000],
+            instructions="تكلم باللهجة العربية بوضوح وبطبيعية، وبنبرة ودودة ومريحة.",
+            response_format="mp3"
+        )
+        
+        # تحويل الصوت إلى base64 عشان يشتغل في الواجهة
+        audio_bytes = response.content
+        return base64.b64encode(audio_bytes).decode('utf-8')
+        
     except Exception as e:
-        print(f"❌ gTTS failed: {type(e).__name__}: {e}")
-    return None
+        print(f"❌ OpenAI TTS failed: {type(e).__name__}: {e}")
+        return None
 
 
 def detect_news_query(message):
@@ -1704,8 +1705,8 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
     }catch(e){}
 })();
 (function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let isMale=(localStorage.getItem('nibras-voice-gender')||'male')==='male';let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
-const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
-const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+const SVG_SPK_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+const SVG_SPK_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="2" x2="2" y2="22"/></svg>';
 
 let audioCtx = null;
 let allSources = [];
