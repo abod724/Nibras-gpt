@@ -10,6 +10,7 @@ from flask_limiter.util import get_remote_address
 from supabase import create_client
 from markupsafe import escape, Markup
 import io
+from gtts import gTTS
 import threading
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -46,6 +47,9 @@ if not OPENAI_API_KEY:
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود!")
+
+# ✅ متغير مخصص لموديل الصوت فقط (منفصل عن المحادثة)
+OPENAI_TTS_MODEL = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
 
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
@@ -804,9 +808,37 @@ def format_nibras_response(text):
     return Markup(clean_html)
 
 
-def generate_speech(text, gender):
+def generate_speech_free(text):
+    """صوت مجاني باستخدام gTTS - للضيوف فقط"""
     try:
-        # تنظيف النص من الإيموجي والرموز
+        emoji_pattern = re.compile(
+            "["
+            u"\U0001F600-\U0001F64F" u"\U0001F300-\U0001F5FF" u"\U0001F680-\U0001F6FF"
+            u"\U0001F1E0-\U0001F1FF" u"\U0001F900-\U0001F9FF" u"\U0001FA00-\U0001FAFF"
+            u"\U00002600-\U000026FF" u"\U00002700-\U000027BF" u"\U0001F000-\U0001F02F"
+            u"\U0001F0A0-\U0001F0FF" u"\U00002B00-\U00002BFF" u"\U0001F780-\U0001F7FF"
+            u"\U0001F800-\U0001F8FF" u"\U00002190-\U000021FF" u"\U0000FE00-\U0000FE0F"
+            u"\U0000200D" u"\U000020E3"
+            "]+", flags=re.UNICODE
+        )
+        clean_text = emoji_pattern.sub('', text)
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        if not clean_text:
+            return None
+        tts = gTTS(text=clean_text[:4000], lang='ar', slow=False)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        audio = buf.getvalue()
+        if audio:
+            return base64.b64encode(audio).decode('utf-8')
+    except Exception as e:
+        print(f"❌ gTTS failed: {type(e).__name__}: {e}")
+    return None
+
+
+def generate_speech(text, gender):
+    """صوت مدفوع باستخدام OpenAI TTS - للمسجلين والأدمن"""
+    try:
         emoji_pattern = re.compile(
             "["
             u"\U0001F600-\U0001F64F" u"\U0001F300-\U0001F5FF" u"\U0001F680-\U0001F6FF"
@@ -823,19 +855,16 @@ def generate_speech(text, gender):
         if not clean_text:
             return None
 
-        # اختيار الصوت حسب الجنس (onyx للذكر، nova للأنثى)
         voice_name = "onyx" if gender == "male" else "nova"
 
-        # استدعاء OpenAI TTS
         response = client.audio.speech.create(
-            model="gpt-4o-mini-tts", 
+            model=OPENAI_TTS_MODEL, 
             voice=voice_name,
             input=clean_text[:4000],
             instructions="تكلم باللهجة العربية بوضوح وبطبيعية، وبنبرة ودودة ومريحة.",
             response_format="mp3"
         )
         
-        # تحويل الصوت إلى base64 عشان يشتغل في الواجهة
         audio_bytes = response.content
         return base64.b64encode(audio_bytes).decode('utf-8')
         
@@ -3651,7 +3680,19 @@ def voice():
         text = (d.get('text') or "").strip()
         if not text or len(text) > 3000:
             return jsonify({"audio": None})
-        return jsonify({"audio": generate_speech(text, session.get('voice_gender', 'male'))})
+        
+        # ✅ تحديد نوع الصوت حسب نوع المستخدم
+        email = session.get('user_email')
+        is_admin = session.get('is_admin')
+        
+        if email or is_admin:
+            # مسجل أو أدمن -> OpenAI TTS (صوت احترافي)
+            audio_data = generate_speech(text, session.get('voice_gender', 'male'))
+        else:
+            # ضيف -> gTTS (صوت مجاني)
+            audio_data = generate_speech_free(text)
+        
+        return jsonify({"audio": audio_data})
     except Exception as e:
         print(f"voice: {e}")
         return jsonify({"audio": None})
