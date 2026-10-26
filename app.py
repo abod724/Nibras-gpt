@@ -2338,3 +2338,988 @@ setTimeout(function(){
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 {{ memory_js|safe }}
 })();</script></body></html>"""
+
+@app.route('/')
+def index():
+    user_name = None
+    email = session.get('user_email')
+    is_registered = bool(email) or bool(session.get('is_admin'))
+    user_lang = ''
+    if email and not session.get('is_admin'):
+        p = get_user_profile(email)
+        if p:
+            user_name = p.get("display_name") or email.split("@")[0]
+        else:
+            user_name = email.split("@")[0]
+        mem = get_user_memory(email)
+        if mem.get('name'):
+            user_name = mem['name']
+        lang_from_mem = mem.get('lang')
+        if lang_from_mem in ('ar', 'en'):
+            user_lang = lang_from_mem
+    elif session.get('is_admin'):
+        user_name = "أدمن"
+    return render_template_string(
+        HT,
+        user_name=user_name,
+        is_registered=is_registered,
+        user_lang=user_lang,
+        memory_css=MEMORY_CSS,
+        memory_html=MEMORY_HTML,
+        memory_js=MEMORY_JS
+    )
+
+
+@app.route('/library')
+def library_page():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return redirect(url_for('login'))
+    return render_template_string(LIBRARY_HTML)
+
+
+@app.route('/library/images')
+def library_images():
+    return jsonify({"images": get_user_images(get_user_id())})
+
+
+@app.route('/library/upload', methods=['POST'])
+def library_upload():
+    try:
+        if not session.get('user_email') and not session.get('is_admin'):
+            return jsonify({"status": "error", "message": "يجب تسجيل الدخول"}), 401
+        d = request.get_json(silent=True) or {}
+        if not isinstance(d, dict):
+            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
+        image_data = d.get('image_data') or ''
+        if not isinstance(image_data, str) or len(image_data) > 7000000:
+            return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
+        if not image_data:
+            return jsonify({"status": "error", "message": "لا توجد صورة"}), 400
+        if not re.fullmatch(r"data:image/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+", image_data):
+            return jsonify({"status": "error", "message": "صيغة الصورة غير صالحة"}), 400
+        try:
+            if len(base64.b64decode(image_data.split(",", 1)[1], validate=True)) > 5 * 1024 * 1024:
+                return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
+        except Exception:
+            return jsonify({"status": "error", "message": "تعذر قراءة بيانات الصورة"}), 400
+        title = d.get('title') if isinstance(d.get('title'), str) else "صورة"
+        save_image_to_library(get_user_id(), image_data=image_data, title=title[:200] or "صورة", source="upload")
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("library_upload:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/library/delete', methods=['POST'])
+def library_delete():
+    try:
+        d = request.get_json(silent=True) or {}
+        ok = delete_user_image(get_user_id(), d.get('id'))
+        if ok:
+            return jsonify({"status": "ok"}), 200
+        return jsonify({"status": "error"}), 404
+    except Exception as e:
+        print("library_delete:", e)
+        return jsonify({"status": "error", "message": "حدث خطأ داخلي"}), 500
+
+
+@app.route('/my_assistants')
+def my_assistants():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"assistants": []})
+    uid = get_user_id()
+    try:
+        r = sb.table("custom_assistants").select("id,name,persona,color,created_at").eq("user_id", uid).order("created_at", desc=False).limit(50).execute()
+        return jsonify({"assistants": r.data or []})
+    except Exception as e:
+        print("my_assistants:", e)
+        return jsonify({"assistants": [], "error": str(e)})
+
+
+@app.route('/create_assistant', methods=['POST'])
+def create_assistant():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    d = request.get_json(silent=True) or {}
+    name = (d.get('name') or '').strip()[:40]
+    persona = (d.get('persona') or '').strip()[:1000]
+    color = (d.get('color') or '#4a6a8a')[:20]
+    if len(name) < 2 or len(persona) < 10:
+        return jsonify({"status": "error", "message": "بيانات ناقصة"}), 400
+    uid = get_user_id()
+    try:
+        cnt = len((sb.table("custom_assistants").select("id").eq("user_id", uid).execute()).data or [])
+        if cnt >= 5:
+            return jsonify({"status": "error", "message": "وصلت للحد الأقصى (5 مساعدين)"}), 400
+    except Exception as e:
+        print("count error:", e)
+    try:
+        r = sb.table("custom_assistants").insert({
+            "user_id": uid, "name": name, "persona": persona, "color": color
+        }).execute()
+        asst = r.data[0] if r and r.data else None
+        return jsonify({"status": "ok", "assistant": asst})
+    except Exception as e:
+        print("create_assistant:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/update_assistant', methods=['POST'])
+def update_assistant():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    aid = d.get('id')
+    name = (d.get('name') or '').strip()[:40]
+    persona = (d.get('persona') or '').strip()[:1000]
+    color = (d.get('color') or '#4a6a8a')[:20]
+    if not aid or len(name) < 2 or len(persona) < 10:
+        return jsonify({"status": "error", "message": "بيانات ناقصة"}), 400
+    uid = get_user_id()
+    try:
+        r = sb.table("custom_assistants").update({
+            "name": name, "persona": persona, "color": color
+        }).eq("id", aid).eq("user_id", uid).execute()
+        asst = r.data[0] if r and r.data else None
+        return jsonify({"status": "ok", "assistant": asst})
+    except Exception as e:
+        print("update_assistant:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/delete_assistant', methods=['POST'])
+def delete_assistant():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    aid = d.get('id')
+    if not aid:
+        return jsonify({"status": "error"}), 400
+    uid = get_user_id()
+    try:
+        sb.table("custom_assistants").delete().eq("id", aid).eq("user_id", uid).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("delete_assistant:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/pinned_conversations')
+def pinned_conversations():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"pinned": []})
+    pinned_ids = get_pinned_convs(email)
+    if not pinned_ids:
+        return jsonify({"pinned": []})
+    all_convs = get_user_conversations(get_user_id())
+    return jsonify({"pinned": [c for c in all_convs if c["id"] in pinned_ids]})
+
+
+@app.route('/pin_conversation', methods=['POST'])
+def pin_conversation():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    cid = d.get('conv_id')
+    pinned = get_pinned_convs(email)
+    if cid not in pinned:
+        pinned.append(cid)
+        save_pinned_convs(email, pinned)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/unpin_conversation', methods=['POST'])
+def unpin_conversation():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    cid = d.get('conv_id')
+    pinned = get_pinned_convs(email)
+    if cid in pinned:
+        pinned.remove(cid)
+        save_pinned_convs(email, pinned)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/delete_conversation', methods=['POST'])
+def delete_conversation():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    conv_id = d.get('conv_id')
+    if not conv_id:
+        return jsonify({"status": "error", "message": "معرف المحادثة مطلوب"}), 400
+    uid = get_user_id()
+    try:
+        sb.table("assistant_chats").delete().eq("user_id", uid).eq("conv_id", conv_id).execute()
+        email = session.get('user_email')
+        if email:
+            pinned = get_pinned_convs(email)
+            if conv_id in pinned:
+                pinned.remove(conv_id)
+                save_pinned_convs(email, pinned)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("delete_conversation:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/rename_conversation', methods=['POST'])
+def rename_conversation():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    conv_id = d.get('conv_id')
+    new_title = (d.get('title') or '').strip()[:100]
+    if not conv_id or not new_title:
+        return jsonify({"status": "error", "message": "بيانات ناقصة"}), 400
+    uid = get_user_id()
+    try:
+        sb.table("assistant_chats").update({"title": new_title}).eq("user_id", uid).eq("conv_id", conv_id).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("rename_conversation:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/history')
+def history():
+    uid = get_user_id()
+    cs = get_user_conversations(uid)
+    email = session.get('user_email')
+    pinned_ids = get_pinned_convs(email) if email else []
+    return jsonify({"conversations": [{"id": c["id"], "title": c["title"], "pinned": c["id"] in pinned_ids} for c in cs]})
+
+
+@app.route('/load_conversation/<cid>')
+def load_conversation_route(cid):
+    ms = load_conversation(get_user_id(), cid)
+    if not ms:
+        return jsonify({"messages": None}), 404
+    
+    for m in ms:
+        if m['role'] == 'assistant':
+            m['display_content'] = str(format_nibras_response(m['content']))
+            m['is_html'] = True
+        else:
+            m['display_content'] = m['content']
+            m['is_html'] = False
+            
+    return jsonify({"messages": ms})
+
+
+@app.route('/delete_message', methods=['POST'])
+def delete_message():
+    try:
+        d = request.get_json(silent=True) or {}
+        if not isinstance(d, dict) or not isinstance(d.get('conv_id'), str) or not isinstance(d.get('index'), int):
+            return jsonify({"status": "error", "message": "بيانات الحذف غير صحيحة"}), 400
+        ok = delete_message_row(get_user_id(), d.get('conv_id'), d.get('index'))
+        if ok:
+            return jsonify({"status": "ok"}), 200
+        return jsonify({"status": "error"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/get_memory')
+def get_memory_route():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "guest", "items": {}})
+    try:
+        mem = get_user_memory(email) or {}
+        return jsonify({
+            "name": mem.get('name', ''),
+            "lang": mem.get('lang', 'ar'),
+            "personality": mem.get('personality', 'friendly'),
+            "email": email,
+            "profile_summary": mem.get('profile_summary') or {},
+            "nickname": mem.get('nickname', ''),
+            "job": mem.get('job', ''),
+            "more_about": mem.get('more_about', ''),
+            "memory_enabled": mem.get('memory_enabled', True)
+        })
+    except Exception as e:
+        print("get_memory:", e)
+        return jsonify({"status": "error"}), 500
+
+
+@app.route('/update_manual_memory', methods=['POST'])
+def update_manual_memory():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    d = request.get_json(silent=True) or {}
+    mem = get_user_memory(email) or {}
+    if 'nickname' in d: mem['nickname'] = (d.get('nickname') or '').strip()[:100]
+    if 'job' in d: mem['job'] = (d.get('job') or '').strip()[:200]
+    if 'more_about' in d: mem['more_about'] = (d.get('more_about') or '').strip()[:1000]
+    save_user_memory(email, mem)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/toggle_memory', methods=['POST'])
+def toggle_memory():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    enabled = bool(d.get('enabled', True))
+    mem = get_user_memory(email) or {}
+    mem['memory_enabled'] = enabled
+    save_user_memory(email, mem)
+    return jsonify({"status": "ok", "enabled": enabled})
+
+
+@app.route('/admin/codes/list')
+def admin_codes_list():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    try:
+        r = (sb.table("access_codes").select("*")
+             .order("created_at", desc=True).limit(100).execute())
+        return jsonify({"codes": r.data or []})
+    except Exception as e:
+        print("admin_codes_list:", e)
+        return jsonify({"codes": [], "error": str(e)})
+
+
+@app.route('/admin/codes/generate', methods=['POST'])
+def admin_codes_generate():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    try:
+        chat_lim = max(1, min(99999, int(d.get('chat', 15))))
+        search_lim = max(0, min(99999, int(d.get('search', 2))))
+        image_lim = max(0, min(99999, int(d.get('image', 1))))
+        max_uses = max(1, min(1000, int(d.get('max_uses', 1))))
+        days = max(1, min(365, int(d.get('days', 7))))
+        note = (d.get('note') or '').strip()[:200]
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "أرقام غير صحيحة"}), 400
+    from datetime import timezone
+    code = "NBRAS-" + secrets.token_hex(3).upper() + "-" + secrets.token_hex(2).upper()
+    expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+    try:
+        r = sb.table("access_codes").insert({
+            "code": code,
+            "chat_limit": chat_lim,
+            "search_limit": search_lim,
+            "image_limit": image_lim,
+            "max_uses": max_uses,
+            "duration_days": days,
+            "note": note,
+            "expires_at": expires
+        }).execute()
+        return jsonify({"status": "ok", "code": r.data[0] if r.data else {"code": code}})
+    except Exception as e:
+        print("admin_codes_generate:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/admin/codes/delete', methods=['POST'])
+def admin_codes_delete():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    cid = d.get('id')
+    if not cid:
+        return jsonify({"status": "error"}), 400
+    try:
+        sb.table("access_codes").delete().eq("id", cid).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/admin/codes/toggle', methods=['POST'])
+def admin_codes_toggle():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error"}), 401
+    d = request.get_json(silent=True) or {}
+    cid = d.get('id')
+    if not cid:
+        return jsonify({"status": "error"}), 400
+    try:
+        r = sb.table("access_codes").select("active").eq("id", cid).limit(1).execute()
+        if not r.data:
+            return jsonify({"status": "error", "message": "الكود غير موجود"}), 404
+        new_state = not r.data[0].get("active", True)
+        sb.table("access_codes").update({"active": new_state}).eq("id", cid).execute()
+        return jsonify({"status": "ok", "active": new_state})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/redeem_code', methods=['POST'])
+@limiter.limit("10 per hour")
+def redeem_code():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    d = request.get_json(silent=True) or {}
+    code = (d.get('code') or '').strip().upper()
+    if not code or len(code) < 5:
+        return jsonify({"status": "error", "message": "كود غير صالح"}), 400
+
+    email_lc = email.lower().strip()
+    uid = get_user_id()
+    from datetime import timezone
+
+    try:
+        r = (sb.table("access_codes").select("*")
+             .eq("code", code).eq("active", True).limit(1).execute())
+    except Exception as e:
+        print("redeem_code select:", e)
+        return jsonify({"status": "error", "message": "خطأ في البحث"}), 500
+    if not r.data:
+        return jsonify({"status": "error", "message": "الكود غير صحيح أو موقوف"}), 404
+    row = r.data[0]
+
+    try:
+        ex = (sb.table("access_redemptions").select("id")
+              .eq("code", code).eq("user_email", email_lc).limit(1).execute())
+        if ex.data:
+            return jsonify({"status": "error", "message": "سبق استخدامك لهذا الكود"}), 400
+    except Exception as ex:
+        print("redeem_code dup check:", ex)
+
+    if row.get('expires_at'):
+        try:
+            exp_str = str(row['expires_at']).replace('Z', '+00:00')
+            exp = datetime.fromisoformat(exp_str)
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if exp < datetime.now(timezone.utc):
+                return jsonify({"status": "error", "message": "انتهت صلاحية الكود"}), 400
+        except Exception as ex:
+            print("redeem_code exp check:", ex)
+
+    if int(row.get('used_count', 0) or 0) >= int(row.get('max_uses', 1) or 1):
+        return jsonify({"status": "error", "message": "الكود استُنفد الحد الأقصى"}), 400
+
+    days = int(row.get('duration_days', 7) or 7)
+    expires_user = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+    chat_lim = int(row.get('chat_limit', 15) or 15)
+    search_lim = int(row.get('search_limit', 2) or 0)
+    image_lim = int(row.get('image_limit', 1) or 0)
+
+    try:
+        sb.table("access_redemptions").insert({
+            "code": code,
+            "user_email": email_lc,
+            "chat_limit": chat_lim,
+            "search_limit": search_lim,
+            "image_limit": image_lim,
+            "expires_at": expires_user
+        }).execute()
+        sb.table("access_codes").update({
+            "used_count": int(row.get('used_count', 0) or 0) + 1
+        }).eq("id", row['id']).execute()
+    except Exception as ex:
+        print("redeem_code insert:", ex)
+        return jsonify({"status": "error", "message": f"تعذر تفعيل الكود: {ex}"}), 500
+
+    try:
+        today = _date.today().isoformat()
+        sb.table("assistant_usage").update({
+            "chat_count": 0,
+            "search_count": 0,
+            "image_count": 0
+        }).eq("user_id", uid).eq("date", today).execute()
+        print(f"♻️ Reset daily counter for {uid}")
+    except Exception as ex:
+        print("reset usage:", ex)
+
+    print(f"✅ CODE REDEEMED: {email_lc} → chat={chat_lim}, search={search_lim}, image={image_lim}")
+    return jsonify({
+        "status": "ok",
+        "chat": chat_lim,
+        "search": search_lim,
+        "image": image_lim,
+        "expires_at": expires_user
+    })
+
+
+@app.route('/my_access')
+def my_access():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"access": None})
+    access = get_active_access(email)
+    return jsonify({"access": access})
+
+
+@app.route('/delete_my_account', methods=['POST'])
+def delete_my_account():
+    email = session.get('user_email')
+    if not email or session.get('is_admin'):
+        return jsonify({"status": "error"}), 400
+    uid = get_user_id()
+    try:
+        service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not service_key:
+            return jsonify({"status": "error", "message": "حذف الحساب الكامل غير مُعدّ على الخادم. تواصل مع الإدارة."}), 503
+        auth_user_id = None
+        for page in range(1, 101):
+            ar = requests.get(
+                f"{SUPABASE_URL}/auth/v1/admin/users",
+                headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+                params={"page": page, "per_page": 100}, timeout=15
+            )
+            ar.raise_for_status()
+            users_payload = ar.json()
+            auth_users = users_payload.get("users", []) if isinstance(users_payload, dict) else []
+            for auth_user in auth_users:
+                if (auth_user.get("email") or "").lower() == email.lower():
+                    auth_user_id = auth_user.get("id")
+                    break
+            if auth_user_id or len(auth_users) < 100:
+                break
+        if not auth_user_id:
+            return jsonify({"status": "error", "message": "لم يتم العثور على حساب المصادقة؛ لم تُحذف البيانات."}), 404
+        sb.table("assistant_chats").delete().eq("user_id", uid).execute()
+        sb.table("assistant_usage").delete().eq("user_id", uid).execute()
+        sb.table("image_library").delete().eq("user_id", uid).execute()
+        sb.table("custom_assistants").delete().eq("user_id", uid).execute()
+        sb.table("access_redemptions").delete().eq("user_email", email.lower()).execute()
+        sb.table("profiles").delete().eq("email", email.lower()).execute()
+        dr = requests.delete(
+            f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
+            headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"}, timeout=15
+        )
+        dr.raise_for_status()
+    except Exception as e:
+        print("delete_my_account:", e)
+        return jsonify({"status": "error", "message": "تعذر إكمال حذف الحساب. راجع سجلات الخادم."}), 500
+    session.clear()
+    return jsonify({"status": "success"}), 200
+
+
+@app.route('/update_profile', methods=['POST'])
+def update_profile():
+    d = request.get_json(silent=True) or {}
+    name = (d.get('name') or '').strip()
+    lang = d.get('lang')
+    if not name or len(name) < 2:
+        return jsonify({"status": "error"}), 400
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    save_user_profile(email, name=name)
+    mem = get_user_memory(email) or {}
+    mem['name'] = name
+    if lang in ('ar', 'en'):
+        mem['lang'] = lang
+    save_user_memory(email, mem)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/update_language', methods=['POST'])
+def update_language():
+    d = request.get_json(silent=True) or {}
+    lang = d.get('lang')
+    if lang not in ('ar', 'en'):
+        return jsonify({"status": "error"}), 400
+    email = session.get('user_email')
+    if email:
+        try:
+            mem = get_user_memory(email) or {}
+            mem['lang'] = lang
+            save_user_memory(email, mem)
+        except Exception as e:
+            print("update_language:", e)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/update_personality', methods=['POST'])
+def update_personality():
+    d = request.get_json(silent=True) or {}
+    p = d.get('personality')
+    if p not in PERSONALITY_INSTRUCTIONS:
+        return jsonify({"status": "error", "message": "شخصية غير صالحة"}), 400
+    email = session.get('user_email')
+    if email:
+        try:
+            mem = get_user_memory(email) or {}
+            mem['personality'] = p
+            save_user_memory(email, mem)
+        except Exception as e:
+            print("update_personality:", e)
+    return jsonify({"status": "ok"})
+
+
+@app.route('/change_password', methods=['POST'])
+def change_password():
+    email = session.get('user_email')
+    if not email:
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    d = request.get_json(silent=True) or {}
+    oldp = d.get('old_password', '')
+    newp = d.get('new_password', '')
+    if not oldp:
+        return jsonify({"status": "error", "message": "اكتب كلمة المرور الحالية"}), 400
+    if not newp or len(newp) < 8:
+        return jsonify({"status": "error", "message": "كلمة المرور الجديدة لازم 8 أحرف على الأقل"}), 400
+    try:
+        r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+            json={"email": email, "password": oldp}, timeout=15)
+    except Exception as e:
+        print(f"change_password: login request error: {e}")
+        return jsonify({"status": "error", "message": "تعذر الاتصال بخدمة المصادقة"}), 500
+    if r.status_code != 200:
+        msg = "كلمة المرور الحالية غير صحيحة"
+        try:
+            err = r.json()
+            raw = err.get("error_description") or err.get("msg") or err.get("error") or ""
+            rl = str(raw).lower()
+            if "rate" in rl or "too many" in rl:
+                msg = "حاولت عدة مرات — انتظر دقيقة ثم أعد المحاولة"
+            elif "email" in rl and "confirm" in rl:
+                msg = "حسابك غير مؤكد — افتح إيميلك واضغط رابط التأكيد"
+            elif "invalid" in rl and "grant" in rl:
+                msg = "البريد أو كلمة المرور الحالية غير صحيحة"
+            elif raw:
+                msg = str(raw)
+        except Exception:
+            pass
+        return jsonify({"status": "error", "message": msg}), 400
+    at = r.json().get('access_token')
+    if not at:
+        return jsonify({"status": "error", "message": "تعذر إنشاء الجلسة"}), 500
+    try:
+        r2 = requests.put(f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {at}",
+                "Content-Type": "application/json"
+            },
+            json={"password": newp}, timeout=15)
+    except Exception as e:
+        print(f"change_password: update request error: {e}")
+        return jsonify({"status": "error", "message": "تعذر تحديث كلمة المرور"}), 500
+    if r2.status_code == 200:
+        return jsonify({"status": "ok"}), 200
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if service_key:
+        try:
+            auth_user_id = None
+            for page in range(1, 11):
+                ar = requests.get(
+                    f"{SUPABASE_URL}/auth/v1/admin/users",
+                    headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
+                    params={"page": page, "per_page": 100}, timeout=15
+                )
+                if ar.status_code != 200:
+                    break
+                payload = ar.json()
+                users = payload.get("users", []) if isinstance(payload, dict) else []
+                for u in users:
+                    if (u.get("email") or "").lower() == email.lower():
+                        auth_user_id = u.get("id")
+                        break
+                if auth_user_id or len(users) < 100:
+                    break
+            if auth_user_id:
+                ur = requests.put(
+                    f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
+                    headers={"apikey": service_key, "Authorization": f"Bearer {service_key}", "Content-Type": "application/json"},
+                    json={"password": newp}, timeout=15
+                )
+                if ur.status_code == 200:
+                    return jsonify({"status": "ok"}), 200
+        except Exception as e:
+            print(f"change_password: admin fallback error: {e}")
+    err_msg = "تعذر تغيير كلمة المرور"
+    try:
+        e2 = r2.json()
+        err_msg = e2.get("msg") or e2.get("message") or e2.get("error_description") or err_msg
+    except Exception:
+        pass
+    return jsonify({"status": "error", "message": err_msg}), 400
+
+
+@app.route('/export_data')
+def export_data():
+    email = session.get('user_email')
+    if not email:
+        return "يجب تسجيل الدخول", 401
+    uid = get_user_id()
+    data = {"user_email": email, "conversations": get_user_conversations(uid), "images_count": len(get_user_images(uid))}
+    resp = jsonify(data)
+    resp.headers['Content-Disposition'] = f'attachment; filename=nibras_data_{email}.json'
+    return resp
+
+
+@app.route('/report_bug', methods=['POST'])
+def report_bug():
+    try:
+        d = request.get_json(silent=True) or {}
+        desc = (d.get('description') or '').strip()
+        if not desc or len(desc) < 3:
+            return jsonify({"status": "error"}), 400
+        sb.table("bug_reports").insert({
+            "user_email": session.get('user_email', 'ضيف'),
+            "user_role": session.get('user_role', 'guest'),
+            "type": d.get('type', 'غير محدد'),
+            "description": desc
+        }).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/logout_all', methods=['POST'])
+def logout_all():
+    session.clear()
+    return jsonify({"status": "ok"})
+
+
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    try:
+        d = request.get_json(silent=True) or {}
+        ftype = d.get('type')
+        if ftype not in ('like', 'dislike', 'unlike', 'undislike'):
+            return jsonify({"status": "error"}), 400
+        sb.table("message_feedback").insert({
+            "user_id": get_user_id(),
+            "user_email": session.get('user_email', 'guest'),
+            "conv_id": d.get('conv_id') or '',
+            "message_text": (d.get('message') or '')[:1000],
+            "feedback": ftype
+        }).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("feedback:", e)
+        return jsonify({"status": "error"}), 500
+
+
+@app.route('/share/view')
+def shared_view():
+    return render_template_string(SHARED_VIEW_HTML)
+
+
+@app.route('/share/<cid>')
+def shared_conversation(cid):
+    rows = load_conversation_public(cid)
+    if not rows:
+        return "المحادثة غير موجودة.", 404
+    msgs = []
+    title = "محادثة نبراس"
+    for i, row in enumerate(rows):
+        if i == 0 and row.get("title"):
+            title = row["title"]
+        if row.get("message"):
+            msgs.append({"role": "user", "content": row["message"]})
+        if row.get("response"):
+            msgs.append({"role": "assistant", "content": row["response"]})
+    return render_template_string(SPH, messages=msgs, title=title)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute")
+def login():
+    if request.method == 'POST':
+        e = request.form.get('email', '').strip().lower()
+        p = request.form.get('password', '')
+        ap = os.environ.get("ADMIN_PASSWORD")
+        if not e or "@" not in e:
+            return render_template_string(LH, error="بريد صحيح مطلوب.")
+        if e == ADMIN_EMAIL.lower():
+            if not ap or not secrets.compare_digest(p, ap):
+                return render_template_string(LH, error="كلمة مرور الأدمن غير صحيحة.")
+            session.clear()
+            session.permanent = True
+            session['user_email'] = e
+            session['is_admin'] = True
+            session['user_role'] = 'admin'
+            return redirect(url_for('index'))
+        try:
+            r = requests.post(f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
+                headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+                json={"email": e, "password": p}, timeout=15)
+        except Exception as ex:
+            print(f"LOGIN_EXCEPTION: {type(ex).__name__}: {ex}")
+            return render_template_string(LH, error="تعذر الاتصال.")
+        if r.status_code != 200:
+            return render_template_string(LH, error="البريد أو كلمة المرور غير صحيحة.")
+        data = r.json()
+        session.clear()
+        session.permanent = True
+        session['user_email'] = e
+        session['is_admin'] = False
+        session['user_role'] = get_user_role(e)
+        touch_user(e)
+        return redirect(url_for('index'))
+    return render_template_string(LH)
+
+
+@app.route('/signup', methods=['POST'])
+@limiter.limit("5 per hour")
+def signup():
+    e = request.form.get('email', '').strip().lower()
+    p = request.form.get('password', '')
+    name = request.form.get('name', '').strip()
+    if not e or "@" not in e or len(p) < 8:
+        return render_template_string(LH, error="بيانات غير صحيحة.")
+    if not name or len(name) < 2:
+        return render_template_string(LH, error="الاسم مطلوب.")
+    try:
+        sb.auth.sign_up({"email": e, "password": p, "options": {"email_redirect_to": f"{request.host_url.rstrip('/')}/verified", "data": {"display_name": name}}})
+        save_user_profile(e, name=name)
+        save_user_memory(e, {"name": name})
+        return render_template_string(LH, success="تم إنشاء حسابك! افتح بريدك للتأكيد.")
+    except Exception as ex:
+        print(f"SIGNUP_ERROR: {type(ex).__name__}: {ex}")
+        return render_template_string(LH, error=f"فشل: {ex}")
+
+
+@app.route('/verified')
+def verified():
+    return """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تم التحقق</title></head><body style="text-align:center;padding:50px;font-family:sans-serif;"><h2>تم تأكيد حسابك!</h2><a href="/login">تسجيل الدخول</a></body></html>"""
+
+
+@app.route('/recover', methods=['POST'])
+@limiter.limit("5 per hour")
+def recover():
+    e = request.form.get('email', '').strip().lower()
+    if not e or "@" not in e:
+        return render_template_string(LH, error="أدخل بريداً صحيحاً.")
+    try:
+        redirect_url = f"{request.host_url.rstrip('/')}/reset-password"
+        requests.post(
+            f"{SUPABASE_URL}/auth/v1/recover?redirect_to={redirect_url}",
+            headers={"apikey": SUPABASE_KEY, "Content-Type": "application/json"},
+            json={"email": e},
+            timeout=15
+        )
+        return render_template_string(LH, success="تم إرسال رابط الاستعادة على بريدك.")
+    except Exception as ex:
+        print(f"RECOVER_ERROR: {type(ex).__name__}: {ex}")
+        return render_template_string(LH, error=f"فشل: {ex}")
+
+
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template_string(RESET_HTML)
+
+
+@app.route('/update_password', methods=['POST'])
+def update_password():
+    try:
+        d = request.get_json(silent=True) or {}
+        token = d.get('access_token', '')
+        newp = d.get('new_password', '')
+        if not token:
+            return jsonify({"status": "error", "message": "الرابط غير صالح"}), 400
+        if not newp or len(newp) < 8:
+            return jsonify({"status": "error", "message": "كلمة المرور لازم 8 أحرف على الأقل"}), 400
+        r = requests.put(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={"password": newp},
+            timeout=15
+        )
+        if r.status_code == 200:
+            return jsonify({"status": "ok"})
+        msg = "تعذر تحديث كلمة المرور"
+        try:
+            e2 = r.json()
+            msg = e2.get("msg") or e2.get("message") or e2.get("error_description") or msg
+        except Exception:
+            pass
+        return jsonify({"status": "error", "message": msg}), 400
+    except Exception as e:
+        print(f"update_password error: {type(e).__name__}: {e}")
+        return jsonify({"status": "error", "message": "خطأ داخلي"}), 500
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+
+ALLOWED_OAUTH_PROVIDERS = ("google",)
+
+@app.route('/auth/<provider>')
+def oauth_login(provider):
+    if provider not in ALLOWED_OAUTH_PROVIDERS:
+        return redirect(url_for('login'))
+    callback = f"{request.host_url.rstrip('/')}/auth/callback"
+    auth_url = (
+        f"{SUPABASE_URL}/auth/v1/authorize"
+        f"?provider={provider}"
+        f"&redirect_to={urllib.parse.quote(callback, safe='')}"
+    )
+    return redirect(auth_url)
+
+
+@app.route('/auth/callback')
+def oauth_callback():
+    return render_template_string(OAUTH_CALLBACK_HTML)
+
+
+@app.route('/auth/session', methods=['POST'])
+@limiter.limit("20 per minute")
+def oauth_session():
+    try:
+        d = request.get_json(silent=True) or {}
+        at = d.get('access_token')
+        code = d.get('code')
+        print(f"oauth_session: at={'yes' if at else 'no'} code={'yes' if code else 'no'}")
+        if not at or not isinstance(at, str):
+            return jsonify({"status": "error", "message": f"توكن مفقود (code={'yes' if code else 'no'})"}), 400
+        r = requests.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {at}"},
+            timeout=15
+        )
+        if r.status_code != 200:
+            return jsonify({"status": "error", "message": "توكن غير صالح"}), 401
+        u = r.json()
+        email = (u.get('email') or '').lower().strip()
+        if not email:
+            return jsonify({"status": "error", "message": "بريد غير موجود بالحساب"}), 400
+        session.clear()
+        session.permanent = True
+        session['user_email'] = email
+        session['is_admin'] = (email == ADMIN_EMAIL.lower())
+        session['user_role'] = get_user_role(email)
+        try:
+            meta = u.get('user_metadata') or {}
+            name = (meta.get('full_name') or meta.get('name') or email.split('@')[0]).strip()
+            if not get_user_profile(email):
+                save_user_profile(email, name=name)
+                save_user_memory(email, {"name": name})
+            touch_user(email)
+        except Exception as e:
+            print("oauth_session profile:", e)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("oauth_session:", e)
+        return jsonify({"status": "error", "message": "خطأ داخلي"}), 500
+
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        p = request.form.get('password', '')
+        ap = os.environ.get("ADMIN_PASSWORD")
+        if ap and secrets.compare_digest(p, ap):
+            session['is_admin'] = True
+            session.permanent = True
+            return redirect(url_for('admin_dashboard'))
+        return "<h2>كلمة مرور خاطئة</h2>"
+    return """<body style='text-align:center;padding:50px;font-family:sans-serif;'><form method='POST'><h2>دخول الأدمن</h2><input type='password' name='password' required><br><br><button type='submit'>دخول</button></form></body>"""
