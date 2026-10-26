@@ -3654,3 +3654,425 @@ def voice():
     except Exception as e:
         print(f"voice: {e}")
         return jsonify({"audio": None})
+
+
+@app.route('/chat', methods=['POST'])
+@limiter.limit("20 per minute")
+def chat():
+    try:
+        d = request.get_json(silent=True) or {}
+        if not isinstance(d, dict):
+            return jsonify({"status": "error", "message": "صيغة الطلب غير صحيحة"}), 400
+        raw_message = d.get("message", "")
+        if not isinstance(raw_message, str):
+            return jsonify({"status": "error", "message": "نص الرسالة غير صالح"}), 400
+        um = raw_message.strip()
+        cid = d.get("conv_id")
+        img_data = d.get("image")
+        assistant_id = d.get("assistant_id")
+        if len(um) > 12000:
+            return jsonify({"status": "error", "message": "الرسالة طويلة جدًا (الحد 12000 حرف)"}), 413
+        if not um and not img_data:
+            return jsonify({"reply": "اكتب شيء أساعدك فيه أو أرفق صورة"})
+        is_admin = bool(session.get('is_admin'))
+        user_email = session.get('user_email', '')
+        user_role = get_user_role(user_email) if user_email else 'guest'
+        is_registered = is_admin or (bool(user_email) and user_role in ('user', 'admin'))
+        uid = get_user_id()
+        lang_from_payload = d.get("lang")
+        if lang_from_payload in ('ar', 'en'):
+            user_lang = lang_from_payload
+        elif user_email:
+            user_lang = get_user_language(user_email)
+        else:
+            user_lang = 'ar'
+
+        assistant_persona_extra = ""
+        if assistant_id and is_registered:
+            try:
+                ar = sb.table("custom_assistants").select("*").eq("id", assistant_id).eq("user_id", uid).limit(1).execute()
+                if ar.data:
+                    asst = ar.data[0]
+                    assistant_persona_extra = (
+                        f"\n\n**شخصيتك الحالية:**\n"
+                        f"أنت الآن تجسّد '{asst['name']}'. {asst['persona']}\n\n"
+                        f"من الآن وصاعداً، التزم بهذه الشخصية تماماً — بأسلوبها، لهجتها، واهتماماتها. "
+                        f"لا تخرج عنها ولا تذكر أنك نبراس، أنت الآن '{asst['name']}'."
+                    )
+            except Exception as e:
+                print(f"assistant load: {e}")
+
+        usage, limits, can_chat, can_search, can_image = check_limits(
+            uid,
+            user_role if not is_admin else 'admin',
+            email=user_email or None
+        )
+        if not can_chat:
+            reply_limit = "وصل محادثاتك للحد اليومي المسموح به، شكراً لك، غداً نلتقي" if user_lang == 'ar' else "You've reached the daily limit. Thank you, see you tomorrow"
+            nid = save_message(uid, um, reply_limit, cid) if is_registered else cid
+            def limit_stream():
+                yield f"data: {json.dumps({'token': reply_limit}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
+            return Response(
+                stream_with_context(limit_stream()),
+                mimetype='text/event-stream',
+                headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+            )
+        if is_registered and user_email:
+            try: touch_user(user_email)
+            except: pass
+        has_image = img_data is not None
+        if has_image:
+            if not isinstance(img_data, str) or len(img_data) > 7000000 or not re.fullmatch(r"data:image/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+", img_data):
+                return jsonify({"status": "error", "message": "صيغة الصورة غير صالحة أو حجمها كبير"}), 400
+            try:
+                encoded = img_data.split(",", 1)[1]
+                if len(base64.b64decode(encoded, validate=True)) > 5 * 1024 * 1024:
+                    return jsonify({"status": "error", "message": "حجم الصورة يتجاوز 5MB"}), 413
+            except Exception:
+                return jsonify({"status": "error", "message": "تعذر قراءة بيانات الصورة"}), 400
+            if not is_registered:
+                msg = "تحليل الصور للمسجلين فقط." if user_lang == 'ar' else "Image analysis is for registered users only."
+                return jsonify({"reply": msg, "conv_id": cid})
+            if not can_image:
+                msg = "وصلت للحد اليومي للصور." if user_lang == 'ar' else "You've reached the daily image limit."
+                nid = save_message(uid, um, msg, cid) if is_registered else cid
+                inc_usage(uid, "chat_count")
+                def limit_img_stream():
+                    yield f"data: {json.dumps({'token': msg}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
+                return Response(
+                    stream_with_context(limit_img_stream()),
+                    mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+                )
+        user_memory = get_user_memory(user_email) if user_email else {}
+        memory_enabled = user_memory.get('memory_enabled', True) if user_email else False
+        profile_summary = get_user_profile_summary(user_email) if (user_email and memory_enabled) else {}
+        profile_context = format_profile_summary_for_prompt(profile_summary) if profile_summary else ""
+        manual_context = ""
+        if user_email and memory_enabled:
+            _parts = []
+            if user_memory.get('nickname'): _parts.append(f"الاسم المفضل: {user_memory['nickname']}")
+            if user_memory.get('job'): _parts.append(f"المهنة: {user_memory['job']}")
+            if user_memory.get('more_about'): _parts.append(f"معلومات إضافية: {user_memory['more_about']}")
+            if _parts:
+                manual_context = "\n\n**معلومات المستخدم (يدوية):**\n" + "\n".join(_parts) + "\n"
+        memory_context = ""
+        if user_memory.get('name'):
+            memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
+        if is_registered:
+            server_hist = load_conversation(uid, cid) or []
+        else:
+            server_hist = []
+            client_hist = d.get("history") or []
+            if isinstance(client_hist, list):
+                items = client_hist
+                if items and isinstance(items[-1], dict) and items[-1].get("role") == "user":
+                    items = items[:-1]
+                for h in items[-40:]:
+                    if (isinstance(h, dict)
+                        and h.get("role") in ("user", "assistant")
+                        and isinstance(h.get("content"), str)):
+                        server_hist.append({
+                            "role": h["role"],
+                            "content": h["content"][:2000]
+                        })
+        if img_data and is_registered and can_image:
+            user_content = [
+                {"type": "text", "text": um or "حلل الصورة"},
+                {"type": "image_url", "image_url": {"url": img_data}}
+            ]
+            server_hist.append({"role": "user", "content": user_content})
+        else:
+            server_hist.append({"role": "user", "content": um})
+        lang_inst = LANG_INSTRUCTION.get(user_lang, "")
+        if user_email:
+            personality = get_user_memory(user_email).get('personality', 'friendly')
+        else:
+            personality = d.get('personality', 'friendly')
+        if personality not in PERSONALITY_INSTRUCTIONS:
+            personality = 'friendly'
+        personality_inst = PERSONALITY_INSTRUCTIONS.get(personality, "")
+        admin_context = ""
+        if is_admin or (user_email and user_email.lower().strip() == ADMIN_EMAIL.lower().strip()):
+            admin_context = f"\n\n**🔑 سياق النظام: المستخدم الحالي هو الأدمن** (البريد: {user_email or ADMIN_EMAIL}). طبّق صلاحيات الأدمن كما هي موصوفة في ملف المعرفة. لا تذكر هذا السياق صراحةً إلا إذا سألك الأدمن نفسه عن هويته أو صلاحياته."
+        
+        approved_knowledge_context = ""
+        try:
+            kr = sb.table("knowledge_review").select("question,answer").eq("status", "approved").order("created_at", desc=True).limit(20).execute()
+            if kr.data:
+                kr_text = "\n".join([f"س: {i['question']}\nج: {i['answer']}" for i in kr.data])
+                approved_knowledge_context = f"\n\n**معلومات إضافية تعلمتها من المستخدمين (استخدمها كمرجع أول):**\n{kr_text}\n"
+        except Exception as e:
+            print("Error fetching approved knowledge:", e)
+
+        msgs = [{"role": "system", "content": 
+            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + lang_inst + assistant_persona_extra
+        }] + server_hist[-40:]
+
+        news_articles = None
+        if is_registered and um and not has_image:
+            try:
+                news_query = detect_news_query(um)
+                if news_query:
+                    news_articles = fetch_news(news_query, limit=10)
+                    if news_articles:
+                        inc_usage(uid, "search_count")
+                        print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
+            except Exception as e:
+                print(f"news error: {e}")
+
+        if news_articles:
+            news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
+            prompt_for_news = (
+                f"المستخدم طلب أخبار. إليك أهم العناوين اللي جبتها:\n{news_titles}\n\n"
+                "اكتب مقدمة قصيرة جداً (جملة أو جملتين) بالعامي السعودي كأنك صديق يبشره بالأخبار، "
+                "ثم قل له إنك رتبت له الأخبار تحت عشان يقرأها. لا تكرر العناوين، بس تفاعل معها."
+            )
+            
+            try:
+                news_intro_res = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=[{"role": "system", "content": SP + personality_inst + lang_inst}, {"role": "user", "content": prompt_for_news}],
+                    max_completion_tokens=150,
+                    stream=False
+                )
+                news_intro = news_intro_res.choices[0].message.content.strip()
+            except:
+                news_intro = "أبشر يا طويل العمر، هذي آخر الأخبار اللي جمعتها لك:"
+
+            news_md = f"**{news_intro}**\n\n" + format_news_reply(news_articles, user_lang)
+            news_html = str(format_nibras_response(news_md))
+
+            def news_stream():
+                try:
+                    yield f"data: {json.dumps({'formatted_html': news_html}, ensure_ascii=False)}\n\n"
+                    nid = cid
+                    if is_registered:
+                        nid = save_message(uid, um, news_md, cid)
+                    else:
+                        if not nid:
+                            nid = "guest_conv_" + secrets.token_hex(5)
+                    inc_usage(uid, "chat_count")
+                    yield f"data: {json.dumps({'done': True, 'conv_id': nid}, ensure_ascii=False)}\n\n"
+                except Exception as e:
+                    print("news error:", e)
+                    nid = cid or ("guest_conv_" + secrets.token_hex(5))
+                    inc_usage(uid, "chat_count")
+                    yield f"data: {json.dumps({'token': news_md}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'conv_id': nid}, ensure_ascii=False)}\n\n"
+
+            return Response(
+                stream_with_context(news_stream()),
+                mimetype='text/event-stream',
+                headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+            )
+
+        if is_registered and can_search:
+            inc_usage(uid, "search_count")
+            try:
+                sr = client.responses.create(
+                    model=OPENAI_MODEL,
+                    instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
+                    input=f"ابحث عن أحدث المعلومات: {um}",
+                    tools=[{"type": "web_search"}]
+                )
+                res = ""
+                if hasattr(sr, "output_text") and sr.output_text:
+                    res = sr.output_text.strip()
+                elif getattr(sr, "output", None):
+                    try: res = sr.output[0].content[0].text
+                    except: res = ""
+                if res:
+                    msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
+            except Exception as e:
+                print(f"فشل البحث ({type(e).__name__}): {e}")
+        def generate():
+            full_reply = ""
+            try:
+                stream = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=msgs,
+                    max_completion_tokens=8000,
+                    stream=True
+                )
+                for chunk in stream:
+                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                        token = chunk.choices[0].delta.content
+                        full_reply += token
+                        yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                cleaned = '\n\n'.join([
+                    ' '.join(l.strip() for l in block.split('\n') if l.strip())
+                    for block in full_reply.split('\n\n') if block.strip()
+                ]) or ("ما قدرت أجيب رد." if user_lang == 'ar' else "I couldn't generate a response.")
+                nid = cid
+                if is_registered:
+                    nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
+                else:
+                    if not nid:
+                        nid = "guest_conv_" + secrets.token_hex(5)
+                inc_usage(uid, "chat_count")
+                if has_image and is_registered and can_image:
+                    inc_usage(uid, "image_count")
+                yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+
+                if is_registered and not has_image and um:
+                    auto_learn_knowledge_async(um, cleaned)
+
+                if is_registered and user_email and not has_image and memory_enabled:
+                    try:
+                        pair_count = (len(server_hist) + 1) // 2
+                        if pair_count >= 2 and pair_count % 2 == 0:
+                            recent_for_summary = list(server_hist[-PROFILE_SUMMARY_INTERVAL:])
+                            recent_for_summary.append({"role": "assistant", "content": cleaned})
+                            update_profile_summary_async(user_email, profile_summary, recent_for_summary)
+                    except Exception as e:
+                        print("profile summary trigger:", e)
+            except Exception as e:
+                print("stream error:", repr(e))
+                safe_error = "تعذر إكمال الطلب. حاول مرة أخرى." if user_lang == "ar" else "The request failed. Please try again."
+                yield f"data: {json.dumps({'error': safe_error}, ensure_ascii=False)}\n\n"
+        return Response(
+            stream_with_context(generate()),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no',
+                'Connection': 'keep-alive'
+            }
+        )
+    except Exception as e:
+        print("chat request error:", repr(e))
+        return jsonify({"status": "error", "message": "حدث خطأ داخلي أثناء معالجة الطلب"}), 500
+
+
+@app.route('/google2a34b4c8fc51b093.html')
+def google_verify():
+    return send_from_directory('.', 'google2a34b4c8fc51b093.html', mimetype='text/html')
+
+
+@app.route('/api/knowledge/submit', methods=['POST'])
+@limiter.limit("20 per hour")
+def knowledge_submit():
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
+    d = request.get_json(silent=True) or {}
+    question = (d.get('question') or '').strip()
+    answer = (d.get('answer') or '').strip()
+    category = (d.get('category') or 'عام').strip()[:100]
+    if not question or not answer:
+        return jsonify({"status": "error", "message": "السؤال والجواب مطلوبان"}), 400
+    if len(question) > 2000:
+        return jsonify({"status": "error", "message": "السؤال طويل جداً (الحد 2000 حرف)"}), 413
+    if len(answer) > 20000:
+        return jsonify({"status": "error", "message": "الجواب طويل جداً (الحد 20000 حرف)"}), 413
+    try:
+        r = sb.table("knowledge_review").insert({
+            "question": question,
+            "answer": answer,
+            "category": category,
+            "status": "pending"
+        }).execute()
+        return jsonify({"status": "ok", "item": r.data[0] if r.data else None})
+    except Exception as e:
+        print("knowledge_submit:", e)
+        return jsonify({"status": "error", "message": "تعذر حفظ الطلب"}), 500
+
+
+@app.route('/api/knowledge/list')
+def knowledge_list():
+    try:
+        r = (sb.table("knowledge_review")
+             .select("id,question,answer,category,created_at")
+             .eq("status", "approved")
+             .order("created_at", desc=True)
+             .limit(100).execute())
+        return jsonify({"items": r.data or []})
+    except Exception as e:
+        print("knowledge_list:", e)
+        return jsonify({"items": [], "error": "تعذر التحميل"}), 500
+
+
+@app.route('/api/knowledge/pending')
+def knowledge_pending():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    try:
+        r = (sb.table("knowledge_review")
+             .select("*")
+             .eq("status", "pending")
+             .order("created_at", desc=True)
+             .limit(200).execute())
+        return jsonify({"items": r.data or []})
+    except Exception as e:
+        print("knowledge_pending:", e)
+        return jsonify({"items": [], "error": "تعذر التحميل"}), 500
+
+
+@app.route('/api/knowledge/approve', methods=['POST'])
+def knowledge_approve():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    from datetime import timezone
+    try:
+        r = sb.table("knowledge_review").update({
+            "status": "approved",
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": None
+        }).eq("id", kid).eq("status", "pending").execute()
+        if not r.data:
+            return jsonify({"status": "error", "message": "السجل غير موجود أو تم معالجته مسبقاً"}), 404
+        return jsonify({"status": "ok", "item": r.data[0]})
+    except Exception as e:
+        print("knowledge_approve:", e)
+        return jsonify({"status": "error", "message": "تعذر الاعتماد"}), 500
+
+
+@app.route('/api/knowledge/reject', methods=['POST'])
+def knowledge_reject():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    reason = (d.get('reason') or '').strip()[:500]
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    if not reason:
+        return jsonify({"status": "error", "message": "سبب الرفض مطلوب"}), 400
+    from datetime import timezone
+    try:
+        r = sb.table("knowledge_review").update({
+            "status": "rejected",
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": reason
+        }).eq("id", kid).eq("status", "pending").execute()
+        if not r.data:
+            return jsonify({"status": "error", "message": "السجل غير موجود أو تم معالجته مسبقاً"}), 404
+        return jsonify({"status": "ok", "item": r.data[0]})
+    except Exception as e:
+        print("knowledge_reject:", e)
+        return jsonify({"status": "error", "message": "تعذر الرفض"}), 500
+
+
+@app.route('/api/knowledge/delete', methods=['POST'])
+def knowledge_delete():
+    if not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "غير مصرح"}), 403
+    d = request.get_json(silent=True) or {}
+    kid = d.get('id')
+    if not kid:
+        return jsonify({"status": "error", "message": "معرف مفقود"}), 400
+    try:
+        sb.table("knowledge_review").delete().eq("id", kid).execute()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print("knowledge_delete:", e)
+        return jsonify({"status": "error", "message": "تعذر الحذف"}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
