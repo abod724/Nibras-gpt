@@ -3323,3 +3323,334 @@ def admin_login():
             return redirect(url_for('admin_dashboard'))
         return "<h2>كلمة مرور خاطئة</h2>"
     return """<body style='text-align:center;padding:50px;font-family:sans-serif;'><form method='POST'><h2>دخول الأدمن</h2><input type='password' name='password' required><br><br><button type='submit'>دخول</button></form></body>"""
+
+
+@app.route('/admin')
+def admin_dashboard():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+    recent, users_list, reports_list, feedback_list = [], [], [], []
+    try:
+        recent = (sb.table("assistant_chats").select("user_id,title,created_at").order("created_at", desc=True).limit(10).execute()).data or []
+    except Exception as e:
+        print(f"admin recent error: {e}")
+    try:
+        users_list = (sb.table("profiles").select("email,display_name,role").order("created_at", desc=True).limit(30).execute()).data or []
+    except Exception as e:
+        print(f"admin users error: {e}")
+    try:
+        reports_list = (sb.table("bug_reports").select("*").order("created_at", desc=True).limit(30).execute()).data or []
+    except Exception as e:
+        print(f"admin reports error: {e}")
+    try:
+        feedback_list = (sb.table("message_feedback").select("*").order("created_at", desc=True).limit(100).execute()).data or []
+    except Exception as e:
+        print(f"admin feedback error: {e}")
+    likes_count = sum(1 for f in feedback_list if f.get('feedback') == 'like')
+    dislikes_count = sum(1 for f in feedback_list if f.get('feedback') == 'dislike')
+    recent_html = "".join([f'<div class="conv-item"><b>{escape(str(r.get("title", "?")))}</b><small>{escape(str(r.get("user_id", ""))[:30])}</small></div>' for r in recent]) or "<p style='color:#8b949e;'>لا توجد</p>"
+    users_html = "".join([f'<div class="conv-item"><b>{escape(str(u.get("display_name", "?")))}</b><small>{escape(str(u.get("email", "")))} ({escape(str(u.get("role", "user")))})</small></div>' for u in users_list]) or "<p style='color:#8b949e;'>لا يوجد</p>"
+    reports_html = "".join([f'<div style="border-right:3px solid #e74c3c;padding:10px;margin:8px 0;background:#fff5f5;border-radius:8px;"><b>[{escape(str(r.get("type", "?")))}]</b> {escape(str(r.get("user_email", "?")))}<br><small>{escape(str(r.get("description", "")))}</small></div>' for r in reports_list]) or "<p style='color:#8b949e;'>لا توجد</p>"
+    feedback_html = "".join([
+        f'<div style="border-right:4px solid {"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};padding:12px;margin:10px 0;background:{"#f0fdf4" if f.get("feedback")=="like" else "#fef2f2"};border-radius:10px;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        f'<b style="color:{"#27ae60" if f.get("feedback")=="like" else "#e74c3c"};font-size:14px;">'
+        f'{"إعجاب" if f.get("feedback")=="like" else "رفض"}</b>'
+        f'<small style="color:#8b949e;font-size:11px;">{escape(str(f.get("created_at",""))[:16])}</small>'
+        f'</div>'
+        f'<div style="font-size:12px;color:#5a6b7c;margin-bottom:6px;">'
+        f'{escape(str(f.get("user_email","?")))}'
+        f'</div>'
+        f'<div style="font-size:13px;color:#1a2b3c;background:#fff;padding:8px 10px;border-radius:6px;line-height:1.6;">'
+        f'{escape(str(f.get("message_text",""))[:250])}'
+        f'</div>'
+        f'</div>'
+        for f in feedback_list if f.get('feedback') in ('like', 'dislike')
+    ]) or "<p style='color:#8b949e;text-align:center;padding:20px;'>لا توجد تقييمات بعد</p>"
+    return f"""<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>لوحة الأدمن</title><style>
+    *{{box-sizing:border-box}}
+    body{{font-family:'Segoe UI',Tahoma,sans-serif;padding:16px;background:#f4f7fc;color:#1a2b3c;margin:0}}
+    .container{{max-width:700px;margin:auto}}
+    h1{{color:#4a6a8a;text-align:center;font-size:22px}}
+    h3{{color:#1a2b3c;font-size:16px;margin:0 0 12px}}
+    .card{{background:#fff;padding:18px;margin:15px 0;border-radius:15px;box-shadow:0 4px 16px rgba(0,0,0,0.04)}}
+    .stat{{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eef1f6}}
+    .stat:last-child{{border:none}}
+    .num{{color:#4a6a8a;font-weight:bold;font-size:18px}}
+    .conv-item{{padding:10px 0;border-bottom:1px solid #eef1f6}}
+    .conv-item:last-child{{border:none}}
+    .conv-item b{{font-size:14px}}
+    .conv-item small{{color:#8b949e;display:block;font-size:12px;margin-top:2px}}
+    .back{{display:block;text-align:center;color:#4a6a8a;text-decoration:none;margin-top:24px;font-weight:600;padding:12px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}}
+    </style></head><body><div class="container">
+    <h1>لوحة تحكم نبراس</h1>
+    <div class="card">
+        <div class="stat"><span>المستخدمون</span><span class="num">{len(users_list)}</span></div>
+        <div class="stat"><span>البلاغات</span><span class="num">{len(reports_list)}</span></div>
+        <div class="stat"><span>إعجابات</span><span class="num" style="color:#27ae60;">{likes_count}</span></div>
+        <div class="stat"><span>رفض</span><span class="num" style="color:#e74c3c;">{dislikes_count}</span></div>
+    </div>
+
+    <div class="card">
+        <h3>🎟️ توليد كود وصول</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <label style="font-size:13px;">محادثات
+                <input type="number" id="code-chat" value="4" min="1" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
+            </label>
+            <label style="font-size:13px;">بحث
+                <input type="number" id="code-search" value="4" min="0" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
+            </label>
+            <label style="font-size:13px;">صور
+                <input type="number" id="code-image" value="4" min="0" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
+            </label>
+            <label style="font-size:13px;">عدد المستخدمين
+                <input type="number" id="code-uses" value="1" min="1" max="1000" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
+            </label>
+            <label style="font-size:13px;">المدة (أيام)
+                <input type="number" id="code-days" value="7" min="1" max="365" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
+            </label>
+            <label style="font-size:13px;">ملاحظة
+                <input type="text" id="code-note" placeholder="مثلاً: لأختي" maxlength="200" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
+            </label>
+        </div>
+        <button onclick="generateCode()" style="width:100%;padding:14px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;">توليد الكود</button>
+        <div id="generated-code" style="margin-top:14px;display:none;padding:14px;background:#f0fdf4;border-radius:12px;text-align:center;border:1px solid #86efac;">
+            <div style="font-size:12px;color:#166534;margin-bottom:6px;">✅ الكود الجديد — اضغط للنسخ:</div>
+            <div id="generated-code-text" onclick="navigator.clipboard.writeText(this.textContent);this.style.background='#bbf7d0';setTimeout(()=>this.style.background='transparent',300);" style="font-size:22px;font-weight:800;letter-spacing:3px;color:#166534;cursor:pointer;padding:8px;border-radius:8px;user-select:all;transition:background .2s;"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📋 الأكواد السابقة</h3>
+        <div id="codes-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
+    </div>
+
+    <div class="card">
+        <h3>🧠 مراجعة المعرفة الجديدة</h3>
+        <div id="knowledge-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
+    </div>
+
+    <div class="card">
+        <h3>🧠 المعرفة المتعلمة تلقائياً</h3>
+        <div id="learned-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
+    </div>
+
+    <script>
+    async function generateCode(){{
+        const body = {{
+            chat: parseInt(document.getElementById('code-chat').value) || 15,
+            search: parseInt(document.getElementById('code-search').value) || 2,
+            image: parseInt(document.getElementById('code-image').value) || 1,
+            max_uses: parseInt(document.getElementById('code-uses').value) || 1,
+            days: parseInt(document.getElementById('code-days').value) || 7,
+            note: document.getElementById('code-note').value || ''
+        }};
+        try{{
+            const r = await fetch('/admin/codes/generate', {{
+                method:'POST', headers:{{'Content-Type':'application/json'}},
+                body: JSON.stringify(body)
+            }});
+            const d = await r.json();
+            if(d.status === 'ok'){{
+                const codeData = d.code;
+                document.getElementById('generated-code-text').textContent = codeData.code || codeData;
+                document.getElementById('generated-code').style.display = 'block';
+                loadCodes();
+            }} else {{
+                alert(d.message || 'فشل التوليد');
+            }}
+        }}catch(e){{ alert('خطأ في الاتصال'); }}
+    }}
+    async function loadCodes(){{
+        const list = document.getElementById('codes-list');
+        try{{
+            const r = await fetch('/admin/codes/list');
+            const d = await r.json();
+            if(!d.codes || d.codes.length === 0){{
+                list.innerHTML = '<p style="color:#8b949e;">لا توجد أكواد بعد</p>';
+                return;
+            }}
+            list.innerHTML = d.codes.map(c => {{
+                const expired = c.expires_at && new Date(c.expires_at) < new Date();
+                const status = !c.active ? 'موقوف' : (expired ? 'منتهي' : 'نشط');
+                const statusColor = !c.active ? '#8b949e' : (expired ? '#e74c3c' : '#16a34a');
+                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">'
+                    +'<div>'
+                    +'<b style="letter-spacing:1px;font-size:14px;">'+c.code+'</b>'
+                    +'<span style="color:'+statusColor+';font-size:12px;margin-right:6px;">● '+status+'</span>'
+                    +'<div style="font-size:11px;color:#666;margin-top:4px;">'
+                    +c.chat_limit+' محادثة · '+c.search_limit+' بحث · '+c.image_limit+' صورة'
+                    +' · استُخدم '+c.used_count+'/'+c.max_uses
+                    +(c.note ? ' · '+c.note : '')
+                    +'</div></div>'
+                    +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+                    +'<button onclick="navigator.clipboard.writeText(\\''+c.code+'\\');this.textContent=\\'✓\\';setTimeout(()=>this.textContent=\\'نسخ\\',800);" style="padding:6px 10px;border:1px solid #4a6a8a;background:#fff;color:#4a6a8a;border-radius:8px;cursor:pointer;font-size:12px;">نسخ</button>'
+                    +'<button onclick="toggleCode('+c.id+')" style="padding:6px 10px;border:1px solid #f59e0b;background:#fff;color:#f59e0b;border-radius:8px;cursor:pointer;font-size:12px;">'+(c.active?'إيقاف':'تشغيل')+'</button>'
+                    +'<button onclick="deleteCode('+c.id+')" style="padding:6px 10px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;border-radius:8px;cursor:pointer;font-size:12px;">حذف</button>'
+                    +'</div></div>';
+            }}).join('');
+        }}catch(e){{
+            list.innerHTML = '<p style="color:#e74c3c;">تعذر التحميل</p>';
+        }}
+    }}
+    async function toggleCode(id){{
+        await fetch('/admin/codes/toggle', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id}})}});
+        loadCodes();
+    }}
+    async function deleteCode(id){{
+        if(!confirm('حذف الكود؟')) return;
+        await fetch('/admin/codes/delete', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id}})}});
+        loadCodes();
+    }}
+    loadCodes();
+
+    async function loadKnowledge() {{
+        const list = document.getElementById('knowledge-list');
+        try {{
+            const r = await fetch('/api/knowledge/pending');
+            const d = await r.json();
+            if(!d.items || d.items.length === 0) {{
+                list.innerHTML = '<p style="color:#8b949e;">لا توجد طلبات معلقة حالياً</p>';
+                return;
+            }}
+            list.innerHTML = d.items.map(function(i) {{
+                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;background:#fafbfc;">'
+                    + '<b>س: ' + i.question + '</b><br>'
+                    + '<span style="color:#4a6a8a;">ج: ' + i.answer + '</span><br><br>'
+                    + '<button onclick="approveKnowledge(' + i.id + ')" style="padding:8px 16px;border:none;background:#27ae60;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;">✅ موافقة</button> '
+                    + '<button onclick="rejectKnowledge(' + i.id + ')" style="padding:8px 16px;border:none;background:#e74c3c;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;">❌ رفض</button>'
+                    + '</div>';
+            }}).join('');
+        }} catch(e) {{
+            list.innerHTML = '<p style="color:red;">خطأ في التحميل</p>';
+        }}
+    }}
+    async function approveKnowledge(id) {{
+        await fetch('/api/knowledge/approve', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id}})}});
+        loadKnowledge();
+    }}
+    async function rejectKnowledge(id) {{
+        let reason = prompt('اكتب سبب الرفض:');
+        if(!reason) return;
+        await fetch('/api/knowledge/reject', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id, reason: reason}})}});
+        loadKnowledge();
+    }}
+    loadKnowledge();
+
+    async function loadLearned() {{
+        const list = document.getElementById('learned-list');
+        try {{
+            const r = await fetch('/api/knowledge/list');
+            const d = await r.json();
+            if(!d.items || d.items.length === 0) {{
+                list.innerHTML = '<p style="color:#8b949e;">لم يتعلم نبراس شيئاً بعد</p>';
+                return;
+            }}
+            list.innerHTML = d.items.map(function(i) {{
+                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;background:#f0fdf4;">'
+                    + '<b>س: ' + i.question + '</b><br>'
+                    + '<span style="color:#166534;">ج: ' + i.answer + '</span><br><br>'
+                    + '<button onclick="deleteKnowledge(' + i.id + ')" style="padding:6px 14px;border:none;background:#e74c3c;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;font-size:13px;">🗑️ حذف</button>'
+                    + '</div>';
+            }}).join('');
+        }} catch(e) {{
+            list.innerHTML = '<p style="color:red;">خطأ في التحميل</p>';
+        }}
+    }}
+    async function deleteKnowledge(id) {{
+        if(!confirm('حذف هذه المعلومة من ذاكرة نبراس؟')) return;
+        await fetch('/api/knowledge/delete', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id: id}})}});
+        loadLearned();
+    }}
+    loadLearned();
+    </script>
+
+    <div class="card"><h3>تقييمات الردود ({likes_count + dislikes_count})</h3>{feedback_html}</div>
+    <div class="card"><h3>البلاغات</h3>{reports_html}</div>
+    <div class="card"><h3>المستخدمون</h3>{users_html}</div>
+    <div class="card"><h3>آخر المحادثات</h3>{recent_html}</div>
+    <a href="/" class="back">← العودة للرئيسية</a>
+    </div>
+    </body></html>"""
+
+
+def auto_learn_knowledge_async(user_msg, bot_reply):
+    def worker():
+        try:
+            if len(user_msg) < 15 or len(bot_reply) < 20:
+                return
+            prompt = (
+                "أنت فلتر ذكي جداً. مهمتك تحليل المحادثة لمعرفة إذا كان (المستخدم) قدم معلومة جديدة أو صحح خطأ للمساعد.\n"
+                "⚠️ قاعدة صارمة: إذا كان المستخدم يسأل سؤالاً والمساعد هو اللي جاوب، فهذا ليس تعليماً! تجاهله تماماً (لأننا لا نريد المساعد أن يتعلم من نفسه).\n"
+                "اعتبره مفيداً (is_useful: true) فقط في الحالات التالية:\n"
+                "1. المستخدم قال للمساعد: 'أنت غلطان، الصح هو كذا...'\n"
+                "2. المستخدم أعطى معلومة جديدة صراحة (مثل: 'ترى نبراس يشتغل على بورت 5000').\n"
+                "3. المستخدم أعطى معلومة عن نفسه أو شغله (مثل: 'أنا مدير شركة التمور').\n"
+                "إذا تحقق الشرط، أعد JSON فقط بهذا الشكل:\n"
+                '{"is_useful": true, "question": "السؤال أو الموضوع", "answer": "المعلومة الصحيحة أو الجديدة"}\n'
+                "إذا كانت مجرد أسئلة وأجوبة عامة، أعد:\n"
+                '{"is_useful": false}'
+            )
+            resp = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": f"المستخدم: {user_msg}\nالمساعد: {bot_reply}"}
+                ],
+                max_completion_tokens=150,
+                response_format={"type": "json_object"}
+            )
+            data = json.loads(resp.choices[0].message.content)
+            if data.get("is_useful"):
+                q = data.get("question", "").strip()
+                a = data.get("answer", "").strip()
+                if q and a:
+                    from datetime import timezone
+                    sb.table("knowledge_review").insert({
+                        "question": q,
+                        "answer": a,
+                        "category": "تعلم تلقائي",
+                        "status": "approved",
+                        "reviewed_at": datetime.now(timezone.utc).isoformat()
+                    }).execute()
+                    print(f"🧠 Auto-learned new knowledge: {q}")
+        except Exception as e:
+            print("auto_learn worker error:", e)
+    threading.Thread(target=worker, daemon=True).start()
+
+
+@app.route('/set_gender', methods=['POST'])
+def set_gender():
+    d = request.get_json(silent=True) or {}
+    gender = d.get('gender', 'male')
+    if gender not in ('male', 'female'):
+        gender = 'male'
+    session['voice_gender'] = gender
+    return jsonify({"status": "ok"})
+
+
+@app.route('/voice', methods=['POST'])
+@limiter.limit("30 per minute")
+def voice():
+    try:
+        d = request.get_json(silent=True) or {}
+        text = (d.get('text') or "").strip()
+        if not text or len(text) > 3000:
+            return jsonify({"audio": None})
+        
+        # ✅ تحديد نوع الصوت حسب نوع المستخدم
+        # ⚠️ مهم: الضيف يبقى على gTTS مجاني — لا تغيّر هذا المنطق
+        email = session.get('user_email')
+        is_admin = session.get('is_admin')
+        
+        if email or is_admin:
+            # مسجل أو أدمن -> OpenAI TTS (صوت احترافي)
+            audio_data = generate_speech(text, session.get('voice_gender', 'male'))
+        else:
+            # ضيف -> gTTS (صوت مجاني)
+            audio_data = generate_speech_free(text)
+        
+        return jsonify({"audio": audio_data})
+    except Exception as e:
+        print(f"voice: {e}")
+        return jsonify({"audio": None})
