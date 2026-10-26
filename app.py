@@ -4039,7 +4039,7 @@ def chat():
                 stream = client.chat.completions.create(
                     model=OPENAI_MODEL,
                     messages=msgs,
-                    max_completion_tokens=8000,
+                    max_completion_tokens=800,
                     stream=True
                 )
                 for chunk in stream:
