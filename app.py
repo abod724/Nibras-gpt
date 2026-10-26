@@ -1368,3 +1368,973 @@ html[data-theme="neon"] .typing-dots { color: var(--primary-color); }
 html[data-theme="neon"] ::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb), 0.3); }
 html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(--primary-rgb), 0.6); }
 {{ memory_css|safe }}
+</style></head><body>
+<div class="app">
+
+<div class="header">
+    <div class="header-right">
+        <button class="icon-btn" id="menuToggle" title="القائمة">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="3" y1="15" x2="14" y2="15"/>
+            </svg>
+        </button>
+    </div>
+    <div class="header-left">
+        <button class="icon-btn voice-off" id="voiceToggle" title="تشغيل/إيقاف الصوت" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <line x1="23" y1="9" x2="17" y2="15"/>
+                <line x1="17" y1="9" x2="23" y2="15"/>
+            </svg>
+        </button>
+        <button class="icon-btn accent-btn" id="newChatBtn" title="محادثة جديدة" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" opacity="0.35"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+        </button>
+    </div>
+</div>
+<div class="context-menu-backdrop" id="ctxBackdrop" onclick="hideContextMenu()"></div>
+<div class="context-menu" id="convContextMenu">
+    <button class="context-menu-item" onclick="ctxAction('pin', event)">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+        <span id="ctxPinText">تثبيت</span>
+    </button>
+    <button class="context-menu-item" onclick="ctxAction('rename', event)">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        <span>إعادة تسمية</span>
+    </button>
+    <div class="context-menu-sep"></div>
+    <button class="context-menu-item danger" onclick="ctxAction('delete', event)">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        <span>حذف المحادثة</span>
+    </button>
+</div>
+
+<div class="dropdown" id="dropdown">
+    <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
+    <button class="item" onclick="window.location.href='/library'"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>مكتبتي</button>
+    <button class="item" data-action="share"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>مشاركة المحادثة</button>
+    <button class="item" onclick="openSettings()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>الإعدادات</button>
+    
+    <div class="section-title">مثبت</div>
+    <div id="pinnedList"><div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;font-weight:500;">لا توجد محادثات مثبتة</div></div>
+    <div class="section-title">المحادثات الأخيرة</div>
+    <div id="historyList"></div>
+
+    <div class="section-title">حسابي</div>
+    {% if session.get('user_email') or session.get('is_admin') %}
+        {% if user_name %}
+        <div class="item" style="cursor:default; color:var(--text-secondary);">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {{ user_name }}
+        </div>
+        {% endif %}
+        <a href="/logout" class="item danger" style="text-decoration:none;">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            تسجيل الخروج
+        </a>
+    {% else %}
+        <a href="/login" class="item" style="text-decoration:none;">
+            <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            تسجيل الدخول
+        </a>
+    {% endif %}
+</div>
+
+<div id="settingsModal" class="settings-overlay">
+    <div class="settings-page">
+        <div class="settings-header"><button class="icon-btn" onclick="closeSettings()"><svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button><h2>الإعدادات</h2><div style="width:32px;"></div></div>
+        <div class="settings-body">
+            <div class="settings-card">
+                <div class="settings-item" onclick="openSubPage('theme')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><span>المظهر</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('color')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg><span>لون التمييز</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentColorLabel" style="font-size:14px;color:var(--text-secondary);">أزرق داكن</span><span id="currentColorDot" style="width:14px;height:14px;border-radius:50%;background:#4a6a8a;display:inline-block;"></span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+                <div class="settings-item" onclick="openSubPage('fontSize')"><div class="item-right"><svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span>حجم الخط</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentFontSizeLabel" style="font-size:14px;color:var(--text-secondary);">متوسط</span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+                <div class="settings-item" onclick="openSubPage('personality')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg><span>شخصية المساعد</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentPersonalityLabel" style="font-size:14px;color:var(--text-secondary);">ودود</span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+                <div class="settings-item" onclick="openSubPage('language')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span>اللغة / Language</span></div><div style="display:flex;align-items:center;gap:8px;"><span id="currentLangLabel" style="font-size:14px;color:var(--text-secondary);">العربية</span><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-item" onclick="openSubPage('general')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>عام</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('memory')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 0-5 5c0 1.5.7 2.8 1.8 3.7A5 5 0 0 0 7 15a5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-1.8-4.3A5 5 0 0 0 17 7a5 5 0 0 0-5-5z"/><path d="M12 8v8"/><path d="M8 12h8"/></svg><span>الذاكرة</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('assistants')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg><span>مساعدي الخاص</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('library')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>مكتبة المساعدين</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('voice')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg><span>الصوت</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('safety')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>السلامة</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('security')"><div class="item-right"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>الأمان وتسجيل الدخول</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('remote')"><div class="item-right"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span>التحكم عن بُعد</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-item" onclick="openSubPage('storage')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg><span>التخزين</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('privacy')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span>مركز الخصوصية</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('data')"><div class="item-right"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span>التحكم في البيانات</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('ads')"><div class="item-right"><svg viewBox="0 0 24 24"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><span>التحكم في الإعلانات</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('report')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>الإبلاغ عن خطأ</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="settings-item" onclick="openSubPage('about')"><div class="item-right"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>حول</span></div><svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+            </div>
+            {% if session.get('user_email') and not session.get('is_admin') %}
+            <div class="settings-card">
+                <div class="settings-item" onclick="deleteMyAccount()"><div class="item-right"><svg viewBox="0 0 24 24" style="stroke:#d32f2f;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg><span style="color:#d32f2f;">حذف حسابي</span></div></div>
+            </div>
+            {% endif %}
+            <div class="settings-card" onclick="window.location.href='/logout'">
+                <div class="settings-item" style="justify-content:center;">
+                    <div class="item-right" style="justify-content:center;width:100%;">
+                        <span style="color:#d32f2f;font-weight:bold;">تسجيل الخروج</span>
+                        <svg viewBox="0 0 24 24" style="stroke:#d32f2f;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="subPage" class="sub-page" onclick="if(event.target===this)closeSubPage()">
+    <div class="modal-box">
+        <div class="modal-title" id="subPageTitle">إعدادات</div>
+        <div class="sub-page-body" id="subPageBody"></div>
+        <button class="modal-confirm" onclick="confirmSubPage()">تأكيد</button>
+    </div>
+</div>
+
+<div id="chat"></div>
+<div class="assistant-bar" id="assistantBar">
+  <button class="assistant-pill" id="assistantPill" type="button" onclick="toggleAssistantMenu(event)">
+    <span class="a-dot" id="assistantPillDot" style="background:#4a6a8a">ن</span>
+    <span class="a-name" id="assistantPillName">نبراس</span>
+    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+</div>
+<div class="assistant-menu" id="assistantMenu"></div>
+<div class="input-area" id="inputArea">
+    <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
+    <button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
+    <button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button></div>
+    <textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea>
+    <button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+</div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/></div>
+
+<div class="share-modal" id="shareModal">
+    <div class="box">
+        <h3>مشاركة المحادثة</h3>
+        <div class="share-grid">
+            <a class="share-btn whatsapp" id="shareWhatsapp" target="_blank" rel="noopener">واتساب</a>
+            <a class="share-btn facebook" id="shareFacebook" target="_blank" rel="noopener">فيسبوك</a>
+            <a class="share-btn twitter" id="shareTwitter" target="_blank" rel="noopener">تويتر</a>
+            <button class="share-btn snapchat" id="shareSnapchat">نسخ الرابط</button>
+        </div>
+        <button class="close-btn" onclick="document.getElementById('shareModal').classList.remove('show')">إغلاق</button>
+    </div>
+</div>
+
+<script>
+(function(){
+    try{
+        var hash = window.location.hash || '';
+        var search = window.location.search || '';
+        if(hash.indexOf('type=recovery') !== -1 && hash.indexOf('access_token=') !== -1){
+            window.location.replace('/reset-password' + hash);
+            return;
+        }
+        if(search.indexOf('type=recovery') !== -1 && search.indexOf('code=') !== -1){
+            window.location.replace('/reset-password' + search);
+            return;
+        }
+        var params = new URLSearchParams(hash.replace(/^#/, ''));
+        var at = params.get('access_token');
+        var codeP = new URLSearchParams(search).get('code');
+        if(at || codeP){
+            var rt = params.get('refresh_token') || '';
+            try{ history.replaceState(null, '', window.location.pathname); }catch(e){}
+            var overlay = document.createElement('div');
+            overlay.id = 'oauth-overlay';
+            overlay.classList.add('show');
+            overlay.innerHTML = '<div class="oauth-spinner" id="oauth-spin"></div><div class="oauth-title" id="oauth-title">جاري تسجيل الدخول</div><div class="oauth-msg" id="oauth-msg">لحظة من فضلك...</div>';
+            document.body.appendChild(overlay);
+            function done(msg, isOk){
+                var spin = document.getElementById('oauth-spin');
+                var title = document.getElementById('oauth-title');
+                var msgEl = document.getElementById('oauth-msg');
+                if(spin) spin.style.display = 'none';
+                if(title){ title.textContent = isOk ? 'تم تسجيل الدخول' : 'تعذر تسجيل الدخول'; title.classList.add(isOk ? 'ok' : 'err'); }
+                if(msgEl) msgEl.textContent = msg;
+                setTimeout(function(){ window.location.replace(isOk ? '/' : '/login'); }, isOk ? 700 : 2500);
+            }
+            fetch('/auth/session', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({access_token: at || '', refresh_token: rt, code: codeP || ''})
+            }).then(function(r){return r.json();}).then(function(d){
+                if(d && d.status === 'ok'){ done('جاري تحويلك...', true); }
+                else { done((d && d.message) || 'فشل إنشاء الجلسة', false); }
+            }).catch(function(){ done('تعذر الاتصال بالسيرفر', false); });
+            return;
+        }
+    }catch(e){}
+})();
+(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let isMale=(localStorage.getItem('nibras-voice-gender')||'male')==='male';let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
+const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+
+let audioCtx = null;
+let allSources = [];
+let ca = null;
+let voiceSessionId = 0;
+let audioPlayQueue = [];
+let isPlayingAudioQueue = false;
+let spokenUntil = 0;
+let pendingTTS = Promise.resolve();
+
+function getAudioContext(){ if(!audioCtx){ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } if(audioCtx.state === 'suspended'){ audioCtx.resume(); } return audioCtx; }
+function stopAllAudio(){ allSources.forEach(function(src){ try{ src.stop(0); }catch(e){} }); allSources = []; ca = null; voiceSessionId++; audioPlayQueue = []; pendingTTS = Promise.resolve(); }
+function playAudioWithSpeed(base64Audio, onEnd){ try{ stopAllAudio(); const mySession = voiceSessionId; const ctx = getAudioContext(); const binary = atob(base64Audio); const bytes = new Uint8Array(binary.length); for(let i = 0; i < binary.length; i++){ bytes[i] = binary.charCodeAt(i); } ctx.decodeAudioData(bytes.buffer, function(buffer){ if(mySession !== voiceSessionId){ if(typeof onEnd === 'function') onEnd(); return; } const source = ctx.createBufferSource(); source.buffer = buffer; source.playbackRate.value = voiceSpeed; const gainNode = ctx.createGain(); const savedLvl = localStorage.getItem('nibras-voice-level'); gainNode.gain.value = savedLvl ? savedLvl/100 : 1; source.connect(gainNode); gainNode.connect(ctx.destination); source.onended = function(){ const idx = allSources.indexOf(source); if(idx >= 0) allSources.splice(idx, 1); if(typeof onEnd === 'function') onEnd(); }; source.start(0); allSources.push(source); ca = { pause: function(){ try{source.stop(0);}catch(e){} }, currentTime: 0 }; }, function(err){ console.error('Audio decode error:', err); if(typeof onEnd === 'function') onEnd(); }); }catch(e){ console.error('Web Audio API error:', e); if(typeof onEnd === 'function') onEnd(); } }
+
+function stripMarkdownForTTS(text){
+    return String(text||'')
+        .replace(/\*\*(.*?)\*\*/g,'$1')
+        .replace(/__(.*?)__/g,'$1')
+        .replace(/\*(.*?)\*/g,'$1')
+        .replace(/_(.*?)_/g,'$1')
+        .replace(/`([^`]+)`/g,'$1')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g,'$1')
+        .replace(/https?:\/\/\S+/g,'')
+        .replace(/#+\s+/g,'')
+        .replace(/\s+/g,' ')
+        .trim();
+}
+
+function extractNewSentences(text){
+    const out=[];
+    const re=/[.!?؟\n]+/g;
+    let m;
+    while((m=re.exec(text))!==null){
+        const end=m.index+m[0].length;
+        if(end>spokenUntil){
+            const s=text.slice(spokenUntil,end).trim();
+            if(s.length>=20){ out.push(s); spokenUntil=end; }
+        }
+    }
+    return out;
+}
+
+function enqueueSentenceAudio(sentence){
+    if(!sentence||!voiceOn) return;
+    const clean=stripMarkdownForTTS(sentence);
+    if(clean.length<3) return;
+    const mySession=voiceSessionId;
+    pendingTTS=pendingTTS.then(function(){
+        if(!voiceOn||mySession!==voiceSessionId) return;
+        return fetch('/voice',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text:clean})
+        }).then(r=>r.json()).then(v=>{
+            if(v&&v.audio&&voiceOn&&mySession===voiceSessionId){
+                audioPlayQueue.push(v.audio);
+                playQueuedAudio();
+            }
+        }).catch(function(){});
+    });
+}
+
+async function playQueuedAudio(){
+    if(isPlayingAudioQueue) return;
+    isPlayingAudioQueue=true;
+    const mySession=voiceSessionId;
+    try{
+        while(audioPlayQueue.length>0){
+            if(mySession!==voiceSessionId) break;
+            const b64=audioPlayQueue.shift();
+            await new Promise(function(resolve){
+                try{
+                    const ctx=getAudioContext();
+                    const bin=atob(b64);
+                    const bytes=new Uint8Array(bin.length);
+                    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+                    ctx.decodeAudioData(bytes.buffer,function(buffer){
+                        if(mySession!==voiceSessionId){ resolve(); return; }
+                        const source=ctx.createBufferSource();
+                        source.buffer=buffer;
+                        source.playbackRate.value=voiceSpeed;
+                        const gain=ctx.createGain();
+                        const lvl=localStorage.getItem('nibras-voice-level');
+                        gain.gain.value=lvl?lvl/100:1;
+                        source.connect(gain); gain.connect(ctx.destination);
+                        source.onended=function(){
+                            const idx=allSources.indexOf(source);
+                            if(idx>=0) allSources.splice(idx,1);
+                            resolve();
+                        };
+                        source.start(0);
+                        allSources.push(source);
+                    },function(){ resolve(); });
+                }catch(e){ resolve(); }
+            });
+        }
+    } finally {
+        if(mySession===voiceSessionId) isPlayingAudioQueue=false;
+    }
+}
+
+function tr(key){const d={thinking:{ar:'جاري التفكير',en:'Thinking'},listening:{ar:'جاري الاستماع...',en:'Listening...'},inputPlaceholder:{ar:'اكتب رسالتك...',en:'Type your message...'},micUnsupported:{ar:'المتصفح لا يدعم التعرف على الصوت.',en:'Browser does not support voice recognition.'}};return (d[key]||{})[userLang]||(d[key]||{}).ar||key;}
+function applyLang(){ui.placeholder=tr('inputPlaceholder');document.documentElement.lang=userLang==='en'?'en':'ar';const lbl=document.getElementById('currentLangLabel');if(lbl)lbl.textContent=userLang==='en'?'English':'العربية';}
+function applyFontSize(size){document.documentElement.setAttribute('data-font',size);const map={small:'صغير',medium:'متوسط',large:'كبير',xlarge:'ضخم'};const lbl=document.getElementById('currentFontSizeLabel');if(lbl)lbl.textContent=map[size]||'متوسط';}
+applyFontSize(userFontSize);
+vt.addEventListener('click',function(){voiceOn=!voiceOn;if(voiceOn){vt.classList.remove('voice-off');vt.classList.add('voice-on');vt.innerHTML=SVG_SPK_ON;showToast(userLang==='en'?'Sound ON':'الصوت مفعّل');}else{vt.classList.remove('voice-on');vt.classList.add('voice-off');vt.innerHTML=SVG_SPK_OFF;stopAllAudio();showToast(userLang==='en'?'Sound OFF':'الصوت مغلق');}});
+function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
+function getPinnedLocal(){try{return JSON.parse(localStorage.getItem('nibras_pinned')||'[]');}catch(e){return [];}}
+function savePinnedLocal(arr){try{localStorage.setItem('nibras_pinned',JSON.stringify(arr));}catch(e){}}
+async function togglePin(cid,wasPinned,btnEl){if(IS_REGISTERED){const url=wasPinned?'/unpin_conversation':'/pin_conversation';try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conv_id:cid})});if(r.ok){btnEl.classList.toggle('pinned',!wasPinned);showToast(wasPinned?(userLang==='en'?'Unpinned':'تم إلغاء التثبيت'):(userLang==='en'?'Pinned':'تم التثبيت'));loadPinned();}}catch(e){showToast(userLang==='en'?'Connection failed':'فشل الاتصال');}}else{let arr=getPinnedLocal();if(wasPinned){arr=arr.filter(x=>x!==cid);showToast(userLang==='en'?'Unpinned':'تم إلغاء التثبيت');}else{if(!arr.includes(cid))arr.push(cid);showToast(userLang==='en'?'Pinned locally':'تم التثبيت محلياً');}savePinnedLocal(arr);btnEl.classList.toggle('pinned',!wasPinned);loadPinned();}}
+mt.addEventListener('click',function(e){e.stopPropagation();dd.classList.toggle('show');if(dd.classList.contains('show')){loadHistory();loadPinned();}});
+document.addEventListener('click', function(e){
+    const dd = document.getElementById('dropdown');
+    const mt = document.getElementById('menuToggle');
+    if(!dd || !mt) return;
+    if(!dd.contains(e.target) && !mt.contains(e.target)) dd.classList.remove('show');
+});
+
+function openSettings(){document.getElementById('settingsModal').classList.add('show');document.getElementById('dropdown').classList.remove('show');}
+function closeSettings(){document.getElementById('settingsModal').classList.remove('show');}
+
+function setTheme(t){
+    const h = document.documentElement;
+    h.removeAttribute('data-theme');
+
+    if (t === 'neon') {
+        h.classList.remove('dark-mode');
+        h.setAttribute('data-theme', 'neon');
+        const savedAccent = localStorage.getItem('nibras-accent');
+        const savedName   = localStorage.getItem('nibras-accent-name');
+        if (savedAccent && typeof setAccentColor === 'function') {
+            setAccentColor(savedAccent, savedName || 'مخصص');
+        }
+        localStorage.setItem('nibras-theme', 'neon');
+    }
+    else if (t === 'dark') {
+        h.classList.add('dark-mode');
+        const savedAccent = localStorage.getItem('nibras-accent');
+        const savedName   = localStorage.getItem('nibras-accent-name');
+        if (savedAccent && typeof setAccentColor === 'function') {
+            setAccentColor(savedAccent, savedName || 'مخصص');
+        }
+        localStorage.setItem('nibras-theme', 'dark');
+    }
+    else {
+        h.classList.remove('dark-mode');
+        const savedAccent = localStorage.getItem('nibras-accent');
+        const savedName   = localStorage.getItem('nibras-accent-name');
+        if (savedAccent && typeof setAccentColor === 'function') {
+            setAccentColor(savedAccent, savedName || 'مخصص');
+        }
+        localStorage.setItem('nibras-theme', 'light');
+    }
+}
+
+(function wireNewHeaderButtons(){
+    var newChatBtn = document.getElementById('newChatBtn');
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', function(){
+            var trigger = document.querySelector('[data-action="new"]');
+            if (trigger) trigger.click();
+        });
+    }
+})();
+
+function getContrastColor(hex){try{const r=parseInt(hex.slice(1,3),16);const g=parseInt(hex.slice(3,5),16);const b=parseInt(hex.slice(5,7),16);const lum=(0.299*r+0.587*g+0.114*b)/255;return lum>0.6?'#111111':'#ffffff';}catch(e){return '#111111';}}
+
+function hexToRgb(hex) {
+    try {
+        let r = 0, g = 0, b = 0;
+        if (hex.length === 4) {
+            r = parseInt(hex[1]+hex[1], 16); g = parseInt(hex[2]+hex[2], 16); b = parseInt(hex[3]+hex[3], 16);
+        } else if (hex.length === 7) {
+            r = parseInt(hex.slice(1, 3), 16); g = parseInt(hex.slice(3, 5), 16); b = parseInt(hex.slice(5, 7), 16);
+        }
+        return `${r}, ${g}, ${b}`;
+    } catch(e) {
+        return '0, 242, 254';
+    }
+}
+
+function setAccentColor(color,name){
+    const h=document.documentElement;
+    h.style.setProperty('--primary-color',color);
+    h.style.setProperty('--accent-color',color);
+    h.style.setProperty('--send-bg',color);
+    h.style.setProperty('--send-hover',color);
+    h.style.setProperty('--primary-hover',color);
+    h.style.setProperty('--icon-color',color);
+    h.style.setProperty('--send-shadow',color+'33');
+    h.style.setProperty('--msg-user-bg',color);
+    h.style.setProperty('--msg-user-text',getContrastColor(color));
+    h.style.setProperty('--primary-rgb',hexToRgb(color));
+    const lbl=document.getElementById('currentColorLabel');
+    if(lbl)lbl.textContent=name;
+    const dot=document.getElementById('currentColorDot');
+    if(dot)dot.style.background=color;
+    localStorage.setItem('nibras-accent',color);
+    localStorage.setItem('nibras-accent-name',name);
+}
+(function initTheme(){const mode=localStorage.getItem('nibras-theme-mode')||'system';if(mode==='system'){const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;setTheme(prefersDark?'dark':'light');}else{setTheme(mode);}})();
+const savedAccent=localStorage.getItem('nibras-accent');const savedAccentName=localStorage.getItem('nibras-accent-name');
+if(savedAccent){setAccentColor(savedAccent,savedAccentName||'مخصص');}
+const subPagesContent={
+    theme:'<div class="option-list">'+
+        '<div class="option-row" data-theme="system" onclick="selectTheme(\'system\')"><div class="option-label"><span>النظام (افتراضي)</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+        '<div class="option-row" data-theme="light" onclick="selectTheme(\'light\')"><div class="option-label"><span>فاتح</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+        '<div class="option-row" data-theme="dark" onclick="selectTheme(\'dark\')"><div class="option-label"><span>داكن</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+        '<div class="option-row" data-theme="neon" onclick="selectTheme(\'neon\')"><div class="option-label"><span>⚡ نيون</span><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>'+
+    '</div>',
+    color:'<div class="color-grid"><div class="color-row" data-color="#3b82f6" onclick="selectColor(\'#3b82f6\',\'أزرق\')"><div class="color-row-left"><div class="color-circle" style="background:#3b82f6;"></div><span>أزرق</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#4a6a8a" onclick="selectColor(\'#4a6a8a\',\'أزرق داكن\')"><div class="color-row-left"><div class="color-circle" style="background:#4a6a8a;"></div><span>أزرق داكن (افتراضي)</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#10b981" onclick="selectColor(\'#10b981\',\'أخضر\')"><div class="color-row-left"><div class="color-circle" style="background:#10b981;"></div><span>أخضر</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#ef4444" onclick="selectColor(\'#ef4444\',\'أحمر\')"><div class="color-row-left"><div class="color-circle" style="background:#ef4444;"></div><span>أحمر</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#f97316" onclick="selectColor(\'#f97316\',\'برتقالي\')"><div class="color-row-left"><div class="color-circle" style="background:#f97316;"></div><span>برتقالي</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#fbbf24" onclick="selectColor(\'#fbbf24\',\'أصفر\')"><div class="color-row-left"><div class="color-circle" style="background:#fbbf24;"></div><span>أصفر</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#06b6d4" onclick="selectColor(\'#06b6d4\',\'سماوي\')"><div class="color-row-left"><div class="color-circle" style="background:#06b6d4;"></div><span>سماوي</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#8b5cf6" onclick="selectColor(\'#8b5cf6\',\'أرجواني\')"><div class="color-row-left"><div class="color-circle" style="background:#8b5cf6;"></div><span>أرجواني</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#ec4899" onclick="selectColor(\'#ec4899\',\'وردي\')"><div class="color-row-left"><div class="color-circle" style="background:#ec4899;"></div><span>وردي</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="color-row" data-color="#1a1a1a" onclick="selectColor(\'#1a1a1a\',\'أسود\')"><div class="color-row-left"><div class="color-circle" style="background:#1a1a1a;"></div><span>أسود</span></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
+    fontSize:'<div class="fontsize-list"><div class="fontsize-row" data-fs="small" onclick="selectFontSize(\'small\',\'صغير\')"><div class="fontsize-row-left"><div class="fontsize-label">صغير</div><div class="fontsize-sample" style="font-size:13px;">نموذج من الخط الصغير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="medium" onclick="selectFontSize(\'medium\',\'متوسط\')"><div class="fontsize-row-left"><div class="fontsize-label">متوسط</div><div class="fontsize-sample" style="font-size:15px;">نموذج من الخط المتوسط</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="large" onclick="selectFontSize(\'large\',\'كبير\')"><div class="fontsize-row-left"><div class="fontsize-label">كبير</div><div class="fontsize-sample" style="font-size:17px;">نموذج من الخط الكبير</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="fontsize-row" data-fs="xlarge" onclick="selectFontSize(\'xlarge\',\'ضخم\')"><div class="fontsize-row-left"><div class="fontsize-label">ضخم</div><div class="fontsize-sample" style="font-size:19px;">نموذج من الخط الضخم</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
+    personality:'<div class="personality-list"><div class="personality-row" data-p="friendly" onclick="selectPersonality(\'friendly\',\'ودود\')"><div class="personality-text"><div class="personality-name">ودود</div><div class="personality-sub">دافئ ومريح</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="concise" onclick="selectPersonality(\'concise\',\'مختصر\')"><div class="personality-text"><div class="personality-name">مختصر</div><div class="personality-sub">ردود قصيرة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="detailed" onclick="selectPersonality(\'detailed\',\'مفصّل\')"><div class="personality-text"><div class="personality-name">مفصّل</div><div class="personality-sub">شرح عميق</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="formal" onclick="selectPersonality(\'formal\',\'رسمي\')"><div class="personality-text"><div class="personality-name">رسمي</div><div class="personality-sub">احترافي ومهني</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="teacher" onclick="selectPersonality(\'teacher\',\'معلّم\')"><div class="personality-text"><div class="personality-name">معلّم</div><div class="personality-sub">يشرح خطوة بخطوة</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-p="playful" onclick="selectPersonality(\'playful\',\'فرفوش\')"><div class="personality-text"><div class="personality-name">فرفوش</div><div class="personality-sub">مرح ومزح خفيف</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
+    language:'<div class="lang-list"><div class="lang-card" data-lang="ar" onclick="selectLanguage(\'ar\')"><div class="lang-flag" style="background:linear-gradient(135deg,#2d6a4f 0%,#40916c 100%);">ع</div><div class="lang-info"><div class="lang-name">العربية</div><div class="lang-sub">Arabic</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="lang-card" data-lang="en" onclick="selectLanguage(\'en\')"><div class="lang-flag" style="background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);">EN</div><div class="lang-info"><div class="lang-name">English</div><div class="lang-sub">الإنجليزية</div></div><svg class="lang-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>',
+    general:'<div class="sp-field"><label class="sp-label">الاسم الكامل</label><input type="text" id="sp-name" class="sp-input" value="{{ user_name or '' }}" placeholder="اكتب اسمك"></div>',
+    memory: {{ memory_html|tojson }},
+    assistants:'<div class="sp-note" style="text-align:center;">جاري التحميل...</div>',
+    library:'<div id="libraryContent"><div class="sp-note" style="text-align:center;">جاري التحميل...</div></div>',
+    voice:'<div style="display:flex;flex-direction:column;gap:16px;"><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">جنس الصوت</div><div class="personality-list"><div class="personality-row" data-vg="male" onclick="selectVoiceGender(\'male\')"><div class="personality-text"><div class="personality-name">ذكر</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vg="female" onclick="selectVoiceGender(\'female\')"><div class="personality-text"><div class="personality-name">أنثى</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">سرعة الصوت</div><div class="personality-list"><div class="personality-row" data-vs="0.75" onclick="selectVoiceSpeed(0.75)"><div class="personality-text"><div class="personality-name">بطيء</div><div class="personality-sub">0.75×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1" onclick="selectVoiceSpeed(1)"><div class="personality-text"><div class="personality-name">عادي</div><div class="personality-sub">1×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.25" onclick="selectVoiceSpeed(1.25)"><div class="personality-text"><div class="personality-name">سريع</div><div class="personality-sub">1.25×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vs="1.5" onclick="selectVoiceSpeed(1.5)"><div class="personality-text"><div class="personality-name">سريع جداً</div><div class="personality-sub">1.5×</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div><div><div class="sp-label" style="padding:0 4px 8px;letter-spacing:.5px;">مستوى الصوت</div><div class="personality-list"><div class="personality-row" data-vl="25" onclick="selectVoiceLevel(25)"><div class="personality-text"><div class="personality-name">هادئ</div><div class="personality-sub">25%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="50" onclick="selectVoiceLevel(50)"><div class="personality-text"><div class="personality-name">متوسط</div><div class="personality-sub">50%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="75" onclick="selectVoiceLevel(75)"><div class="personality-text"><div class="personality-name">عالي</div><div class="personality-sub">75%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="personality-row" data-vl="100" onclick="selectVoiceLevel(100)"><div class="personality-text"><div class="personality-name">كامل</div><div class="personality-sub">100%</div></div><svg class="check-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div></div></div>',
+    safety:'<div class="sp-note"><b>إرشادات السلامة</b>• لا تشارك معلوماتك الشخصية الحساسة.<br>• نبراس مساعد ذكي، وليس بديلاً عن الاستشارة المتخصصة.<br>• أبلغ عن أي محتوى غير لائق.</div>',
+    security:'<div class="sp-field"><label class="sp-label">البريد الإلكتروني</label><input type="email" class="sp-input" value="{{ session.get('user_email','') }}" disabled></div><div class="sp-field"><label class="sp-label">كلمة المرور الحالية</label><input type="password" id="sp-old-pass" class="sp-input" placeholder="••••••••"></div><div class="sp-field"><label class="sp-label">كلمة المرور الجديدة</label><input type="password" id="sp-new-pass" class="sp-input" placeholder="••••••••"></div>',
+    remote:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><div><div class="sp-hero-title">إدارة الجلسات</div><div class="sp-hero-sub">تحكم بالأجهزة المتصلة بحسابك</div></div></div><div class="sp-list"><div class="sp-list-item"><span class="sp-list-key">هذا الجهاز (المتصفح الحالي)</span><span class="sp-list-val" style="color:var(--primary-color);font-size:13px;">نشط الآن</span></div></div><div style="margin-top:16px;"><button class="sp-btn sp-btn-danger" onclick="logoutAll()">تسجيل الخروج من كل الأجهزة</button></div>',
+    storage:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div><div class="sp-hero-title">التخزين</div><div class="sp-hero-sub">إحصائيات البيانات المحفوظة</div></div></div><div class="sp-list"><div class="sp-list-item"><span class="sp-list-key">المحادثات</span><span class="sp-list-val" id="sp-conv-count">0</span></div><div class="sp-list-item"><span class="sp-list-key">الصور</span><span class="sp-list-val" id="sp-img-count">0</span></div></div><div style="margin-top:16px;"><button class="sp-btn sp-btn-danger" onclick="clearCache()">مسح الكاش المحلي</button></div>',
+    privacy:'<div class="sp-note"><b>سياسة الخصوصية</b>• نحتفظ بمحادثاتك لتقديم خدمة أفضل.<br>• لا نشارك بياناتك مع أطراف ثالثة.<br>• يمكنك حذف بياناتك في أي وقت من التحكم في البيانات.</div><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="sp-link-btn" style="margin-top:16px;">قراءة السياسة كاملة</a>',
+    data:'<div class="sp-note">يمكنك تصدير جميع بياناتك أو حذفها نهائياً.</div><div class="sp-btn-row" style="margin-top:16px;"><button class="sp-btn sp-btn-primary" onclick="exportData()">تصدير البيانات</button><button class="sp-btn sp-btn-danger" onclick="deleteMyAccount()">حذف</button></div>',
+    ads:'<div class="sp-field"><label class="sp-label">تخصيص الإعلانات</label><select id="sp-ads" class="sp-select"><option value="personalized">مخصصة</option><option value="non-personalized">غير مخصصة</option></select></div>',
+    report:'<div class="sp-field"><label class="sp-label">نوع المشكلة</label><select id="sp-report-type" class="sp-select"><option>خطأ تقني</option><option>محتوى غير لائق</option><option>اقتراح</option><option>أخرى</option></select></div><div class="sp-field"><label class="sp-label">الوصف</label><input type="text" id="sp-report-desc" class="sp-input" placeholder="اشرح المشكلة..."></div>',
+    about:'<div class="sp-hero"><div class="sp-hero-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div><div><div class="sp-hero-title">نبراس GP</div><div class="sp-hero-sub">الإصدار 1.0 · مساعد ذكي شخصي</div></div></div><div class="sp-note">مساعد شخصي باللهجة العربية العامية.<br><br>© 2026 جميع الحقوق محفوظة.</div><a href="https://abod724.github.io/nibras-privacy/terms.html" target="_blank" class="sp-link-btn" style="margin-top:16px;">شروط الاستخدام</a><a href="https://abod724.github.io/nibras-privacy/" target="_blank" class="sp-link-btn" style="margin-top:10px;">سياسة الخصوصية</a>'
+};
+let currentSubKey=null;
+function openSubPage(key){
+    currentSubKey=key;
+    const titleMap={general:'عام',voice:'الصوت',safety:'السلامة',security:'الأمان وتسجيل الدخول',remote:'التحكم عن بُعد',storage:'التخزين',privacy:'مركز الخصوصية',data:'التحكم في البيانات',ads:'التحكم في الإعلانات',report:'الإبلاغ عن خطأ',about:'حول',theme:'المظهر',color:'لون التمييز',language:'اللغة / Language',personality:'شخصية المساعد',fontSize:'حجم الخط',memory:'الذاكرة',assistants:'مساعدي الخاص',library:'مكتبة المساعدين'};
+    document.getElementById('subPageTitle').textContent=titleMap[key]||'إعدادات';
+    document.getElementById('subPageBody').innerHTML=subPagesContent[key]||'<div class="sp-note">قريباً</div>';
+    document.getElementById('subPage').classList.add('show');
+    setTimeout(function(){
+        if(key==='theme'){const t=localStorage.getItem('nibras-theme-mode')||'system';markSelectedTheme(t);}
+        if(key==='color'){const c=localStorage.getItem('nibras-accent')||'#4a6a8a';markSelectedColor(c);}
+        if(key==='fontSize'){document.querySelectorAll('.fontsize-row').forEach(function(el){el.classList.toggle('selected',el.dataset.fs===userFontSize);});}
+        if(key==='personality'){document.querySelectorAll('.personality-row').forEach(function(el){el.classList.toggle('selected',el.dataset.p===userPersonality);});}
+        if(key==='language'){document.querySelectorAll('.lang-card').forEach(function(el){el.classList.toggle('selected',el.dataset.lang===userLang);});}
+        if(key==='voice'){markVoiceSelections();}
+        if(key==='memory'){loadMemory();}
+        if(key==='assistants'){loadAssistants().then(loadAssistantsPage);}
+        if(key==='library'){loadLibraryStore();}
+        if(key==='storage'){loadStorageInfo();}
+    },60);
+}
+function closeSubPage(){
+    document.getElementById('subPage').classList.remove('show');
+    currentSubKey=null;
+    const btn = document.querySelector('#subPage .modal-confirm');
+    if(btn){ btn.onclick = confirmSubPage; btn.disabled = false; btn.textContent = 'تأكيد'; }
+}
+function confirmSubPage(){
+    if(currentSubKey==='voice'){saveVoice();}
+    else if(currentSubKey==='general'){saveGeneral();}
+    else if(currentSubKey==='security'){changePassword();}
+    else if(currentSubKey==='ads'){saveAds();}
+    else if(currentSubKey==='report'){sendReport();}
+    else{closeSubPage();}
+}
+function pickVoiceGender(g){isMale=(g==='male');}
+function selectVoiceGender(g){isMale=(g==='male');document.querySelectorAll('[data-vg]').forEach(function(el){el.classList.toggle('selected',el.dataset.vg===g);});}
+function selectVoiceSpeed(s){voiceSpeed=parseFloat(s);document.querySelectorAll('[data-vs]').forEach(function(el){el.classList.toggle('selected',parseFloat(el.dataset.vs)===voiceSpeed);});}
+function selectVoiceLevel(l){document.querySelectorAll('[data-vl]').forEach(function(el){el.classList.toggle('selected',parseInt(el.dataset.vl)===parseInt(l));});}
+function markVoiceSelections(){var g=isMale?'male':'female';document.querySelectorAll('[data-vg]').forEach(function(el){el.classList.toggle('selected',el.dataset.vg===g);});var s=voiceSpeed||1;document.querySelectorAll('[data-vs]').forEach(function(el){el.classList.toggle('selected',parseFloat(el.dataset.vs)===s);});var l=parseInt(localStorage.getItem('nibras-voice-level')||'100');document.querySelectorAll('[data-vl]').forEach(function(el){el.classList.toggle('selected',parseInt(el.dataset.vl)===l);});}
+function selectLanguage(lang){userLang=lang;try{localStorage.setItem('nibras-lang',userLang);}catch(e){}applyLang();fetch('/update_language',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lang:userLang})}).catch(()=>{});document.querySelectorAll('.lang-card').forEach(c=>{c.classList.toggle('selected',c.dataset.lang===userLang);});const lbl=document.getElementById('currentLangLabel');if(lbl)lbl.textContent=userLang==='en'?'English':'العربية';}
+function selectPersonality(p,name){userPersonality=p;try{localStorage.setItem('nibras-personality',p);}catch(e){}document.querySelectorAll('.personality-row').forEach(c=>{c.classList.toggle('selected',c.dataset.p===p);});const lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=name;fetch('/update_personality',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({personality:p})}).catch(()=>{});}
+function selectFontSize(size,name){userFontSize=size;try{localStorage.setItem('nibras-font-size',size);}catch(e){}applyFontSize(size);document.querySelectorAll('.fontsize-row').forEach(c=>{c.classList.toggle('selected',c.dataset.fs===size);});}
+function selectTheme(t){if(t==='system'){const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;setTheme(prefersDark?'dark':'light');}else{setTheme(t);}localStorage.setItem('nibras-theme-mode',t);markSelectedTheme(t);}
+function markSelectedTheme(t){document.querySelectorAll('.option-row').forEach(el=>{if(el.dataset.theme===t)el.classList.add('selected');else el.classList.remove('selected');});}
+function selectColor(color, name){
+    setAccentColor(color, name);
+    markSelectedColor(color);
+}
+function markSelectedColor(color){document.querySelectorAll('.color-row').forEach(el=>{if(el.dataset.color===color)el.classList.add('selected');else el.classList.remove('selected');});}
+async function loadStorageInfo(){try{const r1=await fetch('/history');const d1=await r1.json();document.getElementById('sp-conv-count').textContent=(d1.conversations||[]).length;const r2=await fetch('/library/images');const d2=await r2.json();document.getElementById('sp-img-count').textContent=(d2.images||[]).length;}catch(e){}}
+function saveGeneral(){const n=(document.getElementById('sp-name').value||'').trim();if(!n||n.length<2){showToast('اكتب اسم صحيح');return;}if(!IS_REGISTERED){showToast('سجّل دخولك أولاً');return;}fetch('/update_profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,lang:userLang})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم الحفظ');closeSubPage();setTimeout(()=>location.reload(),500);}else{showToast(d.message||'فشل الحفظ');}}).catch(()=>showToast('تعذر الاتصال بالسيرفر'));}
+function saveVoice(){var lvlEl=document.querySelector('[data-vl].selected');var lvl=lvlEl?lvlEl.dataset.vl:'100';var gender=isMale?'male':'female';var speedEl=document.querySelector('[data-vs].selected');var speed=speedEl?parseFloat(speedEl.dataset.vs):1;voiceSpeed=speed;localStorage.setItem('nibras-voice-level',lvl);localStorage.setItem('nibras-voice-gender',gender);localStorage.setItem('nibras-voice-speed',speed);fetch('/set_gender',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gender:gender})}).then(function(){showToast('تم حفظ الإعدادات');closeSubPage();}).catch(function(){showToast('تم الحفظ محلياً');closeSubPage();});}
+function changePassword(){const o=document.getElementById('sp-old-pass').value;const n=document.getElementById('sp-new-pass').value;if(!o){showToast('اكتب كلمة المرور الحالية');return;}if(!n||n.length<8){showToast('كلمة المرور الجديدة 8 أحرف على الأقل');return;}fetch('/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:o,new_password:n})}).then(r=>r.json()).then(d=>{if(d.status==='ok'){showToast('تم تغيير كلمة المرور');document.getElementById('sp-old-pass').value='';document.getElementById('sp-new-pass').value='';closeSubPage();}else{showToast((d.message||'فشل تغيير كلمة المرور'));}}).catch(()=>showToast('تعذر الاتصال بالسيرفر'));}
+function logoutAll(){if(confirm('خروج من كل الأجهزة؟')){fetch('/logout_all',{method:'POST'}).then(()=>window.location.href='/logout');}}
+function clearCache(){if(!confirm('مسح الإعدادات المحلية؟'))return;localStorage.clear();sessionStorage.clear();document.documentElement.classList.remove('dark-mode');showToast('تم المسح');setTimeout(()=>location.reload(),900);}
+function exportData(){window.location.href='/export_data';}
+function saveAds(){showToast('تم حفظ التفضيلات');closeSubPage();}
+function sendReport(){const d=document.getElementById('sp-report-desc').value;if(!d||d.trim().length<3){showToast('اكتب وصف');return;}fetch('/report_bug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:document.getElementById('sp-report-type').value,description:d})}).then(r=>r.json()).then(res=>{if(res.status==='ok'){showToast('تم الإرسال');setTimeout(()=>closeSubPage(),800);}});}
+async function loadPinned(){try{let pinned=[];if(IS_REGISTERED){const r=await fetch('/pinned_conversations');const d=await r.json();pinned=d.pinned||[];}else{const ids=getPinnedLocal();if(ids.length){const hr=await fetch('/history');const hd=await hr.json();pinned=(hd.conversations||[]).filter(c=>ids.includes(c.id));}}pl.innerHTML='';if(!pinned||pinned.length===0){pl.innerHTML='<div class="item" style="color:var(--text-secondary);font-size:13px;cursor:default;justify-content:center;padding:12px;">'+(userLang==='en'?'No pinned conversations':'لا توجد محادثات مثبتة')+'</div>';if(!IS_REGISTERED){const hint=document.createElement('div');hint.style.cssText='padding:8px 16px 12px;font-size:12px;color:var(--text-secondary);text-align:center;line-height:1.6;';hint.innerHTML=userLang==='en'?'Sign in to save pins permanently':'سجّل دخولك لحفظ التثبيتات بشكل دائم';pl.appendChild(hint);}return;}pinned.forEach(c=>{const btn=document.createElement('button');btn.className='conv-item pinned-item';btn.innerHTML='<span class="conv-title">'+c.title+'</span>';btn.onclick=()=>loadConversation(c.id);pl.appendChild(btn);});}catch(e){}}
+
+let ctxConvId = null;
+let ctxIsPinned = false;
+
+function showContextMenu(e, convId, isPinned) {
+    ctxConvId = convId;
+    ctxIsPinned = isPinned;
+    const menu = document.getElementById('convContextMenu');
+    const backdrop = document.getElementById('ctxBackdrop');
+    const pinText = document.getElementById('ctxPinText');
+    pinText.textContent = isPinned ? (userLang==='en'?'Unpin':'إلغاء التثبيت') : (userLang==='en'?'Pin':'تثبيت');
+    
+    let x = e.clientX;
+    let y = e.clientY;
+    
+    menu.classList.add('show');
+    
+    const menuRect = menu.getBoundingClientRect();
+    if (x + menuRect.width > window.innerWidth) x -= menuRect.width;
+    if (y + menuRect.height > window.innerHeight) y -= menuRect.height;
+    menu.style.left = Math.max(10, x) + 'px';
+    menu.style.top = Math.max(10, y) + 'px';
+    
+    if (backdrop) backdrop.classList.add('show');
+}
+
+function hideContextMenu() {
+    const menu = document.getElementById('convContextMenu');
+    const backdrop = document.getElementById('ctxBackdrop');
+    if (menu) {
+        menu.classList.remove('show');
+        menu.style.display = '';
+    }
+    if (backdrop) backdrop.classList.remove('show');
+}
+
+window.addEventListener('scroll', hideContextMenu, { passive: true });
+window.addEventListener('touchmove', hideContextMenu, { passive: true });
+
+async function ctxAction(action, event) {
+    if (event) event.stopPropagation();
+    hideContextMenu();
+    if (!ctxConvId) return;
+
+    if (action === 'pin') {
+        const url = ctxIsPinned ? '/unpin_conversation' : '/pin_conversation';
+        try {
+            const r = await fetch(url, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ conv_id: ctxConvId })
+            });
+            if (r.ok) {
+                showToast(ctxIsPinned ? (userLang==='en'?'Unpinned':'تم إلغاء التثبيت') : (userLang==='en'?'Pinned':'تم التثبيت'));
+                loadHistory();
+                loadPinned();
+            }
+        } catch(e) { showToast(userLang==='en'?'Connection failed':'فشل الاتصال'); }
+    } 
+    else if (action === 'rename') {
+        const newTitle = prompt(userLang==='en'?'Enter new title:':'اكتب الاسم الجديد للمحادثة:', '');
+        if (newTitle && newTitle.trim().length > 0) {
+            try {
+                const r = await fetch('/rename_conversation', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ conv_id: ctxConvId, title: newTitle.trim() })
+                });
+                if (r.ok) {
+                    showToast(userLang==='en'?'Renamed':'تم تغيير الاسم');
+                    loadHistory();
+                }
+            } catch(e) { showToast(userLang==='en'?'Connection failed':'فشل الاتصال'); }
+        }
+    } 
+    else if (action === 'delete') {
+        if (confirm(userLang==='en'?'Delete this conversation permanently?':'هل أنت متأكد من حذف هذه المحادثة نهائياً؟')) {
+            try {
+                const r = await fetch('/delete_conversation', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ conv_id: ctxConvId })
+                });
+                if (r.ok) {
+                    showToast(userLang==='en'?'Deleted':'تم الحذف');
+                    if (cid === ctxConvId) {
+                        cb.innerHTML = ''; ch = []; cid = null; 
+                    }
+                    loadHistory();
+                    loadPinned();
+                }
+            } catch(e) { showToast(userLang==='en'?'Connection failed':'فشل الاتصال'); }
+        }
+    }
+}
+
+async function loadHistory(){try{const r=await fetch('/history');const d=await r.json();hl.innerHTML='';const localPinned=getPinnedLocal();if(d.conversations&&d.conversations.length>0){d.conversations.forEach(c=>{const isPinned=IS_REGISTERED?c.pinned:localPinned.includes(c.id);const b=document.createElement('div');b.className='conv-item';b.style.cursor='pointer';b.innerHTML='<span class="conv-title">'+((c.title&&c.title.trim())?c.title:'محادثة')+'</span><button class="pin-btn '+(isPinned?'pinned':'')+'" title="'+(isPinned?'إلغاء التثبيت':'تثبيت')+'"><svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></button>';let pressTimer=null;let isLongPress=false;b.oncontextmenu=(e)=>{e.preventDefault();showContextMenu(e,c.id,isPinned);};b.addEventListener('touchstart',(e)=>{isLongPress=false;pressTimer=setTimeout(()=>{isLongPress=true;if(navigator.vibrate)navigator.vibrate(50);b.classList.add('long-pressing');const touch=e.touches[0];showContextMenu({clientX:touch.clientX,clientY:touch.clientY},c.id,isPinned);},500);},{passive:true});b.addEventListener('touchend',(e)=>{clearTimeout(pressTimer);b.classList.remove('long-pressing');if(isLongPress){e.preventDefault();isLongPress=false;}});b.addEventListener('touchmove',()=>{clearTimeout(pressTimer);b.classList.remove('long-pressing');},{passive:true});b.onclick=(e)=>{if(isLongPress)return;if(e.target.closest('.pin-btn'))return;loadConversation(c.id);};b.querySelector('.pin-btn').onclick=async(e)=>{e.stopPropagation();await togglePin(c.id,isPinned,e.currentTarget);};hl.appendChild(b);});}else{const e=document.createElement('div');e.className='item';e.style.color='var(--text-secondary)';e.style.fontSize='13px';e.style.justifyContent='center';e.textContent=userLang==='en'?'No conversations':'لا توجد محادثات';hl.appendChild(e);}}catch(e){}}
+async function loadConversation(id){
+    try{
+        const r=await fetch('/load_conversation/'+id), d=await r.json();
+        if(d.messages){
+            cb.innerHTML='';
+            ch=[];
+            cid=id;
+            d.messages.slice(-50).forEach(function(m){
+                const s=m.role==='user'?'user':'bot';
+                ch.push({role:m.role,content:m.content});
+                addMessage(m.display_content||m.content, s, true, null, null, m.is_html, m.content);
+            });
+            dd.classList.remove('show');
+        }
+    }catch(e){}
+}
+document.querySelector('[data-action="new"]').addEventListener('click',function(){cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.classList.remove('show');ui.value=''});
+document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();dd.classList.remove('show');const msgs=ch.slice(-20).map(function(m){return{r:m.role==='user'?'u':'b',c:String(m.content||'').slice(0,500)};}).filter(function(m){return m.c;});if(!msgs||msgs.length===0){showToast(userLang==='en'?'No conversation to share':'لا توجد محادثة لمشاركتها');return;}const text=userLang==='en'?'Check out my conversation with Nibras':'شوف محادثتي مع نبراس';if(IS_REGISTERED&&cid&&!String(cid).startsWith('guest_conv_')){const dbUrl=window.location.origin+'/share/'+cid;document.getElementById('shareWhatsapp').href='https://wa.me/?text='+encodeURIComponent(text+'\n'+dbUrl);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(dbUrl);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(dbUrl)+'&text='+encodeURIComponent(text);document.getElementById('shareSnapchat').onclick=function(){navigator.clipboard.writeText(dbUrl).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});};sm.classList.add('show');}else{let url='';try{const json=JSON.stringify(msgs);const encoded=btoa(unescape(encodeURIComponent(json)));url=window.location.origin+'/share/view#d='+encodeURIComponent(encoded);}catch(err){showToast(userLang==='en'?'Failed to prepare link':'تعذر تجهيز الرابط');return;}if(url.length>60000){showToast(userLang==='en'?'Conversation too long to share':'المحادثة طويلة جداً للمشاركة');return;}if(navigator.share){navigator.share({title:userLang==='en'?'Nibras Conversation':'محادثة نبراس',text:text,url:url}).catch(function(){});}else{navigator.clipboard.writeText(url).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});}}});
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function formatBotText(t){
+    let s = escapeHtml(t);
+    
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline;">$1</a>');
+    
+    s = s.replace(/(^|[^"'])(https?:\/\/([^\/\s]+)[^\s]*)/g, function(match, p1, fullUrl, domain) {
+        let cleanDomain = domain.replace(/^www\./, '');
+        return p1 + '<a href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">' + cleanDomain + '</a>';
+    });
+    
+    s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    return s.split(/\n\s*\n/).map(p => p.replace(/[\r\n]+/g, '<br>').trim()).filter(p => p.length > 0).join('<br><br>');
+}
+function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
+function scrollMsgToTop(el){if(!el)return;requestAnimationFrame(function(){const r=el.getBoundingClientRect();const c=cb.getBoundingClientRect();cb.scrollTop=cb.scrollTop+(r.top-c.top)-8;});}
+function isNearBottom(){return cb.scrollHeight-cb.scrollTop-cb.clientHeight<10;}
+cb.addEventListener('scroll',function(){stickBottom=isNearBottom();},{passive:true});
+cb.addEventListener('touchmove',function(){stickBottom=isNearBottom();},{passive:true});
+cb.addEventListener('wheel',function(){stickBottom=isNearBottom();},{passive:true});
+function attachBotActions(el,msgText){if(!el||el.querySelector('.msg-actions'))return;const actions=document.createElement('div');actions.className='msg-actions';actions.innerHTML='<button class="act-like" title="إعجاب"><svg viewBox="0 0 24 24"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg></button><button class="act-dislike" title="عدم إعجاب"><svg viewBox="0 0 24 24"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg></button><button class="act-copy" title="نسخ"><svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2.5" ry="2.5"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button><button class="act-speak" title="استماع"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>';el.appendChild(actions);const likeBtn=actions.querySelector('.act-like');const dislikeBtn=actions.querySelector('.act-dislike');const copyBtn=actions.querySelector('.act-copy');const speakBtn=actions.querySelector('.act-speak');likeBtn.addEventListener('click',function(){const wasLiked=this.classList.contains('liked');this.classList.toggle('liked',!wasLiked);dislikeBtn.classList.remove('disliked');actions.classList.add('touched');fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasLiked?'unlike':'like',message:msgText,conv_id:cid})}).catch(function(){});showToast(wasLiked?(userLang==='en'?'Like removed':'تم إلغاء الإعجاب'):(userLang==='en'?'Thanks!':'شكراً لتقييمك'));});dislikeBtn.addEventListener('click',function(){const wasDisliked=this.classList.contains('disliked');this.classList.toggle('disliked',!wasDisliked);likeBtn.classList.remove('liked');actions.classList.add('touched');fetch('/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:wasDisliked?'undislike':'dislike',message:msgText,conv_id:cid})}).catch(function(){});showToast(wasDisliked?(userLang==='en'?'Rating removed':'تم إلغاء التقييم'):(userLang==='en'?'We will improve':'رأيك مهم، بنتحسن'));});copyBtn.addEventListener('click',function(){navigator.clipboard.writeText(msgText).then(()=>{this.classList.add('copied');showToast(userLang==='en'?'Copied':'تم النسخ');const b=this;setTimeout(()=>b.classList.remove('copied'),1500);}).catch(()=>showToast(userLang==='en'?'Copy failed':'فشل النسخ'));});speakBtn.addEventListener('click',function(){const btn=this;if(btn.classList.contains('speaking')){stopAllAudio();document.querySelectorAll('.act-speak.speaking').forEach(function(b){ b.classList.remove('speaking'); });return;}stopAllAudio();document.querySelectorAll('.act-speak.speaking').forEach(function(b){ b.classList.remove('speaking'); });btn.classList.add('speaking');fetch('/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msgText})}).then(r=>r.json()).then(v=>{if(v && v.audio){playAudioWithSpeed(v.audio, function(){btn.classList.remove('speaking');});}else{btn.classList.remove('speaking');showToast(userLang==='en'?'Playback failed':'فشل التشغيل');}}).catch(function(){btn.classList.remove('speaking');showToast(userLang==='en'?'Connection failed':'فشل الاتصال');});});}
+function addMessage(t,s,isSys,img,imageUrl,isHtml,rawText){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el}let content=isHtml?t:formatBotText(t);if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}el.innerHTML=content;if(isHtml){el.classList.add('nibras-response');}if(s==='bot'&&!isSys){attachBotActions(el,rawText||t);}cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el;}
+function showImagePreview(d){ip.src=d;ipc.classList.add('show');}
+function clearPending(){pid=null;ipc.classList.remove('show');ip.src='';}
+rib.addEventListener('click',clearPending);
+ui.addEventListener('input',function(){this.style.height='auto';const maxH=150;this.style.height=Math.min(this.scrollHeight,maxH)+'px';this.style.overflowY=this.scrollHeight>maxH?'auto':'hidden';const ums=cb.querySelectorAll('.msg.user');if(ums.length)scrollMsgToTop(ums[ums.length-1]);});
+let poOpen=false;
+pb.addEventListener('click',function(){poOpen=!poOpen;po.classList.toggle('show',poOpen);this.classList.toggle('rotate',poOpen)});
+document.addEventListener('click',function(e){if(!pb.contains(e.target)&&!po.contains(e.target)){po.classList.remove('show');poOpen=false;pb.classList.remove('rotate')}});
+gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
+fi.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];fi.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
+cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
+ci.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];ci.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
+let myAssistants=[];
+let currentAssistantId=null;
+let currentAssistantData={name:'نبراس',color:'#4a6a8a'};
+let editingAssistantId=null;
+let selectedAsstColor='#4a6a8a';
+async function loadAssistants(){if(!IS_REGISTERED)return;try{const r=await fetch('/my_assistants');const d=await r.json();myAssistants=d.assistants||[];renderAssistantMenu();const saved=localStorage.getItem('nibras_assistant_id');if(saved){const id=parseInt(saved);const found=myAssistants.find(a=>a.id===id);if(found){selectAssistant(id,false);}else{selectAssistant(null,false);}}else{selectAssistant(null,false);}}catch(e){console.error(e);}}
+function toggleAssistantMenu(e){if(e)e.stopPropagation();const menu=document.getElementById('assistantMenu');if(menu.classList.contains('show')){menu.classList.remove('show');return;}renderAssistantMenu();const pill=document.getElementById('assistantPill');const rect=pill.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-260))+'px';menu.style.bottom=(window.innerHeight-rect.top+6)+'px';menu.classList.add('show');}
+function renderAssistantMenu(){const menu=document.getElementById('assistantMenu');if(!menu)return;let html='';const isDefault=currentAssistantId===null;html+='<button class="assistant-menu-item'+(isDefault?' selected':'')+'" onclick="selectAssistant(null)"><span class="a-dot" style="background:#4a6a8a">ن</span><span class="a-name">نبراس</span><svg class="a-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>';if(myAssistants.length>0){html+='<div class="assistant-menu-sep"></div>';myAssistants.forEach(a=>{const sel=currentAssistantId===a.id;html+='<button class="assistant-menu-item'+(sel?' selected':'')+'" onclick="selectAssistant('+a.id+')"><span class="a-dot" style="background:'+a.color+'">'+escapeHtml(a.name.charAt(0))+'</span><span class="a-name">'+escapeHtml(a.name)+'</span><svg class="a-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>';});}html+='<div class="assistant-menu-sep"></div>';html+='<button class="assistant-menu-add" onclick="openNewAssistantForm()"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>إضافة مساعد جديد</button>';menu.innerHTML=html;}
+function selectAssistant(id,closeMenu){currentAssistantId=id;if(id===null){currentAssistantData={name:'نبراس',color:'#4a6a8a'};localStorage.removeItem('nibras_assistant_id');}else{const a=myAssistants.find(x=>x.id===id);if(a){currentAssistantData={name:a.name,color:a.color};localStorage.setItem('nibras_assistant_id',String(id));}}const dot=document.getElementById('assistantPillDot');const name=document.getElementById('assistantPillName');if(dot){dot.style.background=currentAssistantData.color;dot.textContent=currentAssistantData.name.charAt(0);}if(name){name.textContent=currentAssistantData.name;}if(closeMenu!==false){document.getElementById('assistantMenu').classList.remove('show');}}
+function openNewAssistantForm(){document.getElementById('assistantMenu').classList.remove('show');closeSettings();openAssistantForm(null);}
+function openAssistantForm(id){editingAssistantId=id;const a=id?myAssistants.find(x=>x.id===id):null;selectedAsstColor=a?a.color:'#4a6a8a';const colors=['#4a6a8a','#1a1a1a','#10b981','#fbbf24','#ec4899','#f97316','#8b5cf6','#ef4444'];const colorDots=colors.map(c=>'<button type="button" class="assistant-color-dot'+(c===selectedAsstColor?' selected':'')+'" data-color="'+c+'" style="background:'+c+'" onclick="pickAssistantColor(\''+c+'\')"></button>').join('');const body=document.getElementById('subPageBody');document.getElementById('subPageTitle').textContent=id?'تعديل المساعد':'مساعد جديد';body.innerHTML='<div class="assistant-form-field"><label>اسم المساعد</label><input type="text" id="asst-name" placeholder="مثلاً: أستاذ الرياضيات" maxlength="40" value="'+(a?escapeHtml(a.name):'')+'"></div><div class="assistant-form-field"><label>وصف المساعد وأسلوبه</label><textarea id="asst-persona" placeholder="اكتب كيف تريد المساعد يتصرف..." maxlength="1000">'+(a?escapeHtml(a.persona):'')+'</textarea><div class="assistant-form-hint">هذا الوصف يحدد شخصية المساعد وطريقة ردوده</div></div><div class="assistant-form-field"><label>اللون</label><div class="assistant-color-picker">'+colorDots+'</div></div><div class="assistant-form-actions"><button type="button" class="btn-cancel" onclick="loadAssistantsPage()">إلغاء</button><button type="button" class="btn-save" id="asst-save-btn" onclick="saveAssistant()">حفظ</button></div>';document.getElementById('subPage').classList.add('show');currentSubKey=null;setTimeout(()=>{const inp=document.getElementById('asst-name');if(inp)inp.focus();},100);}
+function pickAssistantColor(c){selectedAsstColor=c;document.querySelectorAll('.assistant-color-dot').forEach(el=>{el.classList.toggle('selected',el.dataset.color===c);});}
+async function saveAssistant(){const nameEl=document.getElementById('asst-name');const personaEl=document.getElementById('asst-persona');const name=(nameEl.value||'').trim();const persona=(personaEl.value||'').trim();if(name.length<2){showToast('اسم المساعد قصير جداً');return;}if(persona.length<10){showToast('اكتب وصفاً أطول للمساعد');return;}const btn=document.getElementById('asst-save-btn');btn.disabled=true;btn.textContent='جاري الحفظ...';try{const url=editingAssistantId?'/update_assistant':'/create_assistant';const body={name,persona,color:selectedAsstColor};if(editingAssistantId)body.id=editingAssistantId;const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(d.status==='ok'){showToast(editingAssistantId?'تم التعديل':'تم إنشاء المساعد');if(d.assistant&&!editingAssistantId){myAssistants.push(d.assistant);}else if(d.assistant&&editingAssistantId){const idx=myAssistants.findIndex(x=>x.id===editingAssistantId);if(idx>=0)myAssistants[idx]=d.assistant;}else{await loadAssistants();}renderAssistantMenu();loadAssistantsPage();}else{showToast(d.message||'فشل الحفظ');btn.disabled=false;btn.textContent='حفظ';}}catch(e){showToast('خطأ في الاتصال');btn.disabled=false;btn.textContent='حفظ';}}
+async function deleteAssistant(id){if(!confirm('حذف هذا المساعد؟'))return;try{const r=await fetch('/delete_assistant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});const d=await r.json();if(d.status==='ok'){myAssistants=myAssistants.filter(x=>x.id!==id);if(currentAssistantId===id)selectAssistant(null,false);showToast('تم الحذف');renderAssistantMenu();loadAssistantsPage();}else{showToast('فشل الحذف');}}catch(e){showToast('خطأ في الاتصال');}}
+
+function loadAssistantsPage(){
+    currentSubKey='assistants';
+    document.getElementById('subPageTitle').textContent='مساعدي الخاص';
+
+    let html='';
+    if(myAssistants.length===0){
+        html = '<div class="lib-empty">'
+             + '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>'
+             + '<h4>لا يوجد مساعدون بعد</h4><p>أنشئ مساعدك الأول بضغطة زر</p></div>';
+    } else {
+        html = '<div class="agents-grid">';
+        myAssistants.forEach(a=>{
+            const color = (a.color && /^#[0-9a-fA-F]{3,8}$/.test(a.color)) ? a.color : '#4a6a8a';
+            const name  = String(a.name || 'مساعد');
+            const persona = String(a.persona || '');
+            const short = persona.length > 140 ? persona.slice(0,140)+'…' : persona;
+            html += ''
+              + '<div class="agent-card" data-id="' + escapeHtml(String(a.id)) + '">'
+              +   '<div class="agent-head">'
+              +     '<div class="agent-avatar" style="background:' + escapeHtml(color) + '">' + escapeHtml(name.charAt(0).toUpperCase()) + '</div>'
+              +     '<div class="agent-info">'
+              +       '<div class="agent-name">' + escapeHtml(name) + '</div>'
+              +       '<div class="agent-role">مساعدك المخصص</div>'
+              +     '</div>'
+              +   '</div>'
+              +   (short ? '<div class="agent-desc">' + escapeHtml(short) + '</div>' : '')
+              +   '<div class="agent-actions">'
+              +     '<button type="button" class="agent-btn agent-btn-edit" data-action="edit">'
+              +       '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+              +       '<span>تعديل</span>'
+              +     '</button>'
+              +     '<button type="button" class="agent-btn agent-btn-del" data-action="delete">'
+              +       '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+              +       '<span>حذف</span>'
+              +     '</button>'
+              +   '</div>'
+              + '</div>';
+        });
+        html += '</div>';
+    }
+
+    html += ''
+      + '<button type="button" class="agent-btn agent-btn-add agent-btn-new" onclick="openAssistantForm(null)">'
+      +   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      +   '<span>إنشاء مساعد جديد</span>'
+      + '</button>';
+
+    document.getElementById('subPageBody').innerHTML = html;
+    document.getElementById('subPage').classList.add('show');
+}
+
+async function loadLibraryStore(){
+    currentSubKey='library';
+    document.getElementById('subPageTitle').textContent='مكتبة المساعدين';
+    const c=document.getElementById('libraryContent');
+    if(!c)return;
+    c.innerHTML='<div class="lib-loading"><div class="lib-spinner"></div><span>جاري التحميل...</span></div>';
+    try{
+        const r=await fetch('/api/library/list',{credentials:'same-origin'});
+        const d=await r.json();
+        const list=d.assistants||[];
+        if(!list.length){
+            c.innerHTML='<div class="lib-empty">'
+                +'<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>'
+                +'<h4>المكتبة فاضية</h4><p>لا يوجد مساعدون متاحون حالياً</p></div>';
+            return;
+        }
+        let html='<div class="agents-grid">';
+        list.forEach(a=>{
+            const color = (a.color && /^#[0-9a-fA-F]{3,8}$/.test(a.color)) ? a.color : '#4a6a8a';
+            const name  = String(a.name || 'مساعد');
+            const persona = String(a.persona || '');
+            const short = persona.length > 120 ? persona.slice(0,120)+'…' : persona;
+            html += ''
+              + '<div class="agent-card" data-id="' + escapeHtml(String(a.id)) + '">'
+              +   '<div class="agent-head">'
+              +     '<div class="agent-avatar" style="background:' + escapeHtml(color) + '">' + escapeHtml(name.charAt(0).toUpperCase()) + '</div>'
+              +     '<div class="agent-info">'
+              +       '<div class="agent-name">' + escapeHtml(name) + '</div>'
+              +       '<div class="agent-role">مساعد جاهز للاستخدام</div>'
+              +     '</div>'
+              +   '</div>'
+              +   (short ? '<div class="agent-desc">' + escapeHtml(short) + '</div>' : '')
+              +   '<div class="agent-actions">'
+              +     '<button type="button" class="agent-btn agent-btn-add" data-action="add">'
+              +       '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+              +       '<span>إضافة</span>'
+              +     '</button>'
+              +   '</div>'
+              + '</div>';
+        });
+        html += '</div>';
+        c.innerHTML = html;
+    }catch(e){
+        console.error('loadLibraryStore:', e);
+        c.innerHTML='<div class="lib-empty"><p>تعذر التحميل، حاول مرة أخرى.</p></div>';
+    }
+}
+
+async function addFromLibrary(id, btn){
+    if(!btn || btn.disabled) return;
+    const payloadId = /^\d+$/.test(String(id)) ? parseInt(id, 10) : String(id);
+
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="agent-spinner" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg><span>جاري...</span>';
+
+    try{
+        const r = await fetch('/api/library/add', {
+            method:'POST',
+            credentials:'same-origin',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ assistant_id: payloadId })
+        });
+        let d = {};
+        try { d = await r.json(); } catch(_) {}
+
+        if(r.ok && d.status === 'ok'){
+            showToast('✅ تمت إضافة المساعد');
+            btn.classList.add('agent-btn-added');
+            btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>تمت الإضافة</span>';
+            try { await loadAssistants(); } catch(_) {}
+        } else {
+            showToast(d.message || 'فشل الإضافة');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+        }
+    }catch(e){
+        console.error('addFromLibrary:', e);
+        showToast('تعذر الاتصال بالسيرفر');
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
+
+document.addEventListener('click', function(e){
+    const actionBtn = e.target.closest('.agent-card [data-action]');
+    if(!actionBtn) return;
+    const card = actionBtn.closest('.agent-card');
+    if(!card || !card.dataset.id) return;
+    const rawId  = card.dataset.id;
+    const action = actionBtn.dataset.action;
+    const idNum  = /^\d+$/.test(rawId) ? parseInt(rawId, 10) : rawId;
+
+    if(action === 'add'){
+        addFromLibrary(rawId, actionBtn);
+    } else if(action === 'delete'){
+        deleteAssistant(idNum);
+    } else if(action === 'edit'){
+        openAssistantForm(idNum);
+    }
+});
+
+document.addEventListener('click',function(e){const menu=document.getElementById('assistantMenu');const pill=document.getElementById('assistantPill');if(!menu||!pill)return;if(!menu.contains(e.target)&&!pill.contains(e.target)){menu.classList.remove('show');}});
+if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');setTimeout(loadAssistants,300);}
+
+async function sendMessage(){
+    if(iw)return;
+    const msgText=ui.value.trim(),img=pid;
+    if(!msgText&&!img)return;
+    stopAllAudio();
+    spokenUntil=0;
+    let userMsgEl=null;
+    if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}
+    if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}
+    ui.value='';ui.style.height='auto';iw=true;
+    const botEl=document.createElement('div');
+    botEl.className='msg bot';
+    botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';
+    cb.appendChild(botEl);
+    if(userMsgEl)scrollMsgToTop(userMsgEl);
+    const payload={message:msgText||"مرفق",image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId};
+    let displayText='';
+    let bufferText='';
+    let streamDone=false;
+    let isFormatted=false;
+    let typingTimer=null;
+    function tick(){
+        if(isFormatted)return;
+        if(bufferText.length>0){
+            displayText+=bufferText.slice(0,1);
+            bufferText=bufferText.slice(1);
+            botEl.innerHTML=formatBotText(displayText);
+
+            if(voiceOn && IS_REGISTERED){
+                extractNewSentences(displayText).forEach(function(s){
+                    enqueueSentenceAudio(s);
+                });
+            }
+        }
+        if(bufferText.length===0&&streamDone){
+            clearInterval(typingTimer);
+            typingTimer=null;
+            botEl.innerHTML=formatBotText(displayText);
+            if(displayText&&displayText.trim().length>0){
+                attachBotActions(botEl,displayText);
+                ch.push({role:'assistant',content:displayText});
+            }
+            iw=false;
+
+            if(voiceOn){
+                if(IS_REGISTERED){
+                    const remaining=displayText.slice(spokenUntil).trim();
+                    if(remaining.length>0){
+                        enqueueSentenceAudio(remaining);
+                        spokenUntil=displayText.length;
+                    }
+                } else {
+                    if(displayText && displayText.trim().length>10){
+                        fetch('/voice',{
+                            method:'POST',
+                            headers:{'Content-Type':'application/json'},
+                            body:JSON.stringify({text:displayText})
+                        }).then(r=>r.json()).then(v=>{
+                            if(v && v.audio){
+                                playAudioWithSpeed(v.audio, function(){});
+                            }
+                        }).catch(function(){});
+                    }
+                }
+            }
+        }
+    }
+    typingTimer=setInterval(tick,30);
+    try{
+        const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(!r.ok){
+            let errMsg='مشكلة';
+            try{const d=await r.json();errMsg=d.error||d.message||'مشكلة';}catch(e){}
+            clearInterval(typingTimer);
+            botEl.remove();
+            addMessage('خطأ: '+errMsg,'error');
+            iw=false;
+            return;
+        }
+        const reader=r.body.getReader();
+        const decoder=new TextDecoder();
+        let sseBuffer='';
+        let firstToken=true;
+        while(true){
+            const {done,value}=await reader.read();
+            if(done)break;
+            sseBuffer+=decoder.decode(value,{stream:true});
+            const parts=sseBuffer.split('\n\n');
+            sseBuffer=parts.pop();
+            for(const line of parts){
+                if(!line.startsWith('data: '))continue;
+                try{
+                    const data=JSON.parse(line.slice(6));
+                    if(data.formatted_html){
+                        isFormatted=true;
+                        clearInterval(typingTimer);
+                        typingTimer=null;
+                        if(firstToken){botEl.innerHTML='';firstToken=false;}
+                        botEl.classList.add('nibras-response');
+                        botEl.innerHTML=data.formatted_html;
+                        displayText='[تم عرض الأخبار]';
+                        streamDone=true;
+                        iw=false;
+                    } else if(data.token){
+                        if(!isFormatted){
+                            if(firstToken){botEl.innerHTML='';firstToken=false;}
+                            bufferText+=data.token;
+                        }
+                    } else if(data.done){
+                        if(data.conv_id)cid=data.conv_id;
+                        streamDone=true;
+                    } else if(data.error){
+                        bufferText+='\n\nخطأ: '+data.error;
+                    }
+                }catch(e){}
+            }
+        }
+        streamDone=true;
+    }catch(e){
+        clearInterval(typingTimer);
+        if(botEl.parentNode)botEl.remove();
+        addMessage(userLang==='en'?'Connection failed':'تعذر الاتصال','error');
+        iw=false;
+    }
+}
+sb.addEventListener('click',sendMessage);
+ui.addEventListener('keydown',function(e){if(e.key==='Enter'){const isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);if(isMobile && !e.shiftKey){return;}if(!isMobile && !e.shiftKey){e.preventDefault();sendMessage();}}});
+document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
+let recog=null;
+mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
+window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
+window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.pickVoiceGender=pickVoiceGender;window.selectVoiceGender=selectVoiceGender;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;
+applyLang();
+setTimeout(function(){
+    try {
+        var now = new Date();
+        var hour = now.getHours();
+        
+        var today = now.getFullYear() + "-" + (now.getMonth()+1) + "-" + now.getDate();
+        var lastNewsDate = localStorage.getItem('nibras_morning_news_date');
+        
+        if (hour >= 5 && hour < 11 && lastNewsDate !== today) {
+            localStorage.setItem('nibras_morning_news_date', today);
+            ui.value = "جيب لي أخبار اليوم";
+            sendMessage();
+        }
+    } catch(e) {
+        console.log("Morning news error:", e);
+    }
+}, 1500);
+
+(function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
+{{ memory_js|safe }}
+})();</script></body></html>"""
