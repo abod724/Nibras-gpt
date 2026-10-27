@@ -411,49 +411,9 @@ def inc_usage(uid, field):
     return current
 
 
-def get_active_access(email):
-    if not email:
-        return None
-    try:
-        r = (sb.table("access_redemptions").select("*")
-             .eq("user_email", email.lower().strip())
-             .order("expires_at", desc=True)
-             .limit(10)
-             .execute())
-        if not r or not r.data:
-            return None
-        from datetime import timezone
-        now = datetime.now(timezone.utc)
-        for row in r.data:
-            exp_raw = row.get("expires_at")
-            if not exp_raw:
-                continue
-            try:
-                exp_str = str(exp_raw).replace('Z', '+00:00')
-                exp_dt = datetime.fromisoformat(exp_str)
-                if exp_dt.tzinfo is None:
-                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
-                if exp_dt > now:
-                    return row
-            except Exception as ex:
-                print("get_active_access parse:", ex, exp_raw)
-                continue
-    except Exception as e:
-        print("get_active_access:", e)
-    return None
-
-
 def check_limits(uid, role, email=None):
     usage = get_usage_today(uid)
-    access = get_active_access(email) if email else None
-    if access:
-        limits = {
-            "chat": int(access.get("chat_limit", 15) or 15),
-            "search": int(access.get("search_limit", 2) or 0),
-            "image": int(access.get("image_limit", 1) or 0)
-        }
-    else:
-        limits = LIMITS.get(role, LIMITS["guest"])
+    limits = LIMITS.get(role, LIMITS["guest"])
     can_chat = int(usage.get("chat_count", 0) or 0) < limits["chat"]
     can_search = int(usage.get("search_count", 0) or 0) < limits["search"]
     can_image = int(usage.get("image_count", 0) or 0) < limits["image"]
@@ -2802,186 +2762,6 @@ def toggle_memory():
     return jsonify({"status": "ok", "enabled": enabled})
 
 
-@app.route('/admin/codes/list')
-def admin_codes_list():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    try:
-        r = (sb.table("access_codes").select("*")
-             .order("created_at", desc=True).limit(100).execute())
-        return jsonify({"codes": r.data or []})
-    except Exception as e:
-        print("admin_codes_list:", e)
-        return jsonify({"codes": [], "error": str(e)})
-
-
-@app.route('/admin/codes/generate', methods=['POST'])
-def admin_codes_generate():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    try:
-        chat_lim = max(1, min(99999, int(d.get('chat', 15))))
-        search_lim = max(0, min(99999, int(d.get('search', 2))))
-        image_lim = max(0, min(99999, int(d.get('image', 1))))
-        max_uses = max(1, min(1000, int(d.get('max_uses', 1))))
-        days = max(1, min(365, int(d.get('days', 7))))
-        note = (d.get('note') or '').strip()[:200]
-    except (ValueError, TypeError):
-        return jsonify({"status": "error", "message": "أرقام غير صحيحة"}), 400
-    from datetime import timezone
-    code = "NBRAS-" + secrets.token_hex(3).upper() + "-" + secrets.token_hex(2).upper()
-    expires = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
-    try:
-        r = sb.table("access_codes").insert({
-            "code": code,
-            "chat_limit": chat_lim,
-            "search_limit": search_lim,
-            "image_limit": image_lim,
-            "max_uses": max_uses,
-            "duration_days": days,
-            "note": note,
-            "expires_at": expires
-        }).execute()
-        return jsonify({"status": "ok", "code": r.data[0] if r.data else {"code": code}})
-    except Exception as e:
-        print("admin_codes_generate:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/admin/codes/delete', methods=['POST'])
-def admin_codes_delete():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    cid = d.get('id')
-    if not cid:
-        return jsonify({"status": "error"}), 400
-    try:
-        sb.table("access_codes").delete().eq("id", cid).execute()
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/admin/codes/toggle', methods=['POST'])
-def admin_codes_toggle():
-    if not session.get('is_admin'):
-        return jsonify({"status": "error"}), 401
-    d = request.get_json(silent=True) or {}
-    cid = d.get('id')
-    if not cid:
-        return jsonify({"status": "error"}), 400
-    try:
-        r = sb.table("access_codes").select("active").eq("id", cid).limit(1).execute()
-        if not r.data:
-            return jsonify({"status": "error", "message": "الكود غير موجود"}), 404
-        new_state = not r.data[0].get("active", True)
-        sb.table("access_codes").update({"active": new_state}).eq("id", cid).execute()
-        return jsonify({"status": "ok", "active": new_state})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/redeem_code', methods=['POST'])
-@limiter.limit("10 per hour")
-def redeem_code():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"status": "error", "message": "سجّل دخولك أولاً"}), 401
-    d = request.get_json(silent=True) or {}
-    code = (d.get('code') or '').strip().upper()
-    if not code or len(code) < 5:
-        return jsonify({"status": "error", "message": "كود غير صالح"}), 400
-
-    email_lc = email.lower().strip()
-    uid = get_user_id()
-    from datetime import timezone
-
-    try:
-        r = (sb.table("access_codes").select("*")
-             .eq("code", code).eq("active", True).limit(1).execute())
-    except Exception as e:
-        print("redeem_code select:", e)
-        return jsonify({"status": "error", "message": "خطأ في البحث"}), 500
-    if not r.data:
-        return jsonify({"status": "error", "message": "الكود غير صحيح أو موقوف"}), 404
-    row = r.data[0]
-
-    try:
-        ex = (sb.table("access_redemptions").select("id")
-              .eq("code", code).eq("user_email", email_lc).limit(1).execute())
-        if ex.data:
-            return jsonify({"status": "error", "message": "سبق استخدامك لهذا الكود"}), 400
-    except Exception as ex:
-        print("redeem_code dup check:", ex)
-
-    if row.get('expires_at'):
-        try:
-            exp_str = str(row['expires_at']).replace('Z', '+00:00')
-            exp = datetime.fromisoformat(exp_str)
-            if exp.tzinfo is None:
-                exp = exp.replace(tzinfo=timezone.utc)
-            if exp < datetime.now(timezone.utc):
-                return jsonify({"status": "error", "message": "انتهت صلاحية الكود"}), 400
-        except Exception as ex:
-            print("redeem_code exp check:", ex)
-
-    if int(row.get('used_count', 0) or 0) >= int(row.get('max_uses', 1) or 1):
-        return jsonify({"status": "error", "message": "الكود استُنفد الحد الأقصى"}), 400
-
-    days = int(row.get('duration_days', 7) or 7)
-    expires_user = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
-    chat_lim = int(row.get('chat_limit', 15) or 15)
-    search_lim = int(row.get('search_limit', 2) or 0)
-    image_lim = int(row.get('image_limit', 1) or 0)
-
-    try:
-        sb.table("access_redemptions").insert({
-            "code": code,
-            "user_email": email_lc,
-            "chat_limit": chat_lim,
-            "search_limit": search_lim,
-            "image_limit": image_lim,
-            "expires_at": expires_user
-        }).execute()
-        sb.table("access_codes").update({
-            "used_count": int(row.get('used_count', 0) or 0) + 1
-        }).eq("id", row['id']).execute()
-    except Exception as ex:
-        print("redeem_code insert:", ex)
-        return jsonify({"status": "error", "message": f"تعذر تفعيل الكود: {ex}"}), 500
-
-    try:
-        today = _date.today().isoformat()
-        sb.table("assistant_usage").update({
-            "chat_count": 0,
-            "search_count": 0,
-            "image_count": 0
-        }).eq("user_id", uid).eq("date", today).execute()
-        print(f"♻️ Reset daily counter for {uid}")
-    except Exception as ex:
-        print("reset usage:", ex)
-
-    print(f"✅ CODE REDEEMED: {email_lc} → chat={chat_lim}, search={search_lim}, image={image_lim}")
-    return jsonify({
-        "status": "ok",
-        "chat": chat_lim,
-        "search": search_lim,
-        "image": image_lim,
-        "expires_at": expires_user
-    })
-
-
-@app.route('/my_access')
-def my_access():
-    email = session.get('user_email')
-    if not email:
-        return jsonify({"access": None})
-    access = get_active_access(email)
-    return jsonify({"access": access})
-
-
 @app.route('/delete_my_account', methods=['POST'])
 def delete_my_account():
     email = session.get('user_email')
@@ -3014,7 +2794,6 @@ def delete_my_account():
         sb.table("assistant_usage").delete().eq("user_id", uid).execute()
         sb.table("image_library").delete().eq("user_id", uid).execute()
         sb.table("custom_assistants").delete().eq("user_id", uid).execute()
-        sb.table("access_redemptions").delete().eq("user_email", email.lower()).execute()
         sb.table("profiles").delete().eq("email", email.lower()).execute()
         dr = requests.delete(
             f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
@@ -3519,40 +3298,6 @@ def admin_dashboard():
     </div>
 
     <div class="card">
-        <h3>🎟️ توليد كود وصول</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-            <label style="font-size:13px;">محادثات
-                <input type="number" id="code-chat" value="4" min="1" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">بحث
-                <input type="number" id="code-search" value="4" min="0" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">صور
-                <input type="number" id="code-image" value="4" min="0" max="99999" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">عدد المستخدمين
-                <input type="number" id="code-uses" value="1" min="1" max="1000" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">المدة (أيام)
-                <input type="number" id="code-days" value="7" min="1" max="365" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-            <label style="font-size:13px;">ملاحظة
-                <input type="text" id="code-note" placeholder="مثلاً: لأختي" maxlength="200" style="width:100%;padding:10px;border:1px solid #dce1e8;border-radius:10px;margin-top:4px;box-sizing:border-box;">
-            </label>
-        </div>
-        <button onclick="generateCode()" style="width:100%;padding:14px;background:#4a6a8a;color:#fff;border:none;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;">توليد الكود</button>
-        <div id="generated-code" style="margin-top:14px;display:none;padding:14px;background:#f0fdf4;border-radius:12px;text-align:center;border:1px solid #86efac;">
-            <div style="font-size:12px;color:#166534;margin-bottom:6px;">✅ الكود الجديد — اضغط للنسخ:</div>
-            <div id="generated-code-text" onclick="navigator.clipboard.writeText(this.textContent);this.style.background='#bbf7d0';setTimeout(()=>this.style.background='transparent',300);" style="font-size:22px;font-weight:800;letter-spacing:3px;color:#166534;cursor:pointer;padding:8px;border-radius:8px;user-select:all;transition:background .2s;"></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>📋 الأكواد السابقة</h3>
-        <div id="codes-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
-    </div>
-
-    <div class="card">
         <h3>🧠 مراجعة المعرفة الجديدة</h3>
         <div id="knowledge-list"><p style="color:#8b949e;">جاري التحميل...</p></div>
     </div>
@@ -3563,74 +3308,6 @@ def admin_dashboard():
     </div>
 
     <script>
-    async function generateCode(){{
-        const body = {{
-            chat: parseInt(document.getElementById('code-chat').value) || 15,
-            search: parseInt(document.getElementById('code-search').value) || 2,
-            image: parseInt(document.getElementById('code-image').value) || 1,
-            max_uses: parseInt(document.getElementById('code-uses').value) || 1,
-            days: parseInt(document.getElementById('code-days').value) || 7,
-            note: document.getElementById('code-note').value || ''
-        }};
-        try{{
-            const r = await fetch('/admin/codes/generate', {{
-                method:'POST', headers:{{'Content-Type':'application/json'}},
-                body: JSON.stringify(body)
-            }});
-            const d = await r.json();
-            if(d.status === 'ok'){{
-                const codeData = d.code;
-                document.getElementById('generated-code-text').textContent = codeData.code || codeData;
-                document.getElementById('generated-code').style.display = 'block';
-                loadCodes();
-            }} else {{
-                alert(d.message || 'فشل التوليد');
-            }}
-        }}catch(e){{ alert('خطأ في الاتصال'); }}
-    }}
-    async function loadCodes(){{
-        const list = document.getElementById('codes-list');
-        try{{
-            const r = await fetch('/admin/codes/list');
-            const d = await r.json();
-            if(!d.codes || d.codes.length === 0){{
-                list.innerHTML = '<p style="color:#8b949e;">لا توجد أكواد بعد</p>';
-                return;
-            }}
-            list.innerHTML = d.codes.map(c => {{
-                const expired = c.expires_at && new Date(c.expires_at) < new Date();
-                const status = !c.active ? 'موقوف' : (expired ? 'منتهي' : 'نشط');
-                const statusColor = !c.active ? '#8b949e' : (expired ? '#e74c3c' : '#16a34a');
-                return '<div style="padding:12px;border:1px solid #eef1f6;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">'
-                    +'<div>'
-                    +'<b style="letter-spacing:1px;font-size:14px;">'+c.code+'</b>'
-                    +'<span style="color:'+statusColor+';font-size:12px;margin-right:6px;">● '+status+'</span>'
-                    +'<div style="font-size:11px;color:#666;margin-top:4px;">'
-                    +c.chat_limit+' محادثة · '+c.search_limit+' بحث · '+c.image_limit+' صورة'
-                    +' · استُخدم '+c.used_count+'/'+c.max_uses
-                    +(c.note ? ' · '+c.note : '')
-                    +'</div></div>'
-                    +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-                    +'<button onclick="navigator.clipboard.writeText(\\''+c.code+'\\');this.textContent=\\'✓\\';setTimeout(()=>this.textContent=\\'نسخ\\',800);" style="padding:6px 10px;border:1px solid #4a6a8a;background:#fff;color:#4a6a8a;border-radius:8px;cursor:pointer;font-size:12px;">نسخ</button>'
-                    +'<button onclick="toggleCode('+c.id+')" style="padding:6px 10px;border:1px solid #f59e0b;background:#fff;color:#f59e0b;border-radius:8px;cursor:pointer;font-size:12px;">'+(c.active?'إيقاف':'تشغيل')+'</button>'
-                    +'<button onclick="deleteCode('+c.id+')" style="padding:6px 10px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;border-radius:8px;cursor:pointer;font-size:12px;">حذف</button>'
-                    +'</div></div>';
-            }}).join('');
-        }}catch(e){{
-            list.innerHTML = '<p style="color:#e74c3c;">تعذر التحميل</p>';
-        }}
-    }}
-    async function toggleCode(id){{
-        await fetch('/admin/codes/toggle', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id}})}});
-        loadCodes();
-    }}
-    async function deleteCode(id){{
-        if(!confirm('حذف الكود؟')) return;
-        await fetch('/admin/codes/delete', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{id}})}});
-        loadCodes();
-    }}
-    loadCodes();
-
     async function loadKnowledge() {{
         const list = document.getElementById('knowledge-list');
         try {{
