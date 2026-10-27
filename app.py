@@ -2269,8 +2269,9 @@ async function sendMessage(){
     function tick(){
         if(isFormatted)return;
         if(bufferText.length>0){
-            displayText+=bufferText.slice(0,3);
-            bufferText=bufferText.slice(3);
+           const chunk = bufferText.length > 40 ? 3 : bufferText.length > 20 ? 2 : 1;
+displayText+=bufferText.slice(0,chunk);
+bufferText=bufferText.slice(chunk); 
             botEl.innerHTML=formatBotText(displayText);
             if(voiceOn){
                 extractNewSentences(displayText).forEach(function(s){
@@ -2296,7 +2297,7 @@ async function sendMessage(){
             }
         }
     }
-    typingTimer=setInterval(tick,10);
+    typingTimer=setInterval(tick,15);
     try{
         const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         if(!r.ok){
