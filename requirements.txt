@@ -12,3 +12,6 @@ pytz
 gTTS
 markdown
 bleach
+gunicorn
+gevent
+redis
