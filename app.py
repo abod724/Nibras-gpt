@@ -960,11 +960,19 @@ def library_upload():
                 return jsonify({"status": "error", "message": "الصورة كبيرة جداً (الحد 5MB)"}), 413
         except Exception:
             return jsonify({"status": "error", "message": "تعذر قراءة بيانات الصورة"}), 400
+        
         title = d.get('title') if isinstance(d.get('title'), str) else "صورة"
-        save_image_to_library(get_user_id(), image_data=image_data, title=title[:200] or "صورة", source="upload")
-        return jsonify({"status": "ok"})
+        
+        # التحقق من نجاح الرفع
+        result = save_image_to_library(get_user_id(), image_data=image_data, title=title[:200] or "صورة", source="upload")
+        
+        if result:
+            return jsonify({"status": "ok"})
+        else:
+            return jsonify({"status": "error", "message": "فشل الحفظ في قاعدة البيانات أو التخزين"}), 500
+            
     except Exception as e:
-        print("library_upload:", e)
+        print("library_upload ERROR:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/library/delete', methods=['POST'])
