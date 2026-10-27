@@ -195,6 +195,112 @@ def save_user_profile_summary(email, summary):
         save_user_memory(email, mem)
     except Exception as e: print("save_user_profile_summary:", e)
 
+def format_profile_summary_for_prompt(summary):
+    if not summary:
+        return ""
+    work = summary.get('work') or {}
+    skills = summary.get('skills') or {}
+    interests = summary.get('interests') or {}
+    lines = []
+
+    wparts = []
+    if work.get('current_role'): wparts.append(str(work['current_role']))
+    if work.get('field'): wparts.append(f"مجال: {work['field']}")
+    if work.get('company_type'): wparts.append(f"نوع الشركة: {work['company_type']}")
+    if wparts: lines.append("- العمل: " + " · ".join(wparts))
+    if work.get('projects'): lines.append("- مشاريع: " + "، ".join(map(str, work['projects'][:5])))
+    if work.get('tools_used'): lines.append("- أدوات: " + "، ".join(map(str, work['tools_used'][:8])))
+    if work.get('challenges'): lines.append("- تحديات: " + "، ".join(map(str, work['challenges'][:4])))
+
+    if skills.get('technical'): lines.append("- مهارات تقنية: " + "، ".join(map(str, skills['technical'][:10])))
+    if skills.get('soft'): lines.append("- مهارات شخصية: " + "، ".join(map(str, skills['soft'][:6])))
+    if skills.get('languages'): lines.append("- لغات: " + "، ".join(map(str, skills['languages'][:5])))
+    if skills.get('level'): lines.append("- المستوى: " + str(skills['level']))
+    if skills.get('learning_now'): lines.append("- يتعلم حالياً: " + "، ".join(map(str, skills['learning_now'][:6])))
+
+    if interests.get('topics'): lines.append("- اهتمامات: " + "، ".join(map(str, interests['topics'][:8])))
+    if interests.get('hobbies'): lines.append("- هوايات: " + "، ".join(map(str, interests['hobbies'][:6])))
+    if interests.get('goals'): lines.append("- أهداف: " + "، ".join(map(str, interests['goals'][:5])))
+
+    if not lines:
+        return ""
+    return "\n\n**ملف المستخدم (تراكمي — استخدمه لتخصيص ردودك دون ذكره صراحةً):**\n" + "\n".join(lines) + "\n"
+
+def extract_profile_summary_from_messages(existing_summary, new_messages):
+    if not new_messages:
+        return None
+    try:
+        existing_json = json.dumps(existing_summary or {}, ensure_ascii=False)
+        convo_lines = []
+        for m in new_messages[-20:]:
+            role = m.get('role', 'user')
+            content = m.get('content', '')
+            if isinstance(content, list):
+                content = ' '.join(c.get('text','') for c in content if isinstance(c, dict) and c.get('type') == 'text')
+            if not isinstance(content, str):
+                continue
+            content = content.strip()[:1500]
+            if not content:
+                continue
+            convo_lines.append(f"{'المستخدم' if role=='user' else 'المساعد'}: {content}")
+        if not convo_lines:
+            return None
+
+        system_prompt = (
+            "أنت محلل ذكي تستخرج معلومات دقيقة عن المستخدم من محادثاته مع مساعد.\n"
+            "⚠️ مهم جداً: استخدم المفاتيح الإنجليزية فقط كما في البنية أدناه — لا تكتب أي مفتاح بالعربي.\n"
+            "استخرج فقط: العمل (الوظيفة/المجال/المشاريع/الأدوات/التحديات)، "
+            "المهارات (تقنية/شخصية/لغات/المستوى/يتعلم حالياً)، الاهتمامات (مواضيع/هوايات/أهداف).\n"
+            "قواعد:\n"
+            "- لا تخمّن، فقط ما ذكره المستخدم صراحة أو أكده.\n"
+            "- ادمج الجديد مع القديم دون حذف معلومة إلا إذا صححها المستخدم.\n"
+            "- أعد JSON فقط بدون شرح بنفس البنية.\n"
+            "- إذا لم يوجد جديد، أعد نفس الملخص القديم.\n"
+            "البنية:\n"
+            '{"work":{"current_role":"","field":"","company_type":"","projects":[],"tools_used":[],"challenges":[]},'
+            '"skills":{"technical":[],"soft":[],"languages":[],"level":"","learning_now":[]},'
+            '"interests":{"topics":[],"hobbies":[],"goals":[]}}'
+        )
+        user_prompt = (
+            f"الملخص الحالي:\n{existing_json}\n\n"
+            f"المحادثة الجديدة:\n" + "\n".join(convo_lines) +
+            "\n\nأعد الملخص المحدث بصيغة JSON فقط."
+        )
+
+        resp = client.chat.completions.create(
+            model=PROFILE_SUMMARY_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_completion_tokens=900,
+            response_format={"type": "json_object"}
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        content = re.sub(r"^```(?:json)?\s*", "", content)
+        content = re.sub(r"\s*```$", "", content)
+        try:
+            data = json.loads(content)
+            if isinstance(data, dict):
+                return data
+        except Exception as e:
+            print("extract profile json parse:", e)
+        return None
+    except Exception as e:
+        print("extract_profile_summary:", e)
+        return None
+
+def update_profile_summary_async(email, existing, new_messages):
+    def worker():
+        try:
+            updated = extract_profile_summary_from_messages(existing, new_messages)
+            if updated:
+                save_user_profile_summary(email, updated)
+                print(f"✅ profile summary updated for {email}")
+        except Exception as e:
+            print("profile summary worker:", e)
+    threading.Thread(target=worker, daemon=True).start()
+
 def get_user_language(email):
     if not email: return 'ar'
     mem = get_user_memory(email)
