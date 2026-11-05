@@ -906,6 +906,7 @@ def index():
     user_name = None
     email = session.get('user_email')
     is_registered = bool(email) or bool(session.get('is_admin'))
+    is_admin = bool(session.get('is_admin')) or (email and email.lower() == ADMIN_EMAIL.lower())
     user_lang = ''
     if email and not session.get('is_admin'):
         p = get_user_profile(email)
@@ -926,6 +927,7 @@ def index():
         HT,
         user_name=user_name,
         is_registered=is_registered,
+        is_admin=is_admin,
         user_lang=user_lang,
         memory_css=MEMORY_CSS,
         memory_html=MEMORY_HTML,
@@ -1823,7 +1825,6 @@ def auto_learn_knowledge_async(user_msg, bot_reply):
         try:
             if len(user_msg) < 15 or len(bot_reply) < 20:
                 return
-            # ✅ التعديل الأمني هنا: منع حفظ المعلومات الشخصية في الجدول العام
             prompt = (
                 "أنت فلتر ذكي جداً. مهمتك تحليل المحادثة لمعرفة إذا كان (المستخدم) قدم معلومة علمية أو تقنية أو تصحيح لخطأ برمجي للمساعد.\n"
                 "⚠️ قاعدة صارمة جداً: إذا كانت المعلومة شخصية (مثل: اسمي، حسابي في سناب، رقمي، مهنتي، شركتي)، تجاهلها تماماً ولا تحفظها!\n"
