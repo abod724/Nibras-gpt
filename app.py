@@ -2179,42 +2179,67 @@ def chat():
         def generate():
             full_reply = ""
             try:
-                # 1. إرسال الطلب الأول لـ OpenAI (بدون بث مباشر) لمعرفة هل يريد استخدام أداة؟
-                response = client.chat.completions.create(
-                    model=OPENAI_MODEL,
-                    messages=msgs,
-                    tools=tools,
-                    tool_choice="auto", # نبراس يقرر بنفسه
-                    max_completion_tokens=1000
-                )
+                # 1. تنظيف سجل المحادثات من أي رسائل فارغة (لحماية الطلب من الرفض)
+                clean_hist = []
+                for m in server_hist[-40:]:
+                    if m.get("content") and isinstance(m["content"], str) and m["content"].strip():
+                        clean_hist.append(m)
                 
-                response_message = response.choices[0].message
-                tool_calls = response_message.tool_calls
+                # إعادة بناء الرسائل مع السجل النظيف
+                current_msgs = [{"role": "system", "content": 
+                    personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + lang_inst + assistant_persona_extra
+                }] + clean_hist
 
-                # 2. إذا قرر نبراس استخدام الأداة (البوابة الوطنية)
+                # 2. محاولة استخدام الأداة (مع حماية ضد الأخطاء)
+                response_message = None
+                tool_calls = None
+                
+                try:
+                    response = client.chat.completions.create(
+                        model=OPENAI_MODEL,
+                        messages=current_msgs,
+                        tools=tools,
+                        tool_choice="auto",
+                        max_completion_tokens=1000
+                    )
+                    response_message = response.choices[0].message
+                    tool_calls = response_message.tool_calls
+                except Exception as tool_error:
+                    # إذا فشلت الأداة، نرجع للدردشة العادية فوراً
+                    print(f"⚠️ Tool call failed: {tool_error}. Falling back to normal chat.")
+                    response = client.chat.completions.create(
+                        model=OPENAI_MODEL,
+                        messages=current_msgs,
+                        max_completion_tokens=1000
+                    )
+                    response_message = response.choices[0].message
+
+                # 3. معالجة الرد (إذا استخدم أداة أو رد عادي)
                 if tool_calls:
-                    msgs.append(response_message)
+                    print(f"--- [DEBUG] Tool calls detected: {len(tool_calls)} ---")
+                    current_msgs.append(response_message)
                     for tool_call in tool_calls:
                         if tool_call.function.name == "fetch_saudi_open_data":
-                            args = json.loads(tool_call.function.arguments)
-                            query = args.get("query", "")
-                            print(f"🤖 Nibras is calling Open Data API for: {query}")
+                            try:
+                                args = json.loads(tool_call.function.arguments)
+                                query = args.get("query", "")
+                                print(f"--- [DEBUG] Fetching Open Data for query: {query} ---")
+                                tool_result = fetch_saudi_open_data(query)
+                            except Exception as e:
+                                print(f"--- [ERROR] Tool execution failed: {e} ---")
+                                tool_result = "تعذر جلب البيانات."
                             
-                            # جلب البيانات
-                            tool_result = fetch_saudi_open_data(query)
-                            
-                            # إضافة نتيجة الأداة لسياق المحادثة
-                            msgs.append({
+                            current_msgs.append({
                                 "tool_call_id": tool_call.id,
                                 "role": "tool",
                                 "name": tool_call.function.name,
                                 "content": tool_result
                             })
                     
-                    # 3. الطلب الثاني: نطلب من نبراس يكتب الرد النهائي بناءً على بيانات البوابة (هنا نستخدم البث المباشر)
+                    # طلب البث المباشر بعد جلب البيانات
                     stream = client.chat.completions.create(
                         model=OPENAI_MODEL,
-                        messages=msgs,
+                        messages=current_msgs,
                         stream=True
                     )
                     for chunk in stream:
@@ -2223,16 +2248,15 @@ def chat():
                             full_reply += token
                             yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
                 
-                # 4. إذا لم يستخدم الأداة (سؤال عادي)، نعرض الرد الذي جهزه
                 else:
-                    # محاكاة البث المباشر للرد العادي
+                    # رد عادي (بدون أدوات)
                     reply_text = response_message.content or "عذراً، لم أفهم طلبك."
                     words = reply_text.split(" ")
                     for word in words:
                         token = word + " "
                         full_reply += token
                         yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                        time.sleep(0.01) # تأخير بسيط ليعطي شكل البث
+                        time.sleep(0.01) 
 
                 # --- إنهاء الرد وحفظه ---
                 cleaned = '\n\n'.join([
@@ -2266,7 +2290,7 @@ def chat():
                         print("profile summary trigger:", e)
 
             except Exception as e:
-                print("stream error:", repr(e))
+                print(f"--- [FATAL ERROR] Stream error: {repr(e)} ---")
                 safe_error = "تعذر إكمال الطلب. حاول مرة أخرى." if user_lang == "ar" else "The request failed. Please try again."
                 yield f"data: {json.dumps({'error': safe_error}, ensure_ascii=False)}\n\n"
 
