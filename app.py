@@ -456,6 +456,58 @@ def delete_user_image(uid, image_id):
     except Exception as e: return False
 
 # ==============================================================================
+# 4.5. جلب البيانات من البوابة الوطنية (بيانات مفتوحة)
+# ==============================================================================
+def fetch_saudi_open_data(query):
+    try:
+        encoded_query = urllib.parse.quote(query)
+        headers = {"Accept": "application/json"}
+        
+        url = f"https://open.data.gov.sa/data/api/datasets?version=-1&dataset={encoded_query}"
+        resp = requests.get(url, headers=headers, timeout=10)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            title = data.get("titleAr") or data.get("titleEn")
+            desc = data.get("descriptionAr") or data.get("descriptionEn", "")
+            
+            if title:
+                resource_url = f"https://open.data.gov.sa/data/api/datasets/resources?version=-1&dataset={encoded_query}"
+                res_resp = requests.get(resource_url, headers=headers, timeout=10)
+                download_link = ""
+                
+                if res_resp.status_code == 200:
+                    resources = res_resp.json().get("resources", [])
+                    if resources:
+                        download_link = resources[0].get("downloadUrl", "")
+                
+                result_text = f"عنوان مجموعة البيانات: {title}\nالوصف: {desc[:300]}..."
+                if download_link:
+                    result_text += f"\nرابط التحميل الرسمي: {download_link}"
+                return result_text
+                
+        search_url = f"https://open.data.gov.sa/api/3/action/package_search?q={encoded_query}&rows=2"
+        search_resp = requests.get(search_url, timeout=10)
+        
+        if search_resp.status_code == 200:
+            search_data = search_resp.json()
+            results = search_data.get("result", {}).get("results", [])
+            if not results:
+                return "لم يتم العثور على بيانات رسمية تطابق بحثك."
+            
+            output = []
+            for item in results[:2]:
+                t = item.get("title", "بدون عنوان")
+                d = item.get("notes", "لا يوجد وصف")
+                output.append(f"العنوان: {t}\nالوصف: {d[:200]}...")
+            return "\n\n".join(output)
+            
+        return "لم يتم العثور على بيانات رسمية تطابق بحثك."
+    except Exception as e:
+        print(f"Error fetching open data: {e}")
+        return "تعذر جلب البيانات من البوابة الوطنية حالياً."
+
+# ==============================================================================
 # 5. قراءة ملف المعرفة والإعدادات
 # ==============================================================================
 kc = ""
@@ -483,6 +535,7 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 1. **ملف المعرفة** (أدناه) — المرجع الأول والأساسي.
 2. **معرفتك العامة**.
 3. **البحث بالويب** عند الحاجة للمعلومات الحديثة.
+4. **البيانات المفتوحة السعودية** (إذا طلبت بيانات رسمية).
 
 **ملف المعرفة:**
 {kc}
@@ -2102,46 +2155,93 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        if is_registered and can_search:
-            inc_usage(uid, "search_count")
-            try:
-                sr = client.responses.create(
-                    model=OPENAI_MODEL,
-                    instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
-                    input=f"ابحث عن أحدث المعلومات: {um}",
-                    tools=[{"type": "web_search"}]
-                )
-                res = ""
-                if hasattr(sr, "output_text") and sr.output_text:
-                    res = sr.output_text.strip()
-                elif getattr(sr, "output", None):
-                    try: res = sr.output[0].content[0].text
-                    except: res = ""
-                if res:
-                    msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
-            except Exception as e:
-                print(f"فشل البحث ({type(e).__name__}): {e}")
+        # --- تجهيز الأدوات (Tools) التي يمكن لنبراس استخدامها ---
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "fetch_saudi_open_data",
+                    "description": "البحث عن بيانات رسمية وإحصائيات حكومية من البوابة الوطنية السعودية. استخدمها عندما يسأل المستخدم عن أرقام رسمية، عدد السكان، نسب البطالة، تقارير وزارية، أو أي إحصائيات سعودية.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "الكلمة المفتاحية للبحث (مثال: سكان، تعليم، صحة، بطالة)"
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            }
+        ]
+
         def generate():
             full_reply = ""
             try:
-                stream = client.chat.completions.create(
+                # 1. إرسال الطلب الأول لـ OpenAI (بدون بث مباشر) لمعرفة هل يريد استخدام أداة؟
+                response = client.chat.completions.create(
                     model=OPENAI_MODEL,
                     messages=msgs,
-                    max_completion_tokens=1000,
-                    stream=True
+                    tools=tools,
+                    tool_choice="auto", # نبراس يقرر بنفسه
+                    max_completion_tokens=1000
                 )
-                for chunk in stream:
-                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                        token = chunk.choices[0].delta.content
+                
+                response_message = response.choices[0].message
+                tool_calls = response_message.tool_calls
+
+                # 2. إذا قرر نبراس استخدام الأداة (البوابة الوطنية)
+                if tool_calls:
+                    msgs.append(response_message)
+                    for tool_call in tool_calls:
+                        if tool_call.function.name == "fetch_saudi_open_data":
+                            args = json.loads(tool_call.function.arguments)
+                            query = args.get("query", "")
+                            print(f"🤖 Nibras is calling Open Data API for: {query}")
+                            
+                            # جلب البيانات
+                            tool_result = fetch_saudi_open_data(query)
+                            
+                            # إضافة نتيجة الأداة لسياق المحادثة
+                            msgs.append({
+                                "tool_call_id": tool_call.id,
+                                "role": "tool",
+                                "name": tool_call.function.name,
+                                "content": tool_result
+                            })
+                    
+                    # 3. الطلب الثاني: نطلب من نبراس يكتب الرد النهائي بناءً على بيانات البوابة (هنا نستخدم البث المباشر)
+                    stream = client.chat.completions.create(
+                        model=OPENAI_MODEL,
+                        messages=msgs,
+                        stream=True
+                    )
+                    for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                            token = chunk.choices[0].delta.content
+                            full_reply += token
+                            yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                
+                # 4. إذا لم يستخدم الأداة (سؤال عادي)، نعرض الرد الذي جهزه
+                else:
+                    # محاكاة البث المباشر للرد العادي
+                    reply_text = response_message.content or "عذراً، لم أفهم طلبك."
+                    words = reply_text.split(" ")
+                    for word in words:
+                        token = word + " "
                         full_reply += token
                         yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+                        time.sleep(0.01) # تأخير بسيط ليعطي شكل البث
+
+                # --- إنهاء الرد وحفظه ---
                 cleaned = '\n\n'.join([
                     ' '.join(l.strip() for l in block.split('\n') if l.strip())
                     for block in full_reply.split('\n\n') if block.strip()
                 ]) or ("ما قدرت أجيب رد." if user_lang == 'ar' else "I couldn't generate a response.")
-                nid = cid
                 
-                if is_registered and not incognito: # <--- منع الحفظ في وضع التخفي
+                nid = cid
+                if is_registered and not incognito: 
                     nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
                 else:
                     if not nid:
@@ -2152,10 +2252,10 @@ def chat():
                     inc_usage(uid, "image_count")
                 yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
 
-                if is_registered and not has_image and um and not incognito: # <--- منع التعلم التلقائي في وضع التخفي
+                if is_registered and not has_image and um and not incognito: 
                     auto_learn_knowledge_async(um, cleaned)
 
-                if is_registered and user_email and not has_image and memory_enabled and not incognito: # <--- منع تحديث الذاكرة في وضع التخفي
+                if is_registered and user_email and not has_image and memory_enabled and not incognito: 
                     try:
                         pair_count = (len(server_hist) + 1) // 2
                         if pair_count >= 2 and pair_count % 2 == 0:
@@ -2164,10 +2264,12 @@ def chat():
                             update_profile_summary_async(user_email, profile_summary, recent_for_summary)
                     except Exception as e:
                         print("profile summary trigger:", e)
+
             except Exception as e:
                 print("stream error:", repr(e))
                 safe_error = "تعذر إكمال الطلب. حاول مرة أخرى." if user_lang == "ar" else "The request failed. Please try again."
                 yield f"data: {json.dumps({'error': safe_error}, ensure_ascii=False)}\n\n"
+
         return Response(
             stream_with_context(generate()),
             mimetype='text/event-stream',
