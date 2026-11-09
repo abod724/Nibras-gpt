@@ -1013,7 +1013,7 @@ def upload_pdf():
         usage, limits, can_chat, can_search, can_image, can_file = check_limits(
             uid,
             user_role if not is_admin else 'admin',
-            email=user_email or None
+            email_str=user_email or None
         )
 
         if not can_file:
@@ -2035,7 +2035,7 @@ def chat():
         usage, limits, can_chat, can_search, can_image, can_file = check_limits(
             uid,
             user_role if not is_admin else 'admin',
-            email=user_email or None
+            email_str=user_email or None
         )
         if not can_chat:
             reply_limit = "وصل محادثاتك للحد اليومي المسموح به، شكراً لك، غداً نلتقي" if user_lang == 'ar' else "You've reached the daily limit. Thank you, see you tomorrow"
