@@ -25,7 +25,8 @@ import markdown
 import bleach
 import uuid
 from gtts import gTTS
-import PyPDF2 # <--- إضافة 1: مكتبة قراءة الـ PDF
+import PyPDF2
+from docx import Document # <--- إضافة 1: مكتبة قراءة الوورد
 
 # استدعاء الواجهات من الملف المنفصل
 from templates_content import (
@@ -71,7 +72,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_KEY
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-user_pdf_context = {} # <--- إضافة 2: متغير لحفظ نصوص الملفات المرفوعة
+user_pdf_context = {} 
 
 # ==============================================================================
 # 2. إعداد Redis و Rate Limiting
@@ -993,7 +994,7 @@ def library_delete():
         print("library_delete:", e)
         return jsonify({"status": "error", "message": "حدث خطأ داخلي"}), 500
 
-# ⬇️ إضافة 3: مسارات رفع ومسح ملفات PDF
+# ⬇️ تعديل مسار رفع الملفات ليدعم PDF و Word
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     try:
@@ -1002,21 +1003,31 @@ def upload_pdf():
         file = request.files['file']
         if file.filename == '':
             return jsonify({"status": "error", "message": "اسم الملف فارغ"}), 400
-        if not file.filename.lower().endswith('.pdf'):
-            return jsonify({"status": "error", "message": "ندعم فقط ملفات PDF"}), 400
+
+        # قبول PDF أو DOCX
+        ext = file.filename.lower().split('.')[-1]
+        if ext not in ['pdf', 'docx']:
+            return jsonify({"status": "error", "message": "ندعم فقط ملفات PDF و Word"}), 400
 
         uid = get_user_id()
-        pdf_reader = PyPDF2.PdfReader(file)
-        
-        if len(pdf_reader.pages) > 100:
-            return jsonify({"status": "error", "message": "الملف كبير جداً (الحد 100 صفحة)"}), 400
-
         text = ""
-        for page in pdf_reader.pages:
-            extracted = page.extract_text()
-            if extracted:
-                text += extracted + "\n"
-                
+
+        # قراءة الـ PDF
+        if ext == 'pdf':
+            pdf_reader = PyPDF2.PdfReader(file)
+            if len(pdf_reader.pages) > 100:
+                return jsonify({"status": "error", "message": "الملف كبير جداً (الحد 100 صفحة)"}), 400
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+        # قراءة الوورد (Word)
+        elif ext == 'docx':
+            doc = Document(file)
+            for para in doc.paragraphs:
+                if para.text:
+                    text += para.text + "\n"
+
         if not text.strip():
             return jsonify({"status": "error", "message": "تعذر استخراج نص من الملف (قد يكون صورة)"}), 400
 
@@ -1033,7 +1044,7 @@ def clear_pdf():
     uid = get_user_id()
     user_pdf_context.pop(uid, None)
     return jsonify({"status": "ok"})
-# ⬆️ نهاية الإضافة
+# ⬆️ نهاية التعديل
 
 @app.route('/my_assistants')
 def my_assistants():
@@ -2106,7 +2117,7 @@ def chat():
                 
             if best_chunks:
                 pdf_context = (
-                    f"\n\n**📄 المستخدم رفع ملف PDF باسم: {pdf_filename}**\n"
+                    f"\n\n**📄 المستخدم رفع ملف باسم: {pdf_filename}**\n"
                     f"**تعليمات مهمة:** إذا كان سؤال المستخدم عن الملف (مثل: لخص، اشرح، وش فيه، اقرأ، عن ماذا يتحدث، حلل الملف) → استخدم المحتوى التالي وأجب منه. "
                     f"أما لو سأل عن شيء آخر (سلام، أخبار، أسئلة عامة) → تجاهل هذا السياق تماماً ولا تذكر الملف.\n\n"
                     f"**محتوى من الملف:**\n" + "\n...\n".join(best_chunks) + "\n"
