@@ -25,6 +25,7 @@ import markdown
 import bleach
 import uuid
 from gtts import gTTS
+import PyPDF2 # <--- مكتبة قراءة الـ PDF
 
 # استدعاء الواجهات من الملف المنفصل
 from templates_content import (
@@ -37,7 +38,7 @@ from library import library_bp, view_shared_page
 from memory_page import MEMORY_CSS, MEMORY_HTML, MEMORY_JS
 
 app = Flask(__name__, static_folder='static')
-app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 # رفعنا الحد لـ 16 ميجا للملفات
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY or len(SECRET_KEY) < 32:
     raise RuntimeError("يجب ضبط SECRET_KEY كمتغير بيئة ثابت بطول 32 حرفًا على الأقل")
@@ -69,6 +70,10 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("SUPABASE_URL و SUPABASE_KEY مطلوبان!")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_KEY
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+# ذاكرة مؤقتة لحفظ نصوص الملفات المرفوعة (لتوفير التوكنز)
+# المفتاح سيكون user_id والقيمة قائمة من أجزاء النص (Chunks)
+user_pdf_context = {}
 
 # ==============================================================================
 # 2. إعداد Redis و Rate Limiting
@@ -536,6 +541,7 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 2. **معرفتك العامة**.
 3. **البحث بالويب** عند الحاجة للمعلومات الحديثة.
 4. **البيانات المفتوحة السعودية** (إذا طلبت بيانات رسمية).
+5. **الملفات المرفقة** (إذا أعطاك النظام نص مستخرج من ملف، اعتمد عليه).
 
 **ملف المعرفة:**
 {kc}
@@ -1042,6 +1048,55 @@ def library_delete():
     except Exception as e:
         print("library_delete:", e)
         return jsonify({"status": "error", "message": "حدث خطأ داخلي"}), 500
+
+@app.route('/upload_pdf', methods=['POST'])
+def upload_pdf():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"status": "error", "message": "لم يتم إرسال ملف"}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"status": "error", "message": "اسم الملف فارغ"}), 400
+        
+        if not file.filename.lower().endswith('.pdf'):
+            return jsonify({"status": "error", "message": "عذراً، ندعم فقط ملفات PDF حالياً"}), 400
+
+        uid = get_user_id()
+        
+        # قراءة الـ PDF واستخراج النص
+        pdf_reader = PyPDF2.PdfReader(file)
+        
+        # ⬅️ جديد: حد أقصى 100 صفحة لحماية الرام والتوكنز
+        if len(pdf_reader.pages) > 100:
+            return jsonify({"status": "error", "message": "الملف كبير جداً (الحد 100 صفحة)"}), 400
+
+        text = ""
+        for page in pdf_reader.pages:
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + "\n"
+                
+        if not text.strip():
+            return jsonify({"status": "error", "message": "تعذر استخراج نص من الملف (قد يكون صورة)"}), 400
+
+        # تقسيم النص إلى أجزاء (Chunks) كل جزء تقريباً 1500 حرف
+        # هذا يحمينا من استنزاف المفتاح، لأننا سنبحث في هذه الأجزاء لاحقاً
+        chunks = [text[i:i+1500] for i in range(0, len(text), 1500)]
+        user_pdf_context[uid] = chunks
+        
+        return jsonify({"status": "ok", "message": "تم تجهيز الملف بنجاح، يمكنك الآن سؤالي عنه!", "chunks_count": len(chunks)})
+    except Exception as e:
+        print("upload_pdf error:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ⬅️ جديد: مسار لمسح سياق الـPDF عند ضغط زر ✕ في الواجهة
+@app.route('/clear_pdf', methods=['POST'])
+def clear_pdf():
+    uid = get_user_id()
+    user_pdf_context.pop(uid, None)
+    return jsonify({"status": "ok"})
+
 
 @app.route('/my_assistants')
 def my_assistants():
@@ -2093,8 +2148,29 @@ def chat():
         except Exception as e:
             print("Error fetching approved knowledge:", e)
 
+        # ====== ميزة البحث الذكي في ملفات الـ PDF المرفوعة ======
+        pdf_context = ""
+        if uid in user_pdf_context:
+            chunks = user_pdf_context[uid]
+            # بحث بسيط جداً بالكلمات المفتاحية لاختيار أفضل 3 أجزاء
+            query_words = set(re.findall(r'\w+', um.lower()))
+            scores = []
+            for chunk in chunks:
+                chunk_words = set(re.findall(r'\w+', chunk.lower()))
+                overlap = len(query_words.intersection(chunk_words))
+                scores.append((overlap, chunk))
+            
+            # ترتيب تنازلي حسب عدد الكلمات المشتركة
+            scores.sort(key=lambda x: x[0], reverse=True)
+            best_chunks = [c for s, c in scores[:3] if s > 0]
+            
+            if best_chunks:
+                pdf_context = "\n\n**معلومات مستخرجة من الملف المرفق (اعتمد عليها في إجابتك):**\n" + "\n...\n".join(best_chunks)
+                print(f"--- [DEBUG] Injected {len(best_chunks)} PDF chunks into context ---")
+        # ========================================================
+
         msgs = [{"role": "system", "content": 
-            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + lang_inst + assistant_persona_extra
+            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + pdf_context + lang_inst + assistant_persona_extra
         }] + server_hist[-40:]
 
         news_articles = None
@@ -2187,7 +2263,7 @@ def chat():
                 
                 # إعادة بناء الرسائل مع السجل النظيف
                 current_msgs = [{"role": "system", "content": 
-                    personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + lang_inst + assistant_persona_extra
+                    personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + pdf_context + lang_inst + assistant_persona_extra
                 }] + clean_hist
 
                 # 2. محاولة استخدام الأداة (مع حماية ضد الأخطاء)
