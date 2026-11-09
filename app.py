@@ -1070,9 +1070,14 @@ def upload_pdf():
         
         # ⬅️ الحفظ في قاعدة البيانات للمسجلين، وفي الذاكرة للضيوف
         if is_registered and user_email:
-            mem = get_user_memory(user_email) or {}
-            mem['current_file'] = {"filename": file.filename, "chunks": chunks}
-            save_user_memory(user_email, mem)
+            # مسح الملف القديم إن وجد
+            sb.table("user_files").delete().eq("user_id", uid).execute()
+            # إدخال الملف الجديد
+            sb.table("user_files").insert({
+                "user_id": uid,
+                "filename": file.filename,
+                "chunks": chunks
+            }).execute()
         else:
             user_pdf_context[uid] = {"filename": file.filename, "chunks": chunks}
         
@@ -1090,10 +1095,10 @@ def clear_pdf():
     
     user_email = session.get('user_email')
     if user_email:
-        mem = get_user_memory(user_email) or {}
-        if 'current_file' in mem:
-            del mem['current_file']
-            save_user_memory(user_email, mem)
+        try:
+            sb.table("user_files").delete().eq("user_id", uid).execute()
+        except Exception as e:
+            print("clear_pdf error:", e)
             
     return jsonify({"status": "ok"})
 
@@ -1366,6 +1371,7 @@ def delete_my_account():
         sb.table("assistant_usage").delete().eq("user_id", uid).execute()
         sb.table("image_library").delete().eq("user_id", uid).execute()
         sb.table("custom_assistants").delete().eq("user_id", uid).execute()
+        sb.table("user_files").delete().eq("user_id", uid).execute()
         sb.table("profiles").delete().eq("email", email_str.lower()).execute()
         dr = requests.delete(
             f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
@@ -2146,14 +2152,17 @@ def chat():
         except Exception as e:
             print("Error fetching approved knowledge:", e)
 
-        # ⬇️ إضافة 4: حقن سياق الملف المرفق
+        # ⬇️ حقن سياق الملف المرفق (من قاعدة البيانات للمسجلين)
         pdf_context = ""
         pdf_data = None
         
-        # ⬅️ التعديل هنا: القراءة من قاعدة البيانات للمسجلين، ومن الذاكرة للضيوف
-        if is_registered and user_email:
-            mem = get_user_memory(user_email) or {}
-            pdf_data = mem.get('current_file')
+        if is_registered:
+            try:
+                res_file = sb.table("user_files").select("*").eq("user_id", uid).limit(1).execute()
+                if res_file.data:
+                    pdf_data = res_file.data[0]
+            except Exception as e:
+                print("get user_files error:", e)
         elif uid in user_pdf_context:
             pdf_data = user_pdf_context[uid]
 
