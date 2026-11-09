@@ -26,7 +26,7 @@ import bleach
 import uuid
 from gtts import gTTS
 import PyPDF2
-from docx import Document # <--- إضافة 1: مكتبة قراءة الوورد
+from docx import Document # <--- مكتبة قراءة الوورد
 
 # استدعاء الواجهات من الملف المنفصل
 from templates_content import (
@@ -994,17 +994,24 @@ def library_delete():
         print("library_delete:", e)
         return jsonify({"status": "error", "message": "حدث خطأ داخلي"}), 500
 
-# ⬇️ تعديل مسار رفع الملفات ليدعم PDF و Word
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     try:
+        # ⬅️ إضافة: منع الضيوف من رفع الملفات
+        user_email = session.get('user_email', '')
+        is_admin = bool(session.get('is_admin'))
+        user_role = get_user_role(user_email) if user_email else 'guest'
+        is_registered = is_admin or (bool(user_email) and user_role in ('user', 'admin'))
+        
+        if not is_registered:
+            return jsonify({"status": "error", "message": "رفع الملفات للمسجلين فقط."}), 403
+
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "لم يتم إرسال ملف"}), 400
         file = request.files['file']
         if file.filename == '':
             return jsonify({"status": "error", "message": "اسم الملف فارغ"}), 400
 
-        # قبول PDF أو DOCX
         ext = file.filename.lower().split('.')[-1]
         if ext not in ['pdf', 'docx']:
             return jsonify({"status": "error", "message": "ندعم فقط ملفات PDF و Word"}), 400
@@ -1012,7 +1019,6 @@ def upload_pdf():
         uid = get_user_id()
         text = ""
 
-        # قراءة الـ PDF
         if ext == 'pdf':
             pdf_reader = PyPDF2.PdfReader(file)
             if len(pdf_reader.pages) > 100:
@@ -1021,7 +1027,6 @@ def upload_pdf():
                 extracted = page.extract_text()
                 if extracted:
                     text += extracted + "\n"
-        # قراءة الوورد (Word)
         elif ext == 'docx':
             doc = Document(file)
             for para in doc.paragraphs:
@@ -1044,7 +1049,6 @@ def clear_pdf():
     uid = get_user_id()
     user_pdf_context.pop(uid, None)
     return jsonify({"status": "ok"})
-# ⬆️ نهاية التعديل
 
 @app.route('/my_assistants')
 def my_assistants():
