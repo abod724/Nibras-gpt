@@ -482,6 +482,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 <div class="dropdown" id="dropdown">
     <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
     
+    <!-- INCognito Button -->
     <button class="item" id="incognitoToggle" onclick="toggleIncognito()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 12h4l3-8 4 16 3-8h6"></path>
@@ -594,13 +595,13 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 <div class="assistant-menu" id="assistantMenu"></div>
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
-    <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف PDF</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div></div>
+    <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div></div>
     <button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
     <button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button><button class="option-btn" id="pdfBtn" title="ملف PDF"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button></div>
+    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button><button class="option-btn" id="pdfBtn" title="ملف PDF أو Word"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button></div>
     <textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea>
     <button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-</div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="pdfInput" accept="application/pdf,.pdf" style="display:none"/></div>
+</div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="pdfInput" accept=".pdf,.docx" style="display:none"/></div>
 
 <div class="share-modal" id="shareModal">
     <div class="box">
@@ -830,7 +831,7 @@ async function clearPdfContext(){
     var item=document.getElementById('clearPdfBtn');
     if(item)item.style.display='none';
     currentPdfName=null;
-    showToast(userLang==='en'?'PDF cleared':'تم مسح الملف المرفق');
+    showToast(userLang==='en'?'File cleared':'تم مسح الملف المرفق');
     document.getElementById('dropdown').classList.remove('show');
 }
 
@@ -1137,15 +1138,19 @@ if(pdfBtn&&pdfInput){
     pdfInput.addEventListener('change',async function(e){
         if(!this.files||this.files.length===0)return;
         var f=this.files[0];pdfInput.value='';
-        if(!f.name.toLowerCase().endsWith('.pdf')){showToast(userLang==='en'?'PDF files only':'ندعم ملفات PDF فقط');return;}
+        var lowerName = f.name.toLowerCase();
+        if(!lowerName.endsWith('.pdf') && !lowerName.endsWith('.docx')){
+            showToast(userLang==='en'?'PDF & Word only':'ندعم ملفات PDF و Word فقط');
+            return;
+        }
         if(f.size>16*1024*1024){showToast(userLang==='en'?'Max 16MB':'حجم الملف يتجاوز 16 ميجا');return;}
-        showToast(userLang==='en'?'Uploading PDF...':'جاري تجهيز الملف...');
+        showToast(userLang==='en'?'Uploading...':'جاري تجهيز الملف...');
         var fd=new FormData();fd.append('file',f);
         try{
             var res=await fetch('/upload_pdf',{method:'POST',body:fd,credentials:'same-origin'});
             var data=await res.json();
             if(res.ok&&data.status==='ok'){
-                showToast(userLang==='en'?'✅ PDF ready! Ask me about it':'✅ الملف جاهز! اسألني عنه');
+                showToast(userLang==='en'?'✅ File ready! Ask me about it':'✅ الملف جاهز! اسألني عنه');
                 var badge=document.getElementById('pdfBadge');
                 var badgeName=document.getElementById('pdfBadgeName');
                 if(badge&&badgeName){badgeName.textContent='📄 '+f.name;badge.style.display='block';}
@@ -1156,7 +1161,7 @@ if(pdfBtn&&pdfInput){
                 showToast('❌ '+(data.message||(userLang==='en'?'Upload failed':'فشل رفع الملف')));
             }
         }catch(err){
-            console.error('pdf upload error:',err);
+            console.error('file upload error:',err);
             showToast(userLang==='en'?'Connection failed':'تعذر الاتصال بالسيرفر');
         }
     });
@@ -1339,8 +1344,8 @@ async function sendMessage(){
     let userMsgEl=null;
     let pdfToSend = currentPdfName;
     if(currentPdfName){
-        addMessage('📄 ملف PDF مرفق: '+currentPdfName,'user');
-        ch.push({role:'user',content:'[ملف PDF مرفق: '+currentPdfName+']'});
+        addMessage('📄 ملف مرفق: '+currentPdfName,'user');
+        ch.push({role:'user',content:'[ملف مرفق: '+currentPdfName+']'});
         var _pdfBadgeEl=document.getElementById('pdfBadge');
         if(_pdfBadgeEl)_pdfBadgeEl.style.display='none';
         var _clearPdfItem=document.getElementById('clearPdfBtn');
