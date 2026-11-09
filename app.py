@@ -72,7 +72,6 @@ SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_K
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # ذاكرة مؤقتة لحفظ نصوص الملفات المرفوعة
-# ⬅️ جديد: البنية الحين {"filename": "...", "chunks": [...]} بدل قائمة فقط
 user_pdf_context = {}
 
 # ==============================================================================
@@ -461,7 +460,7 @@ def delete_user_image(uid, image_id):
     except Exception as e: return False
 
 # ==============================================================================
-# 4.5. جلب البيانات من البوابة الوطنية
+# 4.5. جلب البيانات من البوابة الوطنية + أداة البحث الجديدة
 # ==============================================================================
 def fetch_saudi_open_data(query):
     try:
@@ -511,6 +510,22 @@ def fetch_saudi_open_data(query):
     except Exception as e:
         print(f"Error fetching open data: {e}")
         return "تعذر جلب البيانات من البوابة الوطنية حالياً."
+
+# ⬅️ دالة البحث في الويب (جديد)
+def search_web(query):
+    try:
+        from duckduckgo_search import DDGS
+        results = DDGS().text(query, max_results=5)
+        if not results:
+            return "لم يتم العثور على نتائج."
+        
+        out = []
+        for r in results:
+            out.append(f"العنوان: {r.get('title')}\nالرابط: {r.get('href')}\nالوصف: {r.get('body')}")
+        return "\n\n".join(out)
+    except Exception as e:
+        print("Search error:", e)
+        return "تعذر البحث في الويب حالياً."
 
 # ==============================================================================
 # 5. قراءة ملف المعرفة والإعدادات
@@ -772,7 +787,7 @@ def detect_news_query(message):
     if not temp_msg:
         return None
 
-    news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news"]
+    news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news", "مستجدات", "مستجد", "صحف", "صحيفة", "جرايد", "جريدة", "عاجل", "عاجلة"]
     has_news_kw = any(kw in msg or kw.lower() in msg.lower() for kw in news_keywords)
     if not has_news_kw:
         return None
@@ -1077,7 +1092,6 @@ def upload_pdf():
             return jsonify({"status": "error", "message": "تعذر استخراج نص من الملف (قد يكون صورة)"}), 400
 
         chunks = [text[i:i+1500] for i in range(0, len(text), 1500)]
-        # ⬅️ جديد: نحفظ اسم الملف مع الأجزاء (بدل قائمة فقط)
         user_pdf_context[uid] = {"filename": file.filename, "chunks": chunks}
         
         return jsonify({"status": "ok", "message": "تم تجهيز الملف بنجاح، يمكنك الآن سؤالي عنه!", "chunks_count": len(chunks), "filename": file.filename})
@@ -1085,15 +1099,12 @@ def upload_pdf():
         print("upload_pdf error:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
 @app.route('/clear_pdf', methods=['POST'])
 def clear_pdf():
     uid = get_user_id()
     user_pdf_context.pop(uid, None)
     return jsonify({"status": "ok"})
 
-
-# ⬅️ جديد: مسار تشخيص لتأكد إن الملف محفوظ
 @app.route('/pdf_status')
 def pdf_status():
     uid = get_user_id()
@@ -1107,7 +1118,6 @@ def pdf_status():
             "chunks_count": len(data.get("chunks", []))
         })
     return jsonify({"has_pdf": True, "chunks_count": len(data)})
-
 
 @app.route('/my_assistants')
 def my_assistants():
@@ -2158,11 +2168,10 @@ def chat():
         except Exception as e:
             print("Error fetching approved knowledge:", e)
 
-        # ====== ⬅️ جديد: حقن سياق الملف المرفق (نسخة محسّنة) ======
+        # ====== حقن سياق الملف المرفق ======
         pdf_context = ""
         if uid in user_pdf_context:
             pdf_data = user_pdf_context[uid]
-            # دعم البنية الجديدة (dict) والقديمة (list) للتوافق
             if isinstance(pdf_data, dict):
                 pdf_filename = pdf_data.get("filename", "الملف")
                 chunks = pdf_data.get("chunks", [])
@@ -2170,7 +2179,6 @@ def chat():
                 pdf_filename = "الملف"
                 chunks = pdf_data
 
-            # بحث بالكلمات المفتاحية
             query_words = set(re.findall(r'\w+', um.lower()))
             scores = []
             for i, chunk in enumerate(chunks):
@@ -2180,7 +2188,6 @@ def chat():
             scores.sort(key=lambda x: (x[0], -x[1]), reverse=True)
             best_chunks = [c for s, i, c in scores[:3] if s > 0]
 
-            # لو ما فيه تطابق → احقن أول 3 أجزاء (المقدمة)
             if not best_chunks:
                 best_chunks = chunks[:3]
 
@@ -2256,7 +2263,25 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
+        # ⬅️ هنا تم إضافة أداة البحث الجديدة
         tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_web",
+                    "description": "البحث في الإنترنت (جوجل، يوتيوب، جيت هاب، أي موقع) عن أي شيء يطلبه المستخدم. استخدم هذه الأداة دائماً عندما يطلب المستخدم البحث عن معلومة، رابط، مسلسل، مستجدات، أو أي شيء حديث.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "نص البحث المباشر"
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
             {
                 "type": "function",
                 "function": {
@@ -2314,7 +2339,24 @@ def chat():
                     print(f"--- [DEBUG] Tool calls detected: {len(tool_calls)} ---")
                     current_msgs.append(response_message)
                     for tool_call in tool_calls:
-                        if tool_call.function.name == "fetch_saudi_open_data":
+                        # ⬅️ تنفيذ أداة البحث الجديدة
+                        if tool_call.function.name == "search_web":
+                            try:
+                                args = json.loads(tool_call.function.arguments)
+                                query = args.get("query", "")
+                                print(f"--- [DEBUG] Web Search for: {query} ---")
+                                tool_result = search_web(query)
+                            except Exception as e:
+                                print(f"--- [ERROR] Web Search failed: {e} ---")
+                                tool_result = "تعذر البحث في الويب."
+                            
+                            current_msgs.append({
+                                "tool_call_id": tool_call.id,
+                                "role": "tool",
+                                "name": tool_call.function.name,
+                                "content": tool_result
+                            })
+                        elif tool_call.function.name == "fetch_saudi_open_data":
                             try:
                                 args = json.loads(tool_call.function.arguments)
                                 query = args.get("query", "")
