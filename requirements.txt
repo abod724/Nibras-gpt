@@ -17,3 +17,4 @@ gevent
 redis
 PyPDF2
 duckduckgo-search
+python-docx
