@@ -482,13 +482,22 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 <div class="dropdown" id="dropdown">
     <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
     
-    <!-- INCognito Button -->
     <button class="item" id="incognitoToggle" onclick="toggleIncognito()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 12h4l3-8 4 16 3-8h6"></path>
             <circle cx="12" cy="12" r="10" stroke-dasharray="4 4" opacity="0.5"></circle>
         </svg>
         <span id="incognitoText">تفعيل وضع التخفي</span>
+    </button>
+    
+    <!-- ⬅️ جديد: زر مسح الملف المرفق -->
+    <button class="item" id="clearPdfBtn" onclick="clearPdfContext()" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <span>مسح الملف المرفق</span>
     </button>
     
     <button class="item" onclick="window.location.href='/library'"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>مكتبتي</button>
@@ -651,7 +660,8 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
         }
     }catch(e){}
 })();
-(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
+(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;let currentPdfName=null;
+const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
 const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
 const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
 
@@ -810,6 +820,18 @@ function toggleIncognito() {
         btn.style.color = "inherit";
         showToast(userLang==='en'?'Incognito Mode OFF':'تم إيقاف وضع التخفي. المحادثة ستُحفظ.');
     }
+}
+
+// ⬅️ جديد: دالة مسح سياق الملف المرفق
+async function clearPdfContext(){
+    try{await fetch('/clear_pdf',{method:'POST',credentials:'same-origin'});}catch(e){}
+    var badge=document.getElementById('pdfBadge');
+    if(badge)badge.style.display='none';
+    var item=document.getElementById('clearPdfBtn');
+    if(item)item.style.display='none';
+    currentPdfName=null;
+    showToast(userLang==='en'?'PDF cleared':'تم مسح الملف المرفق');
+    document.getElementById('dropdown').classList.remove('show');
 }
 
 function compressImage(file,maxWidth,callback){var reader=new FileReader();reader.onload=function(ev){var img=new Image();img.onload=function(){var canvas=document.createElement('canvas');var ratio=Math.min(maxWidth/img.width,maxWidth/img.height,1);canvas.width=img.width*ratio;canvas.height=img.height*ratio;var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);callback(canvas.toDataURL('image/jpeg',0.75));};img.src=ev.target.result;};reader.readAsDataURL(file);}
@@ -1127,6 +1149,9 @@ if(pdfBtn&&pdfInput){
                 var badge=document.getElementById('pdfBadge');
                 var badgeName=document.getElementById('pdfBadgeName');
                 if(badge&&badgeName){badgeName.textContent='📄 '+f.name;badge.style.display='block';}
+                currentPdfName=f.name;
+                var clearItem=document.getElementById('clearPdfBtn');
+                if(clearItem)clearItem.style.display='flex';
             } else {
                 showToast('❌ '+(data.message||(userLang==='en'?'Upload failed':'فشل رفع الملف')));
             }
@@ -1138,10 +1163,7 @@ if(pdfBtn&&pdfInput){
     var pdfClearBtn=document.getElementById('pdfClearBtn');
     if(pdfClearBtn){
         pdfClearBtn.addEventListener('click',async function(){
-            try{await fetch('/clear_pdf',{method:'POST',credentials:'same-origin'});}catch(e){}
-            var badge=document.getElementById('pdfBadge');
-            if(badge)badge.style.display='none';
-            showToast(userLang==='en'?'PDF removed':'تم إزالة الملف');
+            await clearPdfContext();
         });
     }
 }
@@ -1311,10 +1333,20 @@ if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');
 async function sendMessage(){
     if(iw)return;
     const msgText=ui.value.trim(),img=pid;
-    if(!msgText&&!img)return;
+    if(!msgText&&!img&&!currentPdfName)return;
     stopAllAudio();
     spokenUntil=0;
     let userMsgEl=null;
+    let pdfToSend = currentPdfName;
+    if(currentPdfName){
+        addMessage('📄 ملف PDF مرفق: '+currentPdfName,'user');
+        ch.push({role:'user',content:'[ملف PDF مرفق: '+currentPdfName+']'});
+        var _pdfBadgeEl=document.getElementById('pdfBadge');
+        if(_pdfBadgeEl)_pdfBadgeEl.style.display='none';
+        var _clearPdfItem=document.getElementById('clearPdfBtn');
+        if(_clearPdfItem)_clearPdfItem.style.display='none';
+        currentPdfName=null;
+    }
     if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}
     if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}
     ui.value='';ui.style.height='auto';iw=true;
@@ -1323,7 +1355,10 @@ async function sendMessage(){
     botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';
     cb.appendChild(botEl);
     if(userMsgEl)scrollMsgToTop(userMsgEl);
-    const payload={message:msgText||"مرفق",image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito};
+    let _payloadMsg = msgText;
+    if(!_payloadMsg && pdfToSend) _payloadMsg = "لخص لي محتوى الملف المرفق";
+    if(!_payloadMsg) _payloadMsg = "مرفق";
+    const payload={message:_payloadMsg,image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito};
     let displayText='';
     let bufferText='';
     let streamDone=false;
@@ -1425,7 +1460,7 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
-window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.selectTTSVoice=selectTTSVoice;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;window.toggleIncognito=toggleIncognito;
+window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.selectTTSVoice=selectTTSVoice;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;window.toggleIncognito=toggleIncognito;window.clearPdfContext=clearPdfContext;
 applyLang();
 setTimeout(function(){
     try {
@@ -1433,7 +1468,6 @@ setTimeout(function(){
         var hour = now.getHours();
         var today = now.getFullYear() + "-" + (now.getMonth()+1) + "-" + now.getDate();
         var lastNewsDate = localStorage.getItem('nibras_morning_news_date');
-        // ✅ التعديل هنا: الميزة صارت حصرية للأدمن فقط
         if (IS_ADMIN && hour >= 5 && hour < 11 && lastNewsDate !== today) {
             localStorage.setItem('nibras_morning_news_date', today);
             ui.value = "جيب لي أخبار اليوم";
