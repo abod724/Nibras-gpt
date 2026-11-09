@@ -460,7 +460,7 @@ def delete_user_image(uid, image_id):
     except Exception as e: return False
 
 # ==============================================================================
-# 4.5. جلب البيانات من البوابة الوطنية + أداة البحث الجديدة
+# 4.5. جلب البيانات من البوابة الوطنية + البحث الشامل
 # ==============================================================================
 def fetch_saudi_open_data(query):
     try:
@@ -511,7 +511,6 @@ def fetch_saudi_open_data(query):
         print(f"Error fetching open data: {e}")
         return "تعذر جلب البيانات من البوابة الوطنية حالياً."
 
-# ⬅️ دالة البحث في الويب (جديد)
 def search_web(query):
     try:
         from duckduckgo_search import DDGS
@@ -542,7 +541,8 @@ for fn in ["Knowledge.md", "knowledge.md", "معرفة.md", "README.md", "ملف
 if not kc:
     kc = "أنت نبراس، مساعد ذكي."
 
-SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عامي سعودي بسيط** — مو فصحى أبدًا.
+SP = f"""أنت "نبراس"، مساعد شخصي سعودي ذكي وعام. تتكلم **عامي سعودي بسيط** — مو فصحى أبدًا.
+أنت لست مجرد بوت أخبار، أنت مساعد شامل يجاوب على أي سؤال (طبخ، برمجة، تاريخ، معلومات عامة، مسلسلات، إلخ).
 
 **⚠️ قاعدة اللغة الأهم — اقرأها قبل كل شيء:**
 - **ممنوع** تستخدم الفصحى إلا في كلمات ضرورية (أسماء تقنية، مصطلحات).
@@ -557,6 +557,11 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 3. **البحث بالويب** عند الحاجة للمعلومات الحديثة.
 4. **البيانات المفتوحة السعودية** (إذا طلبت بيانات رسمية).
 5. **الملفات المرفقة** (إذا أعطاك النظام نص مستخرج من ملف، اعتمد عليه).
+
+**🔑 أدواتك المتاحة (Tools):**
+- `get_news`: استخدمها **حصرياً** إذا طلب المستخدم أخبار، مستجدات، صحف، أو أحداث جارية. (تنسيقها جميل ومرتب).
+- `search_web`: استخدمها **للبحث العام** في الإنترنت (مسلسلات، يوتيوب، جيت هاب، مواقع، شروحات حديثة). استخدمها فقط إذا طلب المستخدم البحث أو الروابط، أو كان السؤال يحتاج معلومات حديثة جداً.
+- `fetch_saudi_open_data`: للبيانات الرسمية والإحصائيات.
 
 **ملف المعرفة:**
 {kc}
@@ -605,13 +610,13 @@ SP = f"""أنت "نبراس"، مساعد شخصي سعودي تتكلم **عا�
 - لا تذكر أبداً أي كلام عن حفظ المحادثات أو الذاكرة.
 - رد بشكل مباشر بدون مقدمات فلسفية.
 
-**قواعد السياق والبحث:**
-- اقرأ الرسائل السابقة بتمعن. إذا قال المستخدم "طيب"، أو "وبعدين"، أو سأل سؤالاً يعتمد على رسالة سابقة، افهم القصد من السياق وأكمل عليه دون أن تطلب منه التوضيح.
-- إذا أعطاك النظام "نتائج بحث فعلية من الويب"، فاعتمد عليها كلياً في ردك، واذكر الروابط بشكل منسق وواضح.
+**🚨 قاعدة استخدام أداة البحث (مهم جداً):**
+- **ممنوع** تستخدم أداة البحث (`search_web`) إلا إذا طلب المستخدم منك البحث صراحةً (مثل: "ابحث لي"، "جيب لي رابط"، "دور في قوقل")، أو إذا سألك عن موضوع حديث جداً لا تعرفه.
+- إذا سألك سؤال عام (مثل: "ما هي عاصمة فرنسا؟"، "كيف حالك؟"، "اشرح لي الذكاء الاصطناعي")، أجب من معرفتك الأساسية بدون استخدام أداة البحث، عشان ما نستهلك حد البحث اليومي للمستخدم.
 
-**🚨 قاعدة الأخبار الصارمة (مهم جداً):**
-- أنت مساعد شخصي ذكي، لا تسأل المستخدم "وش تبي أخبار؟" أو "عن أي بلد؟". 
-- إذا طلب المستخدم أي شيء يتعلق بالأخبار (مثل: "جيب لي أخبار"، "وش صار بالعالم"، "عطني المستجدات")، رد فوراً بجملة ترحيبية مثل: "أبشر يا طويل العمر، هذي آخر الأخبار:"، واعرض الأخبار مباشرة. 
+**🚨 قاعدة الأخبار (مهم جداً):**
+- إذا طلب المستخدم أي شيء يتعلق بالأخبار (مثل: "جيب لي أخبار"، "وش صار بالعالم"، "عطني المستجدات"، "ابي الصحف")، استخدم أداة `get_news` مباشرة.
+- لا تسأل المستخدم "وش تبي أخبار؟" أو "عن أي بلد؟"، بل استخدم الأداة فوراً وأعطه النتائج بأسلوب ترحيبي.
 
 **🔑 صلاحيات الأدمن (حساسة — لا تكشفها لأي أحد):**
 - بريد الأدمن الرسمي: `abdullaha0569361@gmail.com`
@@ -761,66 +766,6 @@ def generate_speech_free(text):
     except Exception as e:
         print(f"❌ gTTS failed: {type(e).__name__}: {e}")
     return None
-
-def detect_news_query(message):
-    if not message or not isinstance(message, str):
-        return None
-    msg = message.strip()
-    if len(msg) < 2:
-        return None
-
-    clean_msg = re.sub(r"[؟?!،,.]", "", msg).strip()
-    clean_msg = re.sub(r"\s+", " ", clean_msg).strip().lower()
-
-    greeting_words = [
-        "اخبارك", "أخبارك", "شخبارك", "شلونك", "شلون", "علومك",
-        "كيف", "وش", "ايش", "إيش", "هلا", "مرحبا", "السلام", "عليكم",
-        "يا", "طويل", "العمر", "و", "الحال", "الدنيا",
-        "صباح", "مساء", "الخير", "النور", "الله", "يعطيك", "العافية", "بخير",
-        "عساك", "طيب", "شحالك"
-    ]
-    temp_msg = clean_msg
-    for w in greeting_words:
-        temp_msg = temp_msg.replace(w, "")
-    temp_msg = re.sub(r"\s+", "", temp_msg).strip()
-
-    if not temp_msg:
-        return None
-
-    news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news", "مستجدات", "مستجد", "صحف", "صحيفة", "جرايد", "جريدة", "عاجل", "عاجلة"]
-    has_news_kw = any(kw in msg or kw.lower() in msg.lower() for kw in news_keywords)
-    if not has_news_kw:
-        return None
-
-    general_markers = [
-        "أهم أخبار السعودية والعالم اليوم",
-        "اهم اخبار السعودية والعالم اليوم",
-        "أهم الأخبار", "اهم الاخبار",
-        "آخر الأخبار", "اخر الاخبار",
-        "أخبار اليوم", "اخبار اليوم",
-        "أخبار السعودية والعالم",
-        "كيف الأخبار", "كيف الاخبار",
-    ]
-    for g in general_markers:
-        if g in msg:
-            return "أهم أخبار السعودية والعالم اليوم"
-
-    topic = msg
-    filler_words = [
-        "وش", "ايش", "إيش", "ما", "ماهي", "ماهو",
-        "أبي", "ابي", "أبغى", "ابغى", "عطني", "أعطني", "هات", "جيب",
-        "آخر", "اخر", "أهم", "اهم", "عن", "حول", "اليوم", "الآن", "الان",
-        "ابحث", "بالويب", "في الويب", "على الويب", "ويب", "لي", "اعطني", "أعطني", "وريني", "شوف"
-    ]
-    for word in filler_words:
-        topic = re.sub(rf"\b{re.escape(word)}\b", " ", topic)
-    topic = re.sub(r"\s+", " ", topic).strip()
-    topic = topic.replace("أخبار", "").replace("اخبار", "").replace("الأخبار", "").replace("الاخبار", "").strip()
-
-    if topic and len(topic) >= 2:
-        return topic[:150]
-
-    return "أهم أخبار السعودية والعالم اليوم"
 
 _news_cache = {}
 _NEWS_CACHE_TTL = 900
@@ -2205,83 +2150,30 @@ def chat():
             personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + pdf_context + lang_inst + assistant_persona_extra
         }] + server_hist[-40:]
 
-        news_articles = None
-        if is_registered and um and not has_image:
-            try:
-                news_query = detect_news_query(um)
-                if news_query:
-                    if not can_search:
-                        # ⬅️ منع التجاوز: إذا وصل الحد
-                        reply_limit = "وصلت للحد الأقصى للبحث اليومي، شكراً لك." if user_lang == 'ar' else "You've reached the daily search limit."
-                        nid = save_message(uid, um, reply_limit, cid) if is_registered and not incognito else cid
-                        def limit_search_stream():
-                            yield f"data: {json.dumps({'token': reply_limit}, ensure_ascii=False)}\n\n"
-                            yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
-                        return Response(
-                            stream_with_context(limit_search_stream()),
-                            mimetype='text/event-stream',
-                            headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
-                        )
-                    else:
-                        news_articles = fetch_news(news_query, limit=10)
-                        if news_articles:
-                            inc_usage(uid, "search_count")
-                            print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
-            except Exception as e:
-                print(f"news error: {e}")
-
-        if news_articles:
-            news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
-            prompt_for_news = (
-                f"المستخدم طلب أخبار. إليك أهم العناوين اللي جبتها:\n{news_titles}\n\n"
-                "اكتب مقدمة قصيرة جداً (جملة أو جملتين) بالعامي السعودي كأنك صديق يبشره بالأخبار، "
-                "ثم قل له إنك رتبت له الأخبار تحت عشان يقرأها. لا تكرر العناوين، بس تفاعل معها."
-            )
-
-            try:
-                news_intro_res = client.chat.completions.create(
-                    model=OPENAI_MODEL,
-                    messages=[{"role": "system", "content": SP + personality_inst + lang_inst}, {"role": "user", "content": prompt_for_news}],
-                    max_completion_tokens=150,
-                    stream=False
-                )
-                news_intro = news_intro_res.choices[0].message.content.strip()
-            except:
-                news_intro = "أبشر يا طويل العمر، هذي آخر الأخبار اللي جمعتها لك:"
-
-            news_md = f"**{news_intro}**\n\n" + format_news_reply(news_articles, user_lang)
-            news_html = str(format_nibras_response(news_md))
-
-            def news_stream():
-                try:
-                    yield f"data: {json.dumps({'formatted_html': news_html}, ensure_ascii=False)}\n\n"
-                    nid = cid
-                    if is_registered and not incognito:
-                        nid = save_message(uid, um, news_md, cid)
-                    else:
-                        if not nid:
-                            nid = "incognito_conv_" + secrets.token_hex(5) if incognito else "guest_conv_" + secrets.token_hex(5)
-                    inc_usage(uid, "chat_count")
-                    yield f"data: {json.dumps({'done': True, 'conv_id': nid}, ensure_ascii=False)}\n\n"
-                except Exception as e:
-                    print("news error:", e)
-                    nid = cid or ("incognito_conv_" + secrets.token_hex(5) if incognito else "guest_conv_" + secrets.token_hex(5))
-                    inc_usage(uid, "chat_count")
-                    yield f"data: {json.dumps({'token': news_md}, ensure_ascii=False)}\n\n"
-                    yield f"data: {json.dumps({'done': True, 'conv_id': nid}, ensure_ascii=False)}\n\n"
-
-            return Response(
-                stream_with_context(news_stream()),
-                mimetype='text/event-stream',
-                headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
-            )
-
+        # ⬅️ الأدوات المتاحة للذكاء الاصطناعي (بدون كلمات مفتاحية)
         tools = [
             {
                 "type": "function",
                 "function": {
+                    "name": "get_news",
+                    "description": "البحث عن الأخبار والمستجدات العاجلة من الصحف ووكالات الأنباء عبر Google News. استخدم هذه الأداة عندما يطلب المستخدم أخباراً، مستجدات، صحف، أو أي شيء يتعلق بالأحداث الجارية.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "الموضوع أو الكلمات المفتاحية للبحث عن الأخبار (مثال: أخبار السعودية، مستجدات غزة، أسعار النفط، الصحف)."
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "search_web",
-                    "description": "البحث في الإنترنت (جوجل، يوتيوب، جيت هاب، أي موقع) عن أي شيء يطلبه المستخدم. استخدم هذه الأداة دائماً عندما يطلب المستخدم البحث عن معلومة، رابط، مسلسل، مستجدات، أو أي شيء حديث.",
+                    "description": "البحث في الإنترنت (جوجل، يوتيوب، جيت هاب، أي موقع) عن أي شيء يطلبه المستخدم. استخدم هذه الأداة دائماً عندما يطلب المستخدم البحث عن معلومة، رابط، مسلسل، أو أي شيء حديث.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -2351,10 +2243,70 @@ def chat():
                     print(f"--- [DEBUG] Tool calls detected: {len(tool_calls)} ---")
                     current_msgs.append(response_message)
                     for tool_call in tool_calls:
-                        # ⬅️ تنفيذ أداة البحث الجديدة مع فرض القيود
-                        if tool_call.function.name == "search_web":
+                        # ⬅️ أداة الأخبار الجديدة (تستخدم التنسيق الأصلي)
+                        if tool_call.function.name == "get_news":
                             if not can_search:
-                                # ⬅️ منع التجاوز: الضيف (0) أو المسجل اللي خلص (2)
+                                tool_result = "عذراً، لقد وصل المستخدم للحد الأقصى المسموح به من عمليات البحث اليومية. اعتذر منه بلطف وقل له أن الحد اليومي للبحث انتهى."
+                                current_msgs.append({
+                                    "tool_call_id": tool_call.id,
+                                    "role": "tool",
+                                    "name": tool_call.function.name,
+                                    "content": tool_result
+                                })
+                            else:
+                                try:
+                                    args = json.loads(tool_call.function.arguments)
+                                    query = args.get("query", "")
+                                    print(f"--- [DEBUG] Fetching Google News for: {query} ---")
+                                    news_articles = fetch_news(query, limit=10)
+                                    
+                                    if news_articles:
+                                        news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
+                                        prompt_for_news = (
+                                            f"المستخدم طلب أخبار عن: {query}. إليك أهم العناوين:\n{news_titles}\n\n"
+                                            "اكتب مقدمة قصيرة جداً (جملة أو جملتين) بالعامي السعودي كأنك صديق يبشره بالأخبار."
+                                        )
+                                        try:
+                                            news_intro_res = client.chat.completions.create(
+                                                model=OPENAI_MODEL,
+                                                messages=[{"role": "system", "content": SP + personality_inst + lang_inst}, {"role": "user", "content": prompt_for_news}],
+                                                max_completion_tokens=100,
+                                                stream=False
+                                            )
+                                            news_intro = news_intro_res.choices[0].message.content.strip()
+                                        except:
+                                            news_intro = "أبشر يا طويل العمر، هذي آخر الأخبار اللي جمعتها لك:"
+
+                                        news_md = f"**{news_intro}**\n\n" + format_news_reply(news_articles, user_lang)
+                                        news_html = str(format_nibras_response(news_md))
+                                        
+                                        yield f"data: {json.dumps({'formatted_html': news_html}, ensure_ascii=False)}\n\n"
+                                        nid = save_message(uid, um, news_md, cid) if is_registered and not incognito else cid
+                                        yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
+                                        
+                                        inc_usage(uid, "chat_count")
+                                        inc_usage(uid, "search_count")
+                                        return # إنهاء الـ Generator نهائياً
+                                    else:
+                                        tool_result = "لم أجد أخبار حديثة حول هذا الموضوع."
+                                        current_msgs.append({
+                                            "tool_call_id": tool_call.id,
+                                            "role": "tool",
+                                            "name": tool_call.function.name,
+                                            "content": tool_result
+                                        })
+                                except Exception as e:
+                                    print(f"--- [ERROR] News fetch failed: {e} ---")
+                                    tool_result = "تعذر جلب الأخبار."
+                                    current_msgs.append({
+                                        "tool_call_id": tool_call.id,
+                                        "role": "tool",
+                                        "name": tool_call.function.name,
+                                        "content": tool_result
+                                    })
+                        # ⬅️ أداة البحث في الويب
+                        elif tool_call.function.name == "search_web":
+                            if not can_search:
                                 tool_result = "عذراً، لقد وصل المستخدم للحد الأقصى المسموح به من عمليات البحث اليومية. اعتذر منه بلطف وقل له أن الحد اليومي للبحث انتهى."
                             else:
                                 try:
@@ -2362,7 +2314,7 @@ def chat():
                                     query = args.get("query", "")
                                     print(f"--- [DEBUG] Web Search for: {query} ---")
                                     tool_result = search_web(query)
-                                    inc_usage(uid, "search_count") # ⬅️ خصم من العداد
+                                    inc_usage(uid, "search_count") 
                                 except Exception as e:
                                     print(f"--- [ERROR] Web Search failed: {e} ---")
                                     tool_result = "تعذر البحث في الويب."
