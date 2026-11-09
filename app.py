@@ -79,9 +79,9 @@ user_pdf_context = {}
 # ==============================================================================
 REDIS_URL = os.environ.get("REDIS_URL") # ضيفه في رندير
 LIMITS = {
-    "guest": {"chat": 15,  "search": 0,   "image": 0},
-    "user":  {"chat": 15,  "search": 2,   "image": 1},
-    "admin": {"chat": 9999, "search": 9999, "image": 9999},
+    "guest": {"chat": 15,  "search": 0,   "image": 0, "file": 0},
+    "user":  {"chat": 15,  "search": 2,   "image": 1, "file": 3}, # <--- هنا تقدر تعدل عدد الملفات
+    "admin": {"chat": 9999, "search": 9999, "image": 9999, "file": 9999},
 }
 
 def get_user_ip():
@@ -344,7 +344,7 @@ def get_usage_today(uid):
         r = (sb.table("assistant_usage").select("*").eq("user_id", uid).eq("date", today).limit(1).execute())
         if r and r.data: return r.data[0]
     except Exception as e: print("get_usage_today select:", e)
-    new_row = {"user_id": uid, "date": today, "chat_count": 0, "image_count": 0, "search_count": 0}
+    new_row = {"user_id": uid, "date": today, "chat_count": 0, "image_count": 0, "search_count": 0, "file_count": 0}
     try:
         r = sb.table("assistant_usage").insert(new_row).execute()
         if r and r.data: return r.data[0]
@@ -366,7 +366,8 @@ def check_limits(uid, role, email=None):
     can_chat = int(usage.get("chat_count", 0) or 0) < limits["chat"]
     can_search = int(usage.get("search_count", 0) or 0) < limits["search"]
     can_image = int(usage.get("image_count", 0) or 0) < limits["image"]
-    return usage, limits, can_chat, can_search, can_image
+    can_file = int(usage.get("file_count", 0) or 0) < limits.get("file", 0)
+    return usage, limits, can_chat, can_search, can_image, can_file
 
 def get_user_conversations(uid):
     try:
@@ -997,7 +998,7 @@ def library_delete():
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     try:
-        # ⬅️ إضافة: منع الضيوف من رفع الملفات
+        # ⬅️ إضافة: منع الضيوف وفرض الحد
         user_email = session.get('user_email', '')
         is_admin = bool(session.get('is_admin'))
         user_role = get_user_role(user_email) if user_email else 'guest'
@@ -1005,6 +1006,16 @@ def upload_pdf():
         
         if not is_registered:
             return jsonify({"status": "error", "message": "رفع الملفات للمسجلين فقط."}), 403
+
+        uid = get_user_id()
+        usage, limits, can_chat, can_search, can_image, can_file = check_limits(
+            uid,
+            user_role if not is_admin else 'admin',
+            email=user_email or None
+        )
+
+        if not can_file:
+            return jsonify({"status": "error", "message": "وصلت للحد الأقصى لرفع الملفات اليوم."}), 429
 
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "لم يتم إرسال ملف"}), 400
@@ -1016,7 +1027,6 @@ def upload_pdf():
         if ext not in ['pdf', 'docx']:
             return jsonify({"status": "error", "message": "ندعم فقط ملفات PDF و Word"}), 400
 
-        uid = get_user_id()
         text = ""
 
         if ext == 'pdf':
@@ -1038,6 +1048,9 @@ def upload_pdf():
 
         chunks = [text[i:i+1500] for i in range(0, len(text), 1500)]
         user_pdf_context[uid] = {"filename": file.filename, "chunks": chunks}
+        
+        # ⬅️ خصم من عداد الملفات
+        inc_usage(uid, "file_count")
         
         return jsonify({"status": "ok", "message": "تم تجهيز الملف بنجاح!", "filename": file.filename})
     except Exception as e:
@@ -1988,7 +2001,7 @@ def chat():
             except Exception as e:
                 print(f"assistant load: {e}")
 
-        usage, limits, can_chat, can_search, can_image = check_limits(
+        usage, limits, can_chat, can_search, can_image, can_file = check_limits(
             uid,
             user_role if not is_admin else 'admin',
             email=user_email or None
