@@ -74,6 +74,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_KEY
 sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+# ذاكرة مؤقتة للضيوف فقط (المسجلين ينحفظ ملفهم في قاعدة البيانات)
 user_pdf_context = {} 
 
 # ==============================================================================
@@ -1000,7 +1001,6 @@ def library_delete():
 @app.route('/upload_pdf', methods=['POST'])
 def upload_pdf():
     try:
-        # منع الضيوف وفرض الحد
         user_email = session.get('user_email', '')
         is_admin = bool(session.get('is_admin'))
         user_role = get_user_role(user_email) if user_email else 'guest'
@@ -1032,45 +1032,34 @@ def upload_pdf():
         text = ""
 
         if ext == 'pdf':
-            # قراءة الملف كبايتات باستخدام PyMuPDF
             file_bytes = file.read()
             doc = fitz.open(stream=file_bytes, filetype="pdf")
-            
             if len(doc) > 100:
                 return jsonify({"status": "error", "message": "الملف كبير جداً (الحد 100 صفحة)"}), 400
-                
             for page in doc:
                 extracted = page.get_text("text")
                 if extracted:
                     text += extracted + "\n"
             doc.close()
-            
         elif ext == 'docx':
             doc = Document(file)
             for para in doc.paragraphs:
                 if para.text:
                     text += para.text + "\n"
         elif ext == 'eml':
-            # قراءة الإيميل
             msg = email.message_from_bytes(file.read(), policy=policy.default)
             subject = msg.get('Subject', 'بدون موضوع')
             sender = msg.get('From', 'غير معروف')
             date = msg.get('Date', '')
-            
             text += f"الموضوع: {subject}\nالمرسل: {sender}\nالتاريخ: {date}\n\n"
-            
             if msg.is_multipart():
                 for part in msg.walk():
                     if part.get_content_type() == "text/plain":
-                        try:
-                            text += part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='ignore')
-                        except:
-                            pass
+                        try: text += part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='ignore')
+                        except: pass
             else:
-                try:
-                    text += msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='ignore')
-                except:
-                    pass
+                try: text += msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='ignore')
+                except: pass
         elif ext == 'txt':
             text = file.read().decode('utf-8', errors='ignore')
 
@@ -1078,9 +1067,15 @@ def upload_pdf():
             return jsonify({"status": "error", "message": "تعذر استخراج نص من الملف (قد يكون فارغ)"}), 400
 
         chunks = [text[i:i+1500] for i in range(0, len(text), 1500)]
-        user_pdf_context[uid] = {"filename": file.filename, "chunks": chunks}
         
-        # خصم من عداد الملفات
+        # ⬅️ الحفظ في قاعدة البيانات للمسجلين، وفي الذاكرة للضيوف
+        if is_registered and user_email:
+            mem = get_user_memory(user_email) or {}
+            mem['current_file'] = {"filename": file.filename, "chunks": chunks}
+            save_user_memory(user_email, mem)
+        else:
+            user_pdf_context[uid] = {"filename": file.filename, "chunks": chunks}
+        
         inc_usage(uid, "file_count")
         
         return jsonify({"status": "ok", "message": "تم تجهيز الملف بنجاح!", "filename": file.filename})
@@ -1092,6 +1087,14 @@ def upload_pdf():
 def clear_pdf():
     uid = get_user_id()
     user_pdf_context.pop(uid, None)
+    
+    user_email = session.get('user_email')
+    if user_email:
+        mem = get_user_memory(user_email) or {}
+        if 'current_file' in mem:
+            del mem['current_file']
+            save_user_memory(user_email, mem)
+            
     return jsonify({"status": "ok"})
 
 @app.route('/my_assistants')
@@ -1998,7 +2001,7 @@ def chat():
         cid = d.get("conv_id")
         img_data = d.get("image")
         assistant_id = d.get("assistant_id")
-        incognito = d.get("incognito", False) # <--- تفعيل وضع التخفي
+        incognito = d.get("incognito", False)
         
         if len(um) > 12000:
             return jsonify({"status": "error", "message": "الرسالة طويلة جدًا (الحد 12000 حرف)"}), 413
@@ -2077,7 +2080,6 @@ def chat():
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
                 )
         
-        # وضع التخفي يمنع تحميل الذاكرة
         user_memory = get_user_memory(user_email) if (user_email and not incognito) else {}
         memory_enabled = (user_memory.get('memory_enabled', True) if user_email else False) if not incognito else False
         
@@ -2146,8 +2148,16 @@ def chat():
 
         # ⬇️ إضافة 4: حقن سياق الملف المرفق
         pdf_context = ""
-        if uid in user_pdf_context:
+        pdf_data = None
+        
+        # ⬅️ التعديل هنا: القراءة من قاعدة البيانات للمسجلين، ومن الذاكرة للضيوف
+        if is_registered and user_email:
+            mem = get_user_memory(user_email) or {}
+            pdf_data = mem.get('current_file')
+        elif uid in user_pdf_context:
             pdf_data = user_pdf_context[uid]
+
+        if pdf_data:
             pdf_filename = pdf_data.get("filename", "الملف")
             chunks = pdf_data.get("chunks", [])
             
@@ -2172,7 +2182,6 @@ def chat():
                 )
                 print(f"--- [PDF] Injected {len(best_chunks)} chunks from '{pdf_filename}' ---")
         else:
-            # إذا المستخدم يظن أنه رفع ملف لكن السيرفر فقده (بسبب إعادة التشغيل)
             has_file_in_history = False
             if "[ملف مرفق:" in um:
                 has_file_in_history = True
@@ -2184,8 +2193,8 @@ def chat():
             
             if has_file_in_history:
                 pdf_context = (
-                    "\n\n**🚨 تنبيه هام جداً للنظام: المستخدم يعتقد أنه رفع ملفاً، لكن النظام فقد هذا الملف (بسبب إعادة تشغيل السيرفر).**\n"
-                    "**يجب عليك أن تعتذر منه بلطف بالعامي وتوضح له أن الملف قد انقطع بسبب تحديث النظام وتطلب منه إعادة رفعه مرة أخرى.**\n"
+                    "\n\n**🚨 تنبيه هام جداً للنظام: المستخدم يعتقد أنه رفع ملفاً، لكن النظام فقد هذا الملف.**\n"
+                    "**يجب عليك أن تعتذر منه بلطف بالعامي وتوضح له أن الملف قد انقطع وتطلب منه إعادة رفعه مرة أخرى.**\n"
                 )
         # ⬆️ نهاية الإضافة
 
@@ -2290,7 +2299,7 @@ def chat():
                 ]) or ("ما قدرت أجيب رد." if user_lang == 'ar' else "I couldn't generate a response.")
                 nid = cid
                 
-                if is_registered and not incognito: # <--- منع الحفظ في وضع التخفي
+                if is_registered and not incognito:
                     nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
                 else:
                     if not nid:
@@ -2301,10 +2310,10 @@ def chat():
                     inc_usage(uid, "image_count")
                 yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
 
-                if is_registered and not has_image and um and not incognito: # <--- منع التعلم التلقائي في وضع التخفي
+                if is_registered and not has_image and um and not incognito:
                     auto_learn_knowledge_async(um, cleaned)
 
-                if is_registered and user_email and not has_image and memory_enabled and not incognito: # <--- منع تحديث الذاكرة في وضع التخفي
+                if is_registered and user_email and not has_image and memory_enabled and not incognito:
                     try:
                         pair_count = (len(server_hist) + 1) // 2
                         if pair_count >= 2 and pair_count % 2 == 0:
