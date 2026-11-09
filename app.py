@@ -2210,10 +2210,23 @@ def chat():
             try:
                 news_query = detect_news_query(um)
                 if news_query:
-                    news_articles = fetch_news(news_query, limit=10)
-                    if news_articles:
-                        inc_usage(uid, "search_count")
-                        print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
+                    if not can_search:
+                        # ⬅️ منع التجاوز: إذا وصل الحد
+                        reply_limit = "وصلت للحد الأقصى للبحث اليومي، شكراً لك." if user_lang == 'ar' else "You've reached the daily search limit."
+                        nid = save_message(uid, um, reply_limit, cid) if is_registered and not incognito else cid
+                        def limit_search_stream():
+                            yield f"data: {json.dumps({'token': reply_limit}, ensure_ascii=False)}\n\n"
+                            yield f"data: {json.dumps({'done': True, 'conv_id': nid or cid or ''}, ensure_ascii=False)}\n\n"
+                        return Response(
+                            stream_with_context(limit_search_stream()),
+                            mimetype='text/event-stream',
+                            headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+                        )
+                    else:
+                        news_articles = fetch_news(news_query, limit=10)
+                        if news_articles:
+                            inc_usage(uid, "search_count")
+                            print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
             except Exception as e:
                 print(f"news error: {e}")
 
@@ -2263,7 +2276,6 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        # ⬅️ هنا تم إضافة أداة البحث الجديدة
         tools = [
             {
                 "type": "function",
@@ -2339,16 +2351,21 @@ def chat():
                     print(f"--- [DEBUG] Tool calls detected: {len(tool_calls)} ---")
                     current_msgs.append(response_message)
                     for tool_call in tool_calls:
-                        # ⬅️ تنفيذ أداة البحث الجديدة
+                        # ⬅️ تنفيذ أداة البحث الجديدة مع فرض القيود
                         if tool_call.function.name == "search_web":
-                            try:
-                                args = json.loads(tool_call.function.arguments)
-                                query = args.get("query", "")
-                                print(f"--- [DEBUG] Web Search for: {query} ---")
-                                tool_result = search_web(query)
-                            except Exception as e:
-                                print(f"--- [ERROR] Web Search failed: {e} ---")
-                                tool_result = "تعذر البحث في الويب."
+                            if not can_search:
+                                # ⬅️ منع التجاوز: الضيف (0) أو المسجل اللي خلص (2)
+                                tool_result = "عذراً، لقد وصل المستخدم للحد الأقصى المسموح به من عمليات البحث اليومية. اعتذر منه بلطف وقل له أن الحد اليومي للبحث انتهى."
+                            else:
+                                try:
+                                    args = json.loads(tool_call.function.arguments)
+                                    query = args.get("query", "")
+                                    print(f"--- [DEBUG] Web Search for: {query} ---")
+                                    tool_result = search_web(query)
+                                    inc_usage(uid, "search_count") # ⬅️ خصم من العداد
+                                except Exception as e:
+                                    print(f"--- [ERROR] Web Search failed: {e} ---")
+                                    tool_result = "تعذر البحث في الويب."
                             
                             current_msgs.append({
                                 "tool_call_id": tool_call.id,
