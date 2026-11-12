@@ -432,6 +432,31 @@ html[data-theme="neon"] .nibras-response a { color: var(--primary-color); }
 html[data-theme="neon"] .typing-dots { color: var(--primary-color); }
 html[data-theme="neon"] ::-webkit-scrollbar-thumb { background: rgba(var(--primary-rgb), 0.3); }
 html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(--primary-rgb), 0.6); }
+/* تنسيقات لوحة الإيموجي */
+.emoji-menu {
+    display: none; position: absolute; bottom: 65px; right: 10px; 
+    background: var(--bg-dropdown); border: 1px solid var(--border-color); 
+    border-radius: 16px; box-shadow: 0 10px 30px var(--shadow-color); 
+    z-index: 999; width: 290px; overflow: hidden;
+}
+.emoji-tabs {
+    display: flex; background: var(--bg-hover); border-bottom: 1px solid var(--border-color); 
+    overflow-x: auto; scrollbar-width: none; padding: 5px;
+}
+.emoji-tabs::-webkit-scrollbar { display: none; }
+.emoji-tab-btn {
+    background: transparent; border: none; font-size: 18px; padding: 6px 10px; 
+    cursor: pointer; border-radius: 8px; opacity: 0.5; transition: all 0.2s;
+}
+.emoji-tab-btn.active { opacity: 1; background: var(--bg-app); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.emoji-content {
+    padding: 10px; display: grid; grid-template-columns: repeat(7, 1fr); 
+    gap: 4px; max-height: 220px; overflow-y: auto; font-size: 22px; text-align: center;
+}
+.emoji-content::-webkit-scrollbar { width: 6px; }
+.emoji-content::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 6px; }
+.emoji-content span { cursor: pointer; padding: 2px; border-radius: 6px; transition: background 0.15s; display: inline-block; }
+.emoji-content span:hover { background: var(--bg-hover); transform: scale(1.1); }
 {{ memory_css|safe }}
 </style></head><body>
 <div class="app">
@@ -602,11 +627,12 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
     </button>
     
-    <div id="emojiMenu" style="display:none; position:absolute; bottom:65px; right:10px; background:var(--bg-dropdown); border:1px solid var(--border-color); border-radius:14px; padding:10px; box-shadow:0 10px 30px var(--shadow-color); z-index:999; width:260px;">
-        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:8px; font-size:22px; text-align:center;">
-            <span onclick="insertEmoji('😀')" style="cursor:pointer;">😀</span><span onclick="insertEmoji('😂')" style="cursor:pointer;">😂</span><span onclick="insertEmoji('🥰')" style="cursor:pointer;">🥰</span><span onclick="insertEmoji('😎')" style="cursor:pointer;">😎</span><span onclick="insertEmoji('😭')" style="cursor:pointer;">😭</span><span onclick="insertEmoji('😡')" style="cursor:pointer;">😡</span><span onclick="insertEmoji('🤔')" style="cursor:pointer;">🤔</span>
-            <span onclick="insertEmoji('👍')" style="cursor:pointer;">👍</span><span onclick="insertEmoji('🙏')" style="cursor:pointer;">🙏</span><span onclick="insertEmoji('🔥')" style="cursor:pointer;">🔥</span><span onclick="insertEmoji('✨')" style="cursor:pointer;">✨</span><span onclick="insertEmoji('🎉')" style="cursor:pointer;">🎉</span><span onclick="insertEmoji('❤️')" style="cursor:pointer;">❤️</span><span onclick="insertEmoji('💔')" style="cursor:pointer;">💔</span>
-            <span onclick="insertEmoji('🤖')" style="cursor:pointer;">🤖</span><span onclick="insertEmoji('🕺')" style="cursor:pointer;">🕺</span><span onclick="insertEmoji('💯')" style="cursor:pointer;">💯</span><span onclick="insertEmoji('🌟')" style="cursor:pointer;">🌟</span><span onclick="insertEmoji('💡')" style="cursor:pointer;">💡</span><span onclick="insertEmoji('📌')" style="cursor:pointer;">📌</span><span onclick="insertEmoji('✅')" style="cursor:pointer;">✅</span>
+    <div id="emojiMenu" class="emoji-menu">
+        <div class="emoji-tabs" id="emojiTabs">
+            <!-- سيتم تعبئتها بالجافاسكربت -->
+        </div>
+        <div class="emoji-content" id="emojiContent">
+            <!-- سيتم تعبئتها بالجافاسكربت -->
         </div>
     </div>
     <!-- 🔴 نهاية كود الإيموجي 🔴 -->
@@ -1480,13 +1506,59 @@ document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.con
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
 
-// 🔴 بداية كود تفعيل الإيموجي 🔴
+// 🔴 بداية كود تفعيل الإيموجي المطور 🔴
 const emojiBtn = document.getElementById('emojiBtn');
 const emojiMenu = document.getElementById('emojiMenu');
+const emojiTabs = document.getElementById('emojiTabs');
+const emojiContent = document.getElementById('emojiContent');
+
+const emojiData = {
+    "😀": ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","☺️","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗","🤔","🫣","🤭","🫢","🫡","🤫","🤥","😶","😐","😑","😬","🫠","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾"],
+    "👋": ["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦵","🦿","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄"],
+    "🐶": ["🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐻‍❄️","🐨","🐯","🦁","🐮","🐷","🐽","🐸","🐵","🙈","🙉","🙊","🐒","🐔","🐧","🐦","🐤","🐣","🐥","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🪱","🐛","🦋","🐌","🐞","🐜","🪰","🪲","🪳","🦟","🦗","🕷️","🕸️","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐡","🐠","🐟","🐬","🐳","🐋","🦈","🐊","🐅","🐆","🦓","🦍","🦧","🦣","🐘","🦛","🦏","🐪","🐫","🦒","🦘","🦬","🐃","🐂","🐄","🐎","🐖","🐏","🐑","🦙","🐐","🦌","🐕","🐩","🦮","🐕‍🦺","🐈","🐈‍⬛","🪶","🐓","🦃","🦤","🦚","🦜","🦢","🦩","🕊️","🐇","🦝","🦨","🦡","🦫","🦦","🦥","🐁","🐀","🐿️","🦔"],
+    "🍔": ["🍏","🍎","🍐","🍊","🍋","🍌","🍉","🍇","🍓","🫐","🍈","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🍆","🥑","🥦","🥬","🥒","🌶️","🫑","🌽","🥕","🫒","🧄","🧅","🥔","🍠","🥐","🥯","🍞","🥖","🥨","🧀","🥚","🍳","🧈","🥞","🧇","🥓","🥩","🍗","🍖","🦴","🌭","🍔","🍟","🍕","🫓","🥪","🥙","🧆","🌮","🌯","🫔","🥗","🥘","🫕","🥫","🍝","🍜","🍲","🍛","🍣","🍱","🥟","🦪","🍤","🍙","🍚","🍘","🍥","🥠","🥮","🍢","🍡","🍧","🍨","🍦","🥧","🧁","🍰","🎂","🍮","🍭","🍬","🍫","🍿","🍩","🍪","🌰","🥜","🍯","🥛","🍼","🫖","☕","🍵","🧃","🥤","🧋","🍶","🍺","🍻","🥂","🍷","🥃","🍸","🍹","🧉","🍾"],
+    "⚽": ["⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🪀","🏓","🏸","🏒","🏑","🥍","🏏","🪃","🥅","⛳","🪁","🏹","🎣","🤿","🥊","🥋","🎽","🛹","🛼","🛷","⛸️","🥌","🎿","⛷️","🏂","🪂","🏋️","🤼","🤸","⛹️","🤺","🤾","🏌️","🏇","🧘","🏄","🏊","🤽","🚣","🧗","🚵","🚴","🏆","🥇","🥈","🥉","🏅","🎖️","🏵️","🎗️","🎫","🎟️","🎪","🤹","🎭","🩰","🎨","🎬","🎤","🎧","🎼","🎹","🥁","🪘","🎷","🎺","🪗","🎸","🪕","🎻","🎲","♟️","🎯","🎳","🎮","🎰","🧩"],
+    "🚗": ["🚗","🚕","🚙","🚌","🚎","🏎️","🚓","🚑","🚒","🚐","🛻","🚚","🚛","🚜","🦯","🦽","🦼","🛴","🚲","🛵","🏍️","🛺","🚨","🚔","🚍","🚘","🚖","🚡","🚠","🚟","🚃","🚋","🚞","🚝","🚄","🚅","🚈","🚂","🚆","🚇","🚊","🚉","✈️","🛫","🛬","🛩️","💺","🛰️","🚀","🛸","🚁","🛶","⛵","🚤","🛥️","🛳️","⛴️","🚢","⚓","🪝","⛽","🚧","🚦","🚥","🚏","🗺️","🗿","🗽","🗼","🏰","🏯","🏟️","🎡","🎢","🎠","⛲","⛱️","🏖️","🏝️","🏜️","🌋","⛰️","🏔️","🗻","🏕️","⛺","🛖","🏠","🏡","🏘️","🏚️","🏗️","🏭","🏢","🏬","🏣","🏤","🏥","🏦","🏨","🏪","🏫","🏩","💒","🏛️","⛪","🕌","🕍","🛕","🕋","⛩️","🛤️","🛣️","🗾","🎑","🏞️","🌅","🌄","🌠","🎇","🎆","🌇","🌆","🏙️","🌃","🌌","🌉","🌁"],
+    "💡": ["⌚","📱","📲","💻","⌨️","🖥️","🖨️","🖱️","🖲️","🕹️","🗜️","💽","💾","💿","📀","📼","📷","📸","📹","🎥","📽️","🎞️","📞","☎️","📟","📠","📺","📻","🎙️","🎚️","🎛️","🧭","⏱️","⏲️","⏰","🕰️","⌛","⏳","📡","🔋","🪫","🔌","💡","🔦","🕯️","🪔","🧯","🛢️","💸","💵","💴","💶","💷","🪙","💰","💳","💎","⚖️","🪜","🧰","🪛","🔧","🔨","⚒️","🛠️","⛏️","🪚","🔩","⚙️","🪤","🧱","⛓️","🧲","🔫","💣","🧨","🪓","🔪","🗡️","⚔️","🛡️","🚬","⚰️","🪦","⚱️","🏺","🔮","📿","🧿","🪬","💈","⚗️","🔭","🔬","🕳️","🩹","🩺","🩻","💊","💉","🩸","🧬","🦠","🧫","🧪","🌡️","🧹","🪠","🧺","🧻","🚽","🚰","🚿","🛁","🛀","🧼","🪥","🪒","🧽","🪣","🧴","🛎️","🔑","🗝️","🚪","🪑","🛋️","🛏️","🛌","🧸","🪆","🖼️","🪞","🪟","🛍️","🛒","🎁","🎈","🎏","🎀","🪄","🪙","📩","📨","📧","💌","📥","📤","📦","🏷️","🪧","📪","📫","📬","📭","📮","📯","📜","📃","📄","📑","🧾","📊","📈","📉","🗒️","🗓️","📆","📅","🗑️","📇","🗃️","🗳️","🗄️","📋","📁","📂","🗂️","🗞️","📰","📓","📔","📒","📕","📗","📘","📙","📚","📖","🔖","🧷","🔗","📎","🖇️","📐","📏","🧮","📌","📍","✂️","🖊️","🖋️","✒️","🖌️","🖍️","📝","✏️","🔍","🔎","🔏","🔐","🔒","🔓"],
+    "❤️": ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❣️","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☪️","🕉️","☸️","✡️","🔯","🕎","☯️","☦️","🛐","⛎","♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓","🆔","⚛️","🉑","☢️","☣️","📴","📳","🈶","🈚","🈸","🈺","🈷️","✴️","🆚","💮","🉐","㊙️","㊗️","🈴","🈵","🈹","🈲","🅰️","🅱️","🆎","🆑","🅾️","🆘","❌","⭕","🛑","⛔","📛","🚫","💯","💢","♨️","🚷","🚯","🚳","🚱","🔞","📵","🚭","❗","❕","❓","❔","‼️","⁉️","🔅","🔆","〽️","⚠️","🚸","🔱","⚜️","🔰","♻️","✅","🈯","💹","❇️","✳️","❎","🌐","💠","Ⓜ️","🌀","💤","🏧","🚾","♿","🅿️","🛗","🈳","🈂️","🛂","🛃","🛄","🛅","🚹","🚺","🚼","⚧","🚻","🚮","🎦","📶","🈁","🔣","ℹ️","🔤","🔡","🔠","🆖","🆗","🆙","🆒","🆕","🆓","0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟","🔢","#️⃣","*️⃣","⏏️","▶️","⏸️","⏯️","⏹️","⏺️","⏭️","⏮️","⏩","⏪","⏫","⏬","◀️","🔼","🔽","➡️","⬅️","⬆️","⬇️","↗️","↘️","↙️","↖️","↕️","↔️","↪️","↩️","⤴️","⤵️","🔀","🔁","🔂","🔄","🔃","🎵","🎶","➕","➖","➗","✖️","🟰","♾️","💲","💱","™️","©️","®️","👁️‍🗨️","🔚","🔙","🔛","🔝","🔜","〰️","➰","➿","✔️","☑️","🔘","🔴","🟠","🟡","🟢","🔵","🟣","⚫","⚪","🟤","🔺","🔻","🔸","🔹","🔶","🔷","🔳","🔲","▪️","▫️","◾","◽","◼️","◻️","🟥","🟧","🟨","🟩","🟦","🟪","⬛","⬜","🟫","🔈","🔇","🔉","🔊","🔔","🔕","📣","📢","👁️‍🗨️","💬","💭","🗯️","♠️","♣️","♥️","♦️","🃏","🎴","🀄","🕐","🕑","🕒","🕓","🕔","🕕","🕖","🕗","🕘","🕙","🕚","🕛"]
+};
+
+let currentCategory = Object.keys(emojiData)[0];
+
+function renderEmojiTabs() {
+    emojiTabs.innerHTML = '';
+    for (let cat in emojiData) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'emoji-tab-btn' + (cat === currentCategory ? ' active' : '');
+        btn.textContent = cat;
+        btn.onclick = () => {
+            currentCategory = cat;
+            renderEmojiTabs();
+            renderEmojiContent();
+        };
+        emojiTabs.appendChild(btn);
+    }
+}
+
+function renderEmojiContent() {
+    emojiContent.innerHTML = '';
+    emojiData[currentCategory].forEach(emoji => {
+        const span = document.createElement('span');
+        span.textContent = emoji;
+        span.onclick = () => insertEmoji(emoji);
+        emojiContent.appendChild(span);
+    });
+}
+
 if(emojiBtn && emojiMenu) {
+    renderEmojiTabs();
+    renderEmojiContent();
+
     emojiBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        emojiMenu.style.display = emojiMenu.style.display === 'none' ? 'block' : 'none';
+        const isHidden = emojiMenu.style.display === 'none' || emojiMenu.style.display === '';
+        emojiMenu.style.display = isHidden ? 'block' : 'none';
         po.classList.remove('show'); // إغلاق قائمة الإضافة
         dd.classList.remove('show'); // إغلاق القائمة الرئيسية
     });
@@ -1507,7 +1579,7 @@ if(emojiBtn && emojiMenu) {
         }
     });
 }
-// 🔴 نهاية كود تفعيل الإيموجي 🔴
+// 🔴 نهاية كود تفعيل الإيموجي المطور 🔴
 
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
 window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.selectTTSVoice=selectTTSVoice;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;window.toggleIncognito=toggleIncognito;window.clearPdfContext=clearPdfContext;
