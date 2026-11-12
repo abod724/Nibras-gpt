@@ -596,6 +596,21 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div></div>
+    
+    <!-- 🔴 بداية كود الإيموجي 🔴 -->
+    <button class="btn-icon" id="emojiBtn" title="إيموجي" type="button" style="color:var(--primary-color);">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+    </button>
+    
+    <div id="emojiMenu" style="display:none; position:absolute; bottom:65px; right:10px; background:var(--bg-dropdown); border:1px solid var(--border-color); border-radius:14px; padding:10px; box-shadow:0 10px 30px var(--shadow-color); z-index:999; width:260px;">
+        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:8px; font-size:22px; text-align:center;">
+            <span onclick="insertEmoji('😀')" style="cursor:pointer;">😀</span><span onclick="insertEmoji('😂')" style="cursor:pointer;">😂</span><span onclick="insertEmoji('🥰')" style="cursor:pointer;">🥰</span><span onclick="insertEmoji('😎')" style="cursor:pointer;">😎</span><span onclick="insertEmoji('😭')" style="cursor:pointer;">😭</span><span onclick="insertEmoji('😡')" style="cursor:pointer;">😡</span><span onclick="insertEmoji('🤔')" style="cursor:pointer;">🤔</span>
+            <span onclick="insertEmoji('👍')" style="cursor:pointer;">👍</span><span onclick="insertEmoji('🙏')" style="cursor:pointer;">🙏</span><span onclick="insertEmoji('🔥')" style="cursor:pointer;">🔥</span><span onclick="insertEmoji('✨')" style="cursor:pointer;">✨</span><span onclick="insertEmoji('🎉')" style="cursor:pointer;">🎉</span><span onclick="insertEmoji('❤️')" style="cursor:pointer;">❤️</span><span onclick="insertEmoji('💔')" style="cursor:pointer;">💔</span>
+            <span onclick="insertEmoji('🤖')" style="cursor:pointer;">🤖</span><span onclick="insertEmoji('🕺')" style="cursor:pointer;">🕺</span><span onclick="insertEmoji('💯')" style="cursor:pointer;">💯</span><span onclick="insertEmoji('🌟')" style="cursor:pointer;">🌟</span><span onclick="insertEmoji('💡')" style="cursor:pointer;">💡</span><span onclick="insertEmoji('📌')" style="cursor:pointer;">📌</span><span onclick="insertEmoji('✅')" style="cursor:pointer;">✅</span>
+        </div>
+    </div>
+    <!-- 🔴 نهاية كود الإيموجي 🔴 -->
+
     <button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
     <button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button><button class="option-btn" id="pdfBtn" title="ملف PDF أو Word"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button></div>
@@ -1464,6 +1479,36 @@ ui.addEventListener('keydown',function(e){if(e.key==='Enter'){const isMobile=/An
 document.addEventListener('click',function(e){if(!mt.contains(e.target)&&!dd.contains(e.target))dd.classList.remove('show')});
 let recog=null;
 mb.addEventListener('click',function(){if(!('webkitSpeechRecognition' in window)){addMessage(tr('micUnsupported'),'bot',true);return}if(this.classList.contains('listening')){this.classList.remove('listening');if(recog)recog.stop();return}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang=userLang==='en'?'en-US':'ar-SA';this.classList.add('listening');addMessage(tr('listening'),'bot',true);recog.onresult=function(e){const tr2=e.results[0][0].transcript;ui.value=tr2;mb.classList.remove('listening');setTimeout(function(){sendMessage()},300)};recog.onerror=function(){mb.classList.remove('listening')};recog.start()});
+
+// 🔴 بداية كود تفعيل الإيموجي 🔴
+const emojiBtn = document.getElementById('emojiBtn');
+const emojiMenu = document.getElementById('emojiMenu');
+if(emojiBtn && emojiMenu) {
+    emojiBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        emojiMenu.style.display = emojiMenu.style.display === 'none' ? 'block' : 'none';
+        po.classList.remove('show'); // إغلاق قائمة الإضافة
+        dd.classList.remove('show'); // إغلاق القائمة الرئيسية
+    });
+    
+    window.insertEmoji = function(emoji) {
+        const startPos = ui.selectionStart;
+        const endPos = ui.selectionEnd;
+        ui.value = ui.value.substring(0, startPos) + emoji + ui.value.substring(endPos, ui.value.length);
+        ui.focus();
+        ui.selectionStart = startPos + emoji.length;
+        ui.selectionEnd = startPos + emoji.length;
+        ui.dispatchEvent(new Event('input')); // تحديث ارتفاع المربع
+    };
+
+    document.addEventListener('click', function(e) {
+        if (!emojiMenu.contains(e.target) && !emojiBtn.contains(e.target)) {
+            emojiMenu.style.display = 'none';
+        }
+    });
+}
+// 🔴 نهاية كود تفعيل الإيموجي 🔴
+
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
 window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.selectTTSVoice=selectTTSVoice;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;window.toggleIncognito=toggleIncognito;window.clearPdfContext=clearPdfContext;
 applyLang();
