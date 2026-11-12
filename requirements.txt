@@ -12,7 +12,6 @@ pytz
 gTTS
 markdown
 bleach
-gunicorn
 gevent
 redis
 PyPDF2
