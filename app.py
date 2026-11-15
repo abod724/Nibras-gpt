@@ -40,9 +40,6 @@ from templates_content import (
 from library import library_bp, view_shared_page
 from memory_page import MEMORY_CSS, MEMORY_HTML, MEMORY_JS
 
-# 🆕 استدعاء وكيل البحث الجديد
-from research_agent import perform_research
-
 app = Flask(__name__, static_folder='static')
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
 SECRET_KEY = os.environ.get("SECRET_KEY")
@@ -2272,18 +2269,25 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        # 🆕 --- استخدام وكيل البحث الجديد (research_agent) ---
-        if is_registered and can_search and not has_image and um:
-            research_result = perform_research(um)
-            
-            if research_result:
-                inc_usage(uid, "search_count") # نزيد العداد فقط عند نجاح البحث
-                msgs.append({
-                    "role": "system", 
-                    "content": f"نتائج البحث الفعلية من الويب (اعتمد عليها كمرجع أساسي):\n\n{research_result}"
-                })
-        # -----------------------------------------------------
-
+        if is_registered and can_search:
+            inc_usage(uid, "search_count")
+            try:
+                sr = client.responses.create(
+                    model=OPENAI_MODEL,
+                    instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
+                    input=f"ابحث عن أحدث المعلومات: {um}",
+                    tools=[{"type": "web_search"}]
+                )
+                res = ""
+                if hasattr(sr, "output_text") and sr.output_text:
+                    res = sr.output_text.strip()
+                elif getattr(sr, "output", None):
+                    try: res = sr.output[0].content[0].text
+                    except: res = ""
+                if res:
+                    msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
+            except Exception as e:
+                print(f"فشل البحث ({type(e).__name__}): {e}")
         def generate():
             full_reply = ""
             try:
