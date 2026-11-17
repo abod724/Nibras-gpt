@@ -2010,6 +2010,15 @@ def voice():
 @app.route('/chat', methods=['POST'])
 @limiter.limit("20 per minute")
 def chat():
+    _chat_started_at = time.perf_counter()
+
+    def _chat_timing(stage):
+        try:
+            elapsed_ms = (time.perf_counter() - _chat_started_at) * 1000
+            print(f"[CHAT_TIMING] {stage}: {elapsed_ms:.0f}ms")
+        except Exception:
+            pass
+
     try:
         d = request.get_json(silent=True) or {}
         if not isinstance(d, dict):
@@ -2060,6 +2069,7 @@ def chat():
             user_role if not is_admin else 'admin',
             email_str=user_email or None
         )
+        _chat_timing("identity_and_limits")
         if not can_chat:
             reply_limit = "وصل محادثاتك للحد اليومي المسموح به، شكراً لك، غداً نلتقي" if user_lang == 'ar' else "You've reached the daily limit. Thank you, see you tomorrow"
             nid = save_message(uid, um, reply_limit, cid) if is_registered and not incognito else cid
@@ -2074,6 +2084,7 @@ def chat():
         if is_registered and user_email:
             try: touch_user(user_email)
             except: pass
+        _chat_timing("user_touch")
         has_image = img_data is not None
         if has_image:
             if not isinstance(img_data, str) or len(img_data) > 7000000 or not re.fullmatch(r"data:image/(?:png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=\r\n]+", img_data):
@@ -2116,6 +2127,7 @@ def chat():
         memory_context = ""
         if user_memory.get('name'):
             memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
+        _chat_timing("memory_and_profile")
         
         if is_registered:
             server_hist = load_conversation(uid, cid) or []
@@ -2152,6 +2164,7 @@ def chat():
         if personality not in PERSONALITY_INSTRUCTIONS:
             personality = 'friendly'
         personality_inst = PERSONALITY_INSTRUCTIONS.get(personality, "")
+        _chat_timing("conversation_and_personality")
         
         admin_context = ""
         if is_admin or (user_email and user_email.lower().strip() == ADMIN_EMAIL.lower().strip()):
@@ -2220,6 +2233,7 @@ def chat():
                     "**يجب عليك أن تعتذر منه بلطف بالعامي وتوضح له أن الملف قد انقطع وتطلب منه إعادة رفعه مرة أخرى.**\n"
                 )
         # ⬆️ نهاية الإضافة
+        _chat_timing("knowledge_and_file_context")
 
         msgs = [{"role": "system", "content": 
             personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + pdf_context + lang_inst + assistant_persona_extra
@@ -2236,6 +2250,7 @@ def chat():
                         print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
             except Exception as e:
                 print(f"news error: {e}")
+        _chat_timing("news_detection_and_fetch")
 
         if news_articles:
             news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
@@ -2285,6 +2300,7 @@ def chat():
 
         if is_registered and can_search:
             inc_usage(uid, "search_count")
+            _search_started_at = time.perf_counter()
             try:
                 sr = client.responses.create(
                     model=OPENAI_MODEL,
@@ -2302,9 +2318,18 @@ def chat():
                     msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
             except Exception as e:
                 print(f"فشل البحث ({type(e).__name__}): {e}")
+            finally:
+                _search_ms = (time.perf_counter() - _search_started_at) * 1000
+                print(f"[CHAT_TIMING] web_search: {_search_ms:.0f}ms")
+        else:
+            print("[CHAT_TIMING] web_search: skipped")
+        _chat_timing("pre_stream_ready")
+
         def generate():
             full_reply = ""
             try:
+                _model_started_at = time.perf_counter()
+                _first_token_logged = False
                 stream = client.chat.completions.create(
                     model=OPENAI_MODEL,
                     messages=msgs,
@@ -2313,6 +2338,12 @@ def chat():
                 )
                 for chunk in stream:
                     if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                        if not _first_token_logged:
+                            _first_token_logged = True
+                            _model_first_token_ms = (time.perf_counter() - _model_started_at) * 1000
+                            _total_first_token_ms = (time.perf_counter() - _chat_started_at) * 1000
+                            print(f"[CHAT_TIMING] model_first_token: {_model_first_token_ms:.0f}ms")
+                            print(f"[CHAT_TIMING] total_first_token: {_total_first_token_ms:.0f}ms")
                         token = chunk.choices[0].delta.content
                         full_reply += token
                         yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
