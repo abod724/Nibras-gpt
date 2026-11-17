@@ -1173,6 +1173,24 @@ function highlightCode(code, language){
     });
 }
 
+
+
+function formatStreamingBotText(t){
+    const text = String(t || '');
+    const fences = text.match(/```/g) || [];
+    if(fences.length % 2 === 0) return formatBotText(text);
+
+    const openAt = text.lastIndexOf('```');
+    const before = text.slice(0, openAt);
+    const rest = text.slice(openAt + 3);
+    const newlineAt = rest.indexOf('\n');
+    const lang = (newlineAt >= 0 ? rest.slice(0, newlineAt) : rest).trim().replace(/[^a-zA-Z0-9_+#.-]/g, '').slice(0,24);
+    const code = newlineAt >= 0 ? rest.slice(newlineAt + 1) : '';
+    const label = lang || (userLang === 'en' ? 'Code' : 'كود');
+    const block = '<div class="code-block"><div class="code-block-head"><span class="code-language">' + escapeHtml(label) + '</span><button type="button" class="code-copy-btn" title="' + (userLang === 'en' ? 'Copy code' : 'نسخ الكود') + '">' + (userLang === 'en' ? 'Copy' : 'نسخ') + '</button></div><pre><code>' + highlightCode(escapeHtml(code), lang) + '</code></pre></div>';
+    return formatBotText(before) + block;
+}
+
 function formatBotText(t){
     let s = escapeHtml(t);
     const codeBlocks = [];
@@ -1511,7 +1529,7 @@ async function sendMessage(){
             const chunk = bufferText.length > 40 ? 3 : bufferText.length > 20 ? 2 : 1;
             displayText+=bufferText.slice(0,chunk);
             bufferText=bufferText.slice(chunk);
-            botEl.innerHTML=formatBotText(displayText);
+            botEl.innerHTML=formatStreamingBotText(displayText);
             if(voiceOn){
                 extractNewSentences(displayText).forEach(function(s){
                     enqueueSentenceAudio(s);
