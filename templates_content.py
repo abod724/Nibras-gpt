@@ -297,6 +297,15 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 .nibras-response p{margin:0 0 10px;color:var(--text-primary)}
 .nibras-response em{color:var(--text-secondary);font-size:0.9em;display:inline-block;margin-bottom:6px;font-style:normal}
 .nibras-response hr{border:0;height:1px;background:var(--border-color);margin:18px 0}
+.code-block{direction:ltr;text-align:left;margin:12px 0;border:1px solid var(--border-color);border-radius:14px;overflow:hidden;background:#101820;max-width:100%;}
+.code-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:#1b2733;border-bottom:1px solid rgba(255,255,255,.1);}
+.code-language{font-size:11px;font-weight:700;color:#cbd5e1;letter-spacing:.3px;}
+.code-copy-btn{border:1px solid rgba(255,255,255,.2);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+.code-copy-btn:active{transform:scale(.96)}.code-copy-btn.copied{background:#166534;border-color:#166534;color:#fff}
+.code-block pre{margin:0;padding:14px;max-width:100%;overflow-x:auto;white-space:pre;direction:ltr;text-align:left;-webkit-overflow-scrolling:touch;}
+.code-block pre code{font-family:Consolas,'Courier New',monospace;font-size:13px;line-height:1.65;color:#e6edf3;white-space:pre;word-break:normal;overflow-wrap:normal;}
+.inline-code{direction:ltr;unicode-bidi:isolate;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:5px;padding:1px 5px;font-family:Consolas,'Courier New',monospace;font-size:.9em;}
+html.dark-mode .inline-code{color:#e6edf3;}
 .nibras-response strong{font-weight:800;color:var(--text-primary)}
 .nibras-response a{color:var(--primary-color);text-decoration:none;font-weight:600;display:inline-block;padding:4px 0}
 .nibras-response a:hover{text-decoration:underline}
@@ -1144,12 +1153,41 @@ document.querySelector('[data-action="share"]').addEventListener('click',functio
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function formatBotText(t){
     let s = escapeHtml(t);
+    const codeBlocks = [];
+    s = s.replace(/```([a-zA-Z0-9_+#.-]*)[ \t]*\r?\n?([\s\S]*?)```/g, function(match, language, code){
+        const lang = String(language || '').trim().replace(/[^a-zA-Z0-9_+#.-]/g, '').slice(0,24);
+        const label = lang || (userLang === 'en' ? 'Code' : 'كود');
+        const html = '<div class="code-block"><div class="code-block-head"><span class="code-language">' + escapeHtml(label) + '</span><button type="button" class="code-copy-btn" title="' + (userLang === 'en' ? 'Copy code' : 'نسخ الكود') + '">' + (userLang === 'en' ? 'Copy' : 'نسخ') + '</button></div><pre><code>' + code.replace(/\n$/, '') + '</code></pre></div>';
+        const token = 'NIBRASCODEBLOCKTOKEN' + codeBlocks.length + 'END';
+        codeBlocks.push({token:token, html:html});
+        return token;
+    });
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline;">$1</a>');
     s = s.replace(/(^|[^"'])(https?:\/\/([^\/\s]+)[^\s]*)/g, function(match, p1, fullUrl, domain) { let cleanDomain = domain.replace(/^www\./, ''); return p1 + '<a href="' + fullUrl + '" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:underline; direction:ltr; display:inline-block;">' + cleanDomain + '</a>'; });
     s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    return s.split(/\n\s*\n/).map(p => p.replace(/[\r\n]+/g, '<br>').trim()).filter(p => p.length > 0).join('<br><br>');
+    s = s.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+    s = s.split(/\n\s*\n/).map(p => p.replace(/[\r\n]+/g, '<br>').trim()).filter(p => p.length > 0).join('<br><br>');
+    codeBlocks.forEach(function(block){ s = s.replace(block.token, block.html); });
+    return s;
 }
+
+document.addEventListener('click', function(e){
+    const btn = e.target.closest('.code-copy-btn');
+    if(!btn) return;
+    const code = btn.closest('.code-block');
+    const codeEl = code && code.querySelector('pre code');
+    if(!codeEl) return;
+    const value = codeEl.textContent || '';
+    const copied = function(){ btn.classList.add('copied'); btn.textContent = userLang === 'en' ? 'Copied' : 'تم النسخ'; showToast(userLang === 'en' ? 'Code copied' : 'تم نسخ الكود'); setTimeout(function(){ btn.classList.remove('copied'); btn.textContent = userLang === 'en' ? 'Copy' : 'نسخ'; }, 1500); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(value).then(copied).catch(function(){ showToast(userLang === 'en' ? 'Copy failed' : 'فشل النسخ'); });
+    }else{
+        const area = document.createElement('textarea'); area.value = value; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select();
+        try{ if(document.execCommand('copy')) copied(); else showToast(userLang === 'en' ? 'Copy failed' : 'فشل النسخ'); }catch(err){ showToast(userLang === 'en' ? 'Copy failed' : 'فشل النسخ'); }
+        area.remove();
+    }
+});
 
 function showToast(msg){const old=document.querySelector('.toast');if(old)old.remove();const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);}
 function scrollMsgToTop(el){if(!el)return;requestAnimationFrame(function(){const r=el.getBoundingClientRect();const c=cb.getBoundingClientRect();cb.scrollTop=cb.scrollTop+(r.top-c.top)-8;});}
