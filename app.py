@@ -2325,7 +2325,7 @@ def chat():
             if pdf_data:
                 pdf_filename = pdf_data.get("filename", "الملف")
                 chunks = pdf_data.get("chunks", [])
-                query_words = set(re.findall(r"\\w+", um.lower()))
+                query_words = set(re.findall(r"\w+", um.lower()))
                 stop_words = {
                     "لخص", "تلخيص", "لي", "من", "في", "عن", "هذا",
                     "هذه", "ملف", "الملف", "المرفق", "pdf", "وش", "ابي",
@@ -2335,7 +2335,7 @@ def chat():
 
                 scores = []
                 for i, chunk in enumerate(chunks):
-                    chunk_words = set(re.findall(r"\\w+", chunk.lower()))
+                    chunk_words = set(re.findall(r"\w+", chunk.lower()))
                     overlap = len(query_words.intersection(chunk_words))
                     scores.append((overlap, i, chunk))
                 scores.sort(key=lambda x: (x[0], -x[1]), reverse=True)
@@ -2347,22 +2347,22 @@ def chat():
 
                 if best_chunks:
                     pdf_context = (
-                        f"\\n\\n**📄 الملف المتاح للمستخدم: {pdf_filename}**\\n"
+                        f"\n\n**📄 الملف المتاح للمستخدم: {pdf_filename}**\n"
                         "**تعليمات مهمة:** المستخدم طلب صراحةً العمل على هذا الملف. "
                         "استخدم المقاطع التالية للإجابة، ولا تطلب إعادة رفع الملف ما دام محتواه متاحاً. "
-                        "إذا لم تكفِ المقاطع للإجابة، وضّح حدود المحتوى المتاح ولا تخمّن.\\n\\n"
-                        "**محتوى من الملف:**\\n" + "\\n...\\n".join(best_chunks) + "\\n"
+                        "إذا لم تكفِ المقاطع للإجابة، وضّح حدود المحتوى المتاح ولا تخمّن.\n\n"
+                        "**محتوى من الملف:**\n" + "\n...\n".join(best_chunks) + "\n"
                     )
                     print(f"--- [PDF] Injected {len(best_chunks)} chunks from '{pdf_filename}' ---")
                 else:
                     pdf_context = (
-                        "\\n\\n**تنبيه للنظام:** طلب المستخدم استخدام ملف، لكن الملف المحفوظ لا يحتوي نصاً قابلاً للاسترجاع. "
-                        "اطلب منه إعادة رفع الملف بلطف.\\n"
+                        "\n\n**تنبيه للنظام:** طلب المستخدم استخدام ملف، لكن الملف المحفوظ لا يحتوي نصاً قابلاً للاسترجاع. "
+                        "اطلب منه إعادة رفع الملف بلطف.\n"
                     )
             else:
                 pdf_context = (
-                    "\\n\\n**تنبيه للنظام:** طلب المستخدم استخدام ملف، لكن لا يوجد ملف محفوظ متاح حالياً. "
-                    "اطلب منه رفع الملف هنا بلطف.\\n"
+                    "\n\n**تنبيه للنظام:** طلب المستخدم استخدام ملف، لكن لا يوجد ملف محفوظ متاح حالياً. "
+                    "اطلب منه رفع الملف هنا بلطف.\n"
                 )
 
         _chat_timing("knowledge_and_file_context")
