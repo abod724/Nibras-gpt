@@ -1168,6 +1168,7 @@ function highlightCode(code, language){
         else if (/^\d/.test(token)) cls = 'tok-number';
         else if (/^(true|false|null|None|undefined)$/i.test(token)) cls = 'tok-literal';
         else if (keywords.has(token)) cls = 'tok-keyword';
+        else if (keywords.has(token)) cls = 'tok-keyword';
         return cls ? '<span class="' + cls + '">' + token + '</span>' : token;
     });
 }
