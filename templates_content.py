@@ -1,3 +1,5 @@
+# templates_content.py
+
 SHARED_VIEW_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:flex-start;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px;margin-top:20px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px;font-weight:600}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word;white-space:pre-wrap}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}.error{background:#ffe8e8;color:#c33;padding:20px;border-radius:14px;text-align:center;font-weight:600}</style></head><body><div class="container"><div class="header"><h1>محادثة نبراس</h1><a href="/">الرئيسية</a></div><div id="content"><div class="error">جاري التحميل...</div></div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div><script>
 (function(){
     var container=document.getElementById('content');
@@ -178,14 +180,6 @@ HT = r"""<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/><
 .memory-val{font-size:14.5px;color:var(--text-primary);font-weight:600;text-align:left;word-wrap:break-word;overflow-wrap:anywhere;max-width:60%}
 .memory-empty{padding:24px 18px;text-align:center;color:var(--text-secondary);font-size:14px;line-height:1.8}
 .memory-note{padding:14px 18px;background:var(--bg-hover);font-size:13px;color:var(--text-secondary);line-height:1.8;border-radius:0 0 16px 16px;margin-top:-14px;margin-bottom:14px}#chat{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px;background:var(--bg-app);font-size:var(--font-size-base);min-height:0}.msg{max-width:90%;padding:12px 20px;border-radius:20px;font-size:var(--font-size-base);font-weight:500;line-height:1.7;word-wrap:break-word;color:var(--text-primary);position:relative}.msg.user{align-self:flex-end;background:var(--msg-user-bg,var(--bg-user-msg));color:var(--msg-user-text,#111);border-bottom-left-radius:6px}.msg.bot{align-self:flex-start;background:var(--bg-bot-msg);border-bottom-right-radius:6px}.msg .time{font-size:10px;opacity:.5;display:block;margin-top:4px;color:var(--text-secondary)}.msg.error{background:var(--danger-bg);color:var(--danger-color);align-self:center;max-width:90%}.msg .image-upload{max-width:100%;max-height:200px;border-radius:12px;margin:4px 0;border:1px solid var(--border-color);display:block}.msg .generated-image{max-width:100%;border-radius:12px;margin:8px 0;border:1px solid var(--border-color);display:block}.typing-indicator{align-self:flex-start;background:var(--bg-bot-msg);padding:12px 18px;border-radius:20px;font-size:16px;color:var(--text-secondary)}.typing-dots::after{content:'...';animation:dotAnimation 1.2s steps(4,end) infinite}@keyframes dotAnimation{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}
-/* 🔴 تنسيقات كبسولة البحث الجديدة 🔴 */
-.web-search-bar { display: flex; justify-content: flex-start; padding: 0 18px 6px; background: var(--bg-app); }
-.web-search-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 20px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; font-family: inherit; transition: all 0.2s ease; }
-.web-search-toggle svg { width: 15px; height: 15px; }
-.web-search-toggle.active { background: rgba(74,106,138,0.1); border-color: var(--primary-color); color: var(--primary-color); }
-html.dark-mode .web-search-toggle.active { background: rgba(88,166,255,0.15); }
-/* 🔴 نهاية تنسيقات البحث 🔴 */
-
 .input-area{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:center;gap:6px;padding:8px 12px;margin:8px 14px 16px;background:var(--bg-input);border-radius:28px;border:1px solid var(--border-color);flex-shrink:0;min-height:56px;position:relative;transition:border-color .2s,box-shadow .2s,transform .2s}
 .input-area:focus-within{border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(74,106,138,0.08)}
 .input-area textarea{flex:1;border:none;background:0 0;padding:12px 0;font-size:var(--font-size-base);font-weight:800;outline:0;color:#000000;direction:rtl;resize:none;overflow-y:hidden;min-height:22px;max-height:150px;font-family:inherit;line-height:1.5;width:100%}
@@ -624,19 +618,6 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
   </button>
 </div>
 <div class="assistant-menu" id="assistantMenu"></div>
-
-<!-- 🔴 كبسولة البحث الجديدة فوق مربع الكتابة 🔴 -->
-<div class="web-search-bar" id="webSearchBar">
-    <button class="web-search-toggle" id="webSearchToggle" onclick="toggleWebSearch()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <span>بحث في الويب</span>
-    </button>
-</div>
-<!-- 🔴 نهاية كبسولة البحث 🔴 -->
-
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div></div>
@@ -647,8 +628,12 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
     </button>
     
     <div id="emojiMenu" class="emoji-menu">
-        <div class="emoji-tabs" id="emojiTabs"></div>
-        <div class="emoji-content" id="emojiContent"></div>
+        <div class="emoji-tabs" id="emojiTabs">
+            <!-- سيتم تعبئتها بالجافاسكربت -->
+        </div>
+        <div class="emoji-content" id="emojiContent">
+            <!-- سيتم تعبئتها بالجافاسكربت -->
+        </div>
     </div>
     <!-- 🔴 نهاية كود الإيموجي 🔴 -->
 
@@ -718,10 +703,6 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
     }catch(e){}
 })();
 (function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;let currentPdfName=null;
-
-// 🔴 متغير حالة البحث الجديد 🔴
-let isWebSearchActive = false;
-
 const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
 const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
 const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
@@ -739,16 +720,6 @@ let ttsPlayOrder = 0;
 let ttsBuffer = {};
 let ttsPlaying = false;
 let pendingAborts = [];
-
-// 🔴 دالة تشغيل وإطفاء البحث 🔴
-function toggleWebSearch() {
-    isWebSearchActive = !isWebSearchActive;
-    const btn = document.getElementById('webSearchToggle');
-    if (btn) {
-        if (isWebSearchActive) btn.classList.add('active');
-        else btn.classList.remove('active');
-    }
-}
 
 function getAudioContext(){ if(!audioCtx){ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } if(audioCtx.state === 'suspended'){ audioCtx.resume(); } return audioCtx; }
 
@@ -1036,7 +1007,6 @@ function openSubPage(key){
         if(key==='storage'){loadStorageInfo();}
     },60);
 }
-
 function closeSubPage(){
     document.getElementById('subPage').classList.remove('show');
     currentSubKey=null;
@@ -1428,30 +1398,13 @@ async function sendMessage(){
     ui.value='';ui.style.height='auto';iw=true;
     const botEl=document.createElement('div');
     botEl.className='msg bot';
-    botEl.innerHTML='<span class="typing-dots">جاري التفكير...</span>';
+    botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';
     cb.appendChild(botEl);
     if(userMsgEl)scrollMsgToTop(userMsgEl);
-
-    // 🔴 محاكاة خطوات البحث والتحليل 🔴
-    let statusTimeout1 = setTimeout(() => {
-        if(botEl.innerHTML.includes('جاري التفكير')) {
-            botEl.innerHTML = '<span class="typing-dots">' + (isWebSearchActive ? 'جاري البحث في الويب...' : 'جاري معالجة الطلب...') + '</span>';
-        }
-    }, 1200);
-
-    let statusTimeout2 = setTimeout(() => {
-        if(botEl.innerHTML.includes('جاري البحث') || botEl.innerHTML.includes('معالجة')) {
-            botEl.innerHTML = '<span class="typing-dots">جاري تحليل النتائج...</span>';
-        }
-    }, 2800);
-
     let _payloadMsg = msgText;
     if(!_payloadMsg && pdfToSend) _payloadMsg = "لخص لي محتوى الملف المرفق";
     if(!_payloadMsg) _payloadMsg = "مرفق";
-    
-    // 🔴 إرسال متغير البحث للسيرفر 🔴
-    const payload={message:_payloadMsg,image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito, web_search: isWebSearchActive};
-    
+    const payload={message:_payloadMsg,image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito};
     let displayText='';
     let bufferText='';
     let streamDone=false;
@@ -1518,8 +1471,6 @@ async function sendMessage(){
                         isFormatted=true;
                         clearInterval(typingTimer);
                         typingTimer=null;
-                        clearTimeout(statusTimeout1); 
-                        clearTimeout(statusTimeout2); 
                         if(firstToken){botEl.innerHTML='';firstToken=false;}
                         botEl.classList.add('nibras-response');
                         botEl.innerHTML=data.formatted_html;
@@ -1528,12 +1479,7 @@ async function sendMessage(){
                         iw=false;
                     } else if(data.token){
                         if(!isFormatted){
-                            if(firstToken){ 
-                                clearTimeout(statusTimeout1); 
-                                clearTimeout(statusTimeout2); 
-                                botEl.innerHTML=''; 
-                                firstToken=false; 
-                            }
+                            if(firstToken){botEl.innerHTML='';firstToken=false;}
                             bufferText+=data.token;
                         }
                     } else if(data.done){
@@ -1637,8 +1583,6 @@ if(emojiBtn && emojiMenu) {
 
 window.deleteMyAccount=function(){if(!confirm('حذف حسابك بالكامل؟'))return;fetch('/delete_my_account',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.status==='success'){alert('تم الحذف');window.location.href='/'}});};
 window.openSettings=openSettings;window.closeSettings=closeSettings;window.setTheme=setTheme;window.setAccentColor=setAccentColor;window.openSubPage=openSubPage;window.closeSubPage=closeSubPage;window.confirmSubPage=confirmSubPage;window.selectTheme=selectTheme;window.selectColor=selectColor;window.selectLanguage=selectLanguage;window.selectPersonality=selectPersonality;window.selectFontSize=selectFontSize;window.saveGeneral=saveGeneral;window.saveVoice=saveVoice;window.selectVoiceSpeed=selectVoiceSpeed;window.selectVoiceLevel=selectVoiceLevel;window.selectTTSVoice=selectTTSVoice;window.changePassword=changePassword;window.logoutAll=logoutAll;window.clearCache=clearCache;window.exportData=exportData;window.saveAds=saveAds;window.sendReport=sendReport;window.loadPinned=loadPinned;window.loadHistory=loadHistory;window.loadConversation=loadConversation;window.loadStorageInfo=loadStorageInfo;window.getContrastColor=getContrastColor;window.toggleAssistantMenu=toggleAssistantMenu;window.selectAssistant=selectAssistant;window.openNewAssistantForm=openNewAssistantForm;window.openAssistantForm=openAssistantForm;window.pickAssistantColor=pickAssistantColor;window.saveAssistant=saveAssistant;window.deleteAssistant=deleteAssistant;window.loadAssistantsPage=loadAssistantsPage;window.loadLibraryStore=loadLibraryStore;window.addFromLibrary=addFromLibrary;window.showContextMenu=showContextMenu;window.ctxAction=ctxAction;window.hideContextMenu=hideContextMenu;window.toggleIncognito=toggleIncognito;window.clearPdfContext=clearPdfContext;
-window.toggleWebSearch=toggleWebSearch; // 🔴 تصدير دالة البحث
-
 applyLang();
 setTimeout(function(){
     try {
