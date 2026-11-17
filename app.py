@@ -283,15 +283,23 @@ def extract_profile_summary_from_messages(existing_summary, new_messages):
             max_completion_tokens=900,
             response_format={"type": "json_object"}
         )
-        content = (resp.choices[0].message.content or "").strip()
+        choice = resp.choices[0]
+        finish_reason = getattr(choice, "finish_reason", None)
+        content = (choice.message.content or "").strip()
         content = re.sub(r"^```(?:json)?\s*", "", content)
         content = re.sub(r"\s*```$", "", content)
+
+        if not content:
+            print(f"extract profile empty response: finish_reason={finish_reason}")
+            return None
+
         try:
             data = json.loads(content)
             if isinstance(data, dict):
                 return data
+            print(f"extract profile invalid JSON type: finish_reason={finish_reason}, length={len(content)}")
         except Exception as e:
-            print("extract profile json parse:", e)
+            print(f"extract profile json parse: {e}; finish_reason={finish_reason}; length={len(content)}")
         return None
     except Exception as e:
         print("extract_profile_summary:", e)
