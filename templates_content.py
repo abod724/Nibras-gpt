@@ -297,13 +297,20 @@ html.dark-mode .sp-btn-danger:hover{background:rgba(248,81,73,0.2)}
 .nibras-response p{margin:0 0 10px;color:var(--text-primary)}
 .nibras-response em{color:var(--text-secondary);font-size:0.9em;display:inline-block;margin-bottom:6px;font-style:normal}
 .nibras-response hr{border:0;height:1px;background:var(--border-color);margin:18px 0}
-.code-block{direction:ltr;text-align:left;margin:12px 0;border:1px solid var(--border-color);border-radius:14px;overflow:hidden;background:#101820;max-width:100%;}
-.code-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:#1b2733;border-bottom:1px solid rgba(255,255,255,.1);}
-.code-language{font-size:11px;font-weight:700;color:#cbd5e1;letter-spacing:.3px;}
-.code-copy-btn{border:1px solid rgba(255,255,255,.2);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+.code-block{direction:ltr;text-align:left;margin:12px 0;border:1px solid var(--border-color);border-radius:14px;overflow:hidden;background:#f6f8fa;max-width:100%;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+.code-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#eef2f6;border-bottom:1px solid #dce2e9;}
+.code-language{font-size:11px;font-weight:800;color:#526174;letter-spacing:.3px;text-transform:uppercase;}
+.code-copy-btn{border:1px solid #cbd5df;border-radius:8px;background:#fff;color:#344256;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
 .code-copy-btn:active{transform:scale(.96)}.code-copy-btn.copied{background:#166534;border-color:#166534;color:#fff}
 .code-block pre{margin:0;padding:14px;max-width:100%;overflow-x:auto;white-space:pre;direction:ltr;text-align:left;-webkit-overflow-scrolling:touch;}
-.code-block pre code{font-family:Consolas,'Courier New',monospace;font-size:13px;line-height:1.65;color:#e6edf3;white-space:pre;word-break:normal;overflow-wrap:normal;}
+.code-block pre code{font-family:Consolas,'Courier New',monospace;font-size:13px;line-height:1.7;color:#24292f;white-space:pre;word-break:normal;overflow-wrap:normal;}
+.code-block .tok-keyword{color:#8250df;font-weight:700}.code-block .tok-string{color:#0a7b43}.code-block .tok-comment{color:#6e7781;font-style:italic}.code-block .tok-number{color:#0550ae}.code-block .tok-literal{color:#cf222e;font-weight:600}
+html.dark-mode .code-block,html[data-theme="neon"] .code-block{background:#111923;border-color:#344252;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+html.dark-mode .code-block-head,html[data-theme="neon"] .code-block-head{background:#1b2733;border-bottom-color:#344252}
+html.dark-mode .code-language,html[data-theme="neon"] .code-language{color:#cbd5e1}
+html.dark-mode .code-copy-btn,html[data-theme="neon"] .code-copy-btn{border-color:#465568;background:#263445;color:#f1f5f9}
+html.dark-mode .code-block pre code,html[data-theme="neon"] .code-block pre code{color:#e6edf3}
+html.dark-mode .code-block .tok-keyword,html[data-theme="neon"] .code-block .tok-keyword{color:#d2a8ff}html.dark-mode .code-block .tok-string,html[data-theme="neon"] .code-block .tok-string{color:#a5d6a7}html.dark-mode .code-block .tok-comment,html[data-theme="neon"] .code-block .tok-comment{color:#8b949e}html.dark-mode .code-block .tok-number,html[data-theme="neon"] .code-block .tok-number{color:#79c0ff}html.dark-mode .code-block .tok-literal,html[data-theme="neon"] .code-block .tok-literal{color:#ff7b72}
 .inline-code{direction:ltr;unicode-bidi:isolate;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:5px;padding:1px 5px;font-family:Consolas,'Courier New',monospace;font-size:.9em;}
 html.dark-mode .inline-code{color:#e6edf3;}
 .nibras-response strong{font-weight:800;color:var(--text-primary)}
@@ -1151,13 +1158,28 @@ document.querySelector('[data-action="new"]').addEventListener('click',function(
 document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();dd.classList.remove('show');const msgs=ch.slice(-20).map(function(m){return{r:m.role==='user'?'u':'b',c:String(m.content||'').slice(0,500)};}).filter(function(m){return m.c;});if(!msgs||msgs.length===0){showToast(userLang==='en'?'No conversation to share':'لا توجد محادثة لمشاركتها');return;}const text=userLang==='en'?'Check out my conversation with Nibras':'شوف محادثتي مع نبراس';if(IS_REGISTERED&&cid&&!String(cid).startsWith('guest_conv_')){const dbUrl=window.location.origin+'/share/'+cid;document.getElementById('shareWhatsapp').href='https://wa.me/?text='+encodeURIComponent(text+'\n'+dbUrl);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(dbUrl);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(dbUrl)+'&text='+encodeURIComponent(text);document.getElementById('shareSnapchat').onclick=function(){navigator.clipboard.writeText(dbUrl).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});};sm.classList.add('show');}else{let url='';try{const json=JSON.stringify(msgs);const encoded=btoa(unescape(encodeURIComponent(json)));url=window.location.origin+'/share/view#d='+encodeURIComponent(encoded);}catch(err){showToast(userLang==='en'?'Failed to prepare link':'تعذر تجهيز الرابط');return;}if(url.length>60000){showToast(userLang==='en'?'Conversation too long to share':'المحادثة طويلة جداً للمشاركة');return;}if(navigator.share){navigator.share({title:userLang==='en'?'Nibras Conversation':'محادثة نبراس',text:text,url:url}).catch(function(){});}else{navigator.clipboard.writeText(url).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});}}});
 
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function highlightCode(code, language){
+    const keywords = new Set(('and as assert async await break class continue def del elif else except finally for from global if import in is lambda not or pass raise return try while with yield const let var function new this switch case default do catch throw typeof instanceof export extends true false null None undefined self public private static int float string bool').split(/\s+/));
+    const pattern = /(\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*|&quot;[^\n]*?&quot;|&#39;[^\n]*?&#39;|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b)/g;
+    return String(code || '').replace(pattern, function(token){
+        let cls = '';
+        if (/^(\/\*|\/\/|#)/.test(token)) cls = 'tok-comment';
+        else if (/^(&quot;|&#39;)/.test(token)) cls = 'tok-string';
+        else if (/^\d/.test(token)) cls = 'tok-number';
+        else if (/^(true|false|null|None|undefined)$/i.test(token)) cls = 'tok-literal';
+        else if (keywords.has(token)) cls = 'tok-keyword';
+        else if (keywords.has(token)) cls = 'tok-keyword';
+        return cls ? '<span class="' + cls + '">' + token + '</span>' : token;
+    });
+}
+
 function formatBotText(t){
     let s = escapeHtml(t);
     const codeBlocks = [];
     s = s.replace(/```([a-zA-Z0-9_+#.-]*)[ \t]*\r?\n?([\s\S]*?)```/g, function(match, language, code){
         const lang = String(language || '').trim().replace(/[^a-zA-Z0-9_+#.-]/g, '').slice(0,24);
         const label = lang || (userLang === 'en' ? 'Code' : 'كود');
-        const html = '<div class="code-block"><div class="code-block-head"><span class="code-language">' + escapeHtml(label) + '</span><button type="button" class="code-copy-btn" title="' + (userLang === 'en' ? 'Copy code' : 'نسخ الكود') + '">' + (userLang === 'en' ? 'Copy' : 'نسخ') + '</button></div><pre><code>' + code.replace(/\n$/, '') + '</code></pre></div>';
+        const html = '<div class="code-block"><div class="code-block-head"><span class="code-language">' + escapeHtml(label) + '</span><button type="button" class="code-copy-btn" title="' + (userLang === 'en' ? 'Copy code' : 'نسخ الكود') + '">' + (userLang === 'en' ? 'Copy' : 'نسخ') + '</button></div><pre><code>' + highlightCode(code.replace(/\n$/, ''), lang) + '</code></pre></div>';
         const token = 'NIBRASCODEBLOCKTOKEN' + codeBlocks.length + 'END';
         codeBlocks.push({token:token, html:html});
         return token;
