@@ -697,6 +697,71 @@ def generate_speech_free(text):
         print(f"❌ gTTS failed: {type(e).__name__}: {e}")
     return None
 
+def should_web_search(message):
+    """تحديد الحاجة للبحث الخارجي محلياً دون استدعاء نموذج إضافي."""
+    if not isinstance(message, str) or not message.strip():
+        return False
+
+    normalized = re.sub(r"\s+", " ", message.strip().lower())
+    normalized = normalized.translate(str.maketrans({
+        "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي"
+    }))
+
+    def contains_phrase(phrases):
+        return any(
+            re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", normalized)
+            for phrase in phrases
+        )
+
+    # طلب بحث صريح من المستخدم.
+    explicit_search = [
+        "ابحث", "دور لي", "دور عن", "فتش", "تحقق من",
+        "تاكد من", "تأكد من", "مصدر موثوق", "مصادر موثوقة",
+        "اعطني مصدر", "اعطني مصادر", "روابط", "بالويب",
+        "على الويب", "في الويب", "بالانترنت", "على الانترنت",
+        "في الانترنت", "بالنت", "على النت", "جوجل", "قوقل",
+        "search", "search for", "search online", "look up",
+        "find online", "browse"
+    ]
+    if contains_phrase(explicit_search):
+        return True
+
+    # أسئلة تتعلق بطبيعتها بمعلومات متغيرة أو آنية.
+    live_topics = [
+        "سعر", "اسعار", "الاسعار", "سعر السهم", "اسعار الاسهم",
+        "سعر الذهب", "سعر الدولار", "سعر الصرف", "سعر البيتكوين",
+        "الطقس اليوم", "طقس اليوم", "حالة الطقس", "توقعات الطقس",
+        "درجة الحرارة", "درجات الحرارة", "نتيجة المباراة",
+        "نتائج المباريات", "مواعيد المباريات", "جدول المباريات",
+        "التشكيلة الرسمية", "الترتيب الحالي", "حالة الرحلة",
+        "ساعات العمل", "مواعيد الدوام", "مفتوح الان", "يفتح اليوم",
+        "stock price", "share price", "gold price", "exchange rate",
+        "bitcoin price", "weather forecast", "weather today",
+        "live score", "match results", "flight status", "opening hours"
+    ]
+    if contains_phrase(live_topics):
+        return True
+
+    # كلمات الحداثة لا تكفي وحدها؛ نربطها بموضوع يحتاج تحديثاً.
+    freshness = [
+        "الان", "الحين", "حاليا", "اليوم", "بكره", "غدا",
+        "هذا الاسبوع", "هالاسبوع", "اخر تحديث", "احدث",
+        "اخر اصدار", "اخر نسخه", "اخر المستجدات",
+        "اخر التطورات", "latest", "currently", "today",
+        "right now", "this week", "recent", "up to date"
+    ]
+    current_topics = [
+        "الطقس", "السهم", "الاسهم", "الذهب", "الدولار",
+        "الريال", "البيتكوين", "العملات", "المباراة",
+        "المباريات", "الرحلة", "الرحلات", "الدوام",
+        "الرئيس الحالي", "الوزير الحالي", "المدير الحالي",
+        "weather", "stock", "stocks", "gold", "dollar",
+        "bitcoin", "crypto", "match", "flight", "president",
+        "minister"
+    ]
+    return contains_phrase(freshness) and contains_phrase(current_topics)
+
+
 def detect_news_query(message):
     if not message or not isinstance(message, str):
         return None
@@ -2298,9 +2363,9 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        if is_registered and can_search:
-            inc_usage(uid, "search_count")
+        if is_registered and can_search and should_web_search(um):
             _search_started_at = time.perf_counter()
+            _search_succeeded = False
             try:
                 sr = client.responses.create(
                     model=OPENAI_MODEL,
@@ -2316,13 +2381,18 @@ def chat():
                     except: res = ""
                 if res:
                     msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
+                    _search_succeeded = True
+                    inc_usage(uid, "search_count")
             except Exception as e:
                 print(f"فشل البحث ({type(e).__name__}): {e}")
             finally:
                 _search_ms = (time.perf_counter() - _search_started_at) * 1000
-                print(f"[CHAT_TIMING] web_search: {_search_ms:.0f}ms")
+                _search_status = "results" if _search_succeeded else "no results; quota unchanged"
+                print(f"[CHAT_TIMING] web_search: {_search_ms:.0f}ms ({_search_status})")
+        elif is_registered and can_search:
+            print("[CHAT_TIMING] web_search: skipped (no search intent)")
         else:
-            print("[CHAT_TIMING] web_search: skipped")
+            print("[CHAT_TIMING] web_search: skipped (not eligible or quota exhausted)")
         _chat_timing("pre_stream_ready")
 
         def generate():
