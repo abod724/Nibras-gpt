@@ -697,6 +697,52 @@ def generate_speech_free(text):
         print(f"❌ gTTS failed: {type(e).__name__}: {e}")
     return None
 
+def should_use_pdf_context(message, history=None):
+    """لاسترجاع الملف عند طلب استخدامه صراحةً، أو متابعة طلب سابق متعلق بملف."""
+    def normalize(value):
+        value = (value or "").strip().lower()
+        value = value.translate(str.maketrans({
+            "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ة": "ه"
+        }))
+        return re.sub(r"[^\w\s]", " ", value)
+
+    text = normalize(message)
+    if not text:
+        return False
+
+    file_terms = (
+        "ملف", "الملف", "المرفق", "مرفق", "pdf", "document",
+        "attachment", "محاكي نافس"
+    )
+    file_actions = (
+        "لخص", "تلخيص", "اختصر", "اختصار", "اشرح", "شرح",
+        "اقرا", "قراءه", "اقرأ", "حلل", "تحليل", "استخرج",
+        "محتوى", "وش فيه", "ماذا يحتوي", "عن ماذا يتحدث",
+        "اقتبس", "راجع", "افحص"
+    )
+    has_file_reference = any(term in text for term in file_terms)
+    has_file_action = any(term in text for term in file_actions)
+
+    if has_file_reference and has_file_action:
+        return True
+
+    # يسمح بمتابعة طلب الملف بكلمات مثل: اختصره، كمل، وضح أكثر.
+    follow_up_terms = (
+        "اختصره", "لخصه", "كمله", "كمل", "وضح اكثر",
+        "اشرح اكثر", "تابع", "استخرج الباقي"
+    )
+    if any(term in text for term in follow_up_terms):
+        for item in (history or [])[-8:]:
+            if not isinstance(item, dict) or item.get("role") != "user":
+                continue
+            previous = normalize(item.get("content", ""))
+            if (any(term in previous for term in file_terms)
+                    and any(term in previous for term in file_actions)):
+                return True
+
+    return False
+
+
 def should_web_search(message):
     """تحديد الحاجة للبحث الخارجي محلياً دون استدعاء نموذج إضافي."""
     if not isinstance(message, str) or not message.strip():
@@ -2254,57 +2300,71 @@ def chat():
         except Exception as e:
             print("Error fetching approved knowledge:", e)
 
-        # ⬇️ حقن سياق الملف المرفق (من قاعدة البيانات للمسجلين)
+        # استرجاع PDF فقط عند وجود طلب واضح لاستخدام الملف.
         pdf_context = ""
+        wants_pdf = should_use_pdf_context(um, server_hist)
         pdf_data = None
-        
-        if is_registered:
-            try:
-                res_file = sb.table("user_files").select("*").eq("user_id", uid).limit(1).execute()
-                if res_file.data:
-                    pdf_data = res_file.data[0]
-            except Exception as e:
-                print("get user_files error:", e)
-        elif uid in user_pdf_context:
-            pdf_data = user_pdf_context[uid]
 
-        if pdf_data:
-            pdf_filename = pdf_data.get("filename", "الملف")
-            chunks = pdf_data.get("chunks", [])
-            
-            query_words = set(re.findall(r'\w+', um.lower()))
-            scores = []
-            for i, chunk in enumerate(chunks):
-                chunk_words = set(re.findall(r'\w+', chunk.lower()))
-                overlap = len(query_words.intersection(chunk_words))
-                scores.append((overlap, i, chunk))
-            scores.sort(key=lambda x: (x[0], -x[1]), reverse=True)
-            best_chunks = [c for s, i, c in scores[:3] if s > 0]
+        if wants_pdf:
+            if is_registered:
+                try:
+                    res_file = (
+                        sb.table("user_files")
+                        .select("filename,chunks")
+                        .eq("user_id", uid)
+                        .limit(1)
+                        .execute()
+                    )
+                    if res_file.data:
+                        pdf_data = res_file.data[0]
+                except Exception as e:
+                    print("get user_files error:", e)
+            elif uid in user_pdf_context:
+                pdf_data = user_pdf_context[uid]
 
-            if best_chunks:
-                pdf_context = (
-                    f"\n\n**📄 المستخدم رفع ملف باسم: {pdf_filename}**\n"
-                    f"**تعليمات مهمة:** إذا كان سؤال المستخدم عن الملف (مثل: لخص، اشرح، وش فيه، اقرأ، عن ماذا يتحدث، حلل الملف) → استخدم المحتوى التالي وأجب منه. "
-                    f"أما لو سأل عن شيء آخر (سلام، أخبار، أسئلة عامة) → تجاهل هذا السياق تماماً ولا تذكر الملف.\n\n"
-                    f"**محتوى من الملف:**\n" + "\n...\n".join(best_chunks) + "\n"
-                )
-                print(f"--- [PDF] Injected {len(best_chunks)} chunks from '{pdf_filename}' ---")
-        else:
-            has_file_in_history = False
-            if "[ملف مرفق:" in um:
-                has_file_in_history = True
+            if pdf_data:
+                pdf_filename = pdf_data.get("filename", "الملف")
+                chunks = pdf_data.get("chunks", [])
+                query_words = set(re.findall(r"\\w+", um.lower()))
+                stop_words = {
+                    "لخص", "تلخيص", "لي", "من", "في", "عن", "هذا",
+                    "هذه", "ملف", "الملف", "المرفق", "pdf", "وش", "ابي",
+                    "ابغى", "ممكن", "فضلا", "لو", "سمحت"
+                }
+                query_words = {w for w in query_words if len(w) > 1 and w not in stop_words}
+
+                scores = []
+                for i, chunk in enumerate(chunks):
+                    chunk_words = set(re.findall(r"\\w+", chunk.lower()))
+                    overlap = len(query_words.intersection(chunk_words))
+                    scores.append((overlap, i, chunk))
+                scores.sort(key=lambda x: (x[0], -x[1]), reverse=True)
+
+                best_chunks = [c for score, _, c in scores[:3] if score > 0]
+                # الطلب الصريح بتلخيص/قراءة الملف يسمح بأخذ بدايته حتى لو لم تتطابق كلمات العنوان.
+                if not best_chunks:
+                    best_chunks = chunks[:3]
+
+                if best_chunks:
+                    pdf_context = (
+                        f"\\n\\n**📄 الملف المتاح للمستخدم: {pdf_filename}**\\n"
+                        "**تعليمات مهمة:** المستخدم طلب صراحةً العمل على هذا الملف. "
+                        "استخدم المقاطع التالية للإجابة، ولا تطلب إعادة رفع الملف ما دام محتواه متاحاً. "
+                        "إذا لم تكفِ المقاطع للإجابة، وضّح حدود المحتوى المتاح ولا تخمّن.\\n\\n"
+                        "**محتوى من الملف:**\\n" + "\\n...\\n".join(best_chunks) + "\\n"
+                    )
+                    print(f"--- [PDF] Injected {len(best_chunks)} chunks from '{pdf_filename}' ---")
+                else:
+                    pdf_context = (
+                        "\\n\\n**تنبيه للنظام:** طلب المستخدم استخدام ملف، لكن الملف المحفوظ لا يحتوي نصاً قابلاً للاسترجاع. "
+                        "اطلب منه إعادة رفع الملف بلطف.\\n"
+                    )
             else:
-                for m in server_hist[-3:]:
-                    if isinstance(m.get("content"), str) and "[ملف مرفق:" in m.get("content"):
-                        has_file_in_history = True
-                        break
-            
-            if has_file_in_history:
                 pdf_context = (
-                    "\n\n**🚨 تنبيه هام جداً للنظام: المستخدم يعتقد أنه رفع ملفاً، لكن النظام فقد هذا الملف.**\n"
-                    "**يجب عليك أن تعتذر منه بلطف بالعامي وتوضح له أن الملف قد انقطع وتطلب منه إعادة رفعه مرة أخرى.**\n"
+                    "\\n\\n**تنبيه للنظام:** طلب المستخدم استخدام ملف، لكن لا يوجد ملف محفوظ متاح حالياً. "
+                    "اطلب منه رفع الملف هنا بلطف.\\n"
                 )
-        # ⬆️ نهاية الإضافة
+
         _chat_timing("knowledge_and_file_context")
 
         msgs = [{"role": "system", "content": 
