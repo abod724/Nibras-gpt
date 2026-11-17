@@ -2280,10 +2280,7 @@ def chat():
                 scores.append((overlap, i, chunk))
             scores.sort(key=lambda x: (x[0], -x[1]), reverse=True)
             best_chunks = [c for s, i, c in scores[:3] if s > 0]
-            
-            if not best_chunks:
-                best_chunks = chunks[:3]
-                
+
             if best_chunks:
                 pdf_context = (
                     f"\n\n**📄 المستخدم رفع ملف باسم: {pdf_filename}**\n"
