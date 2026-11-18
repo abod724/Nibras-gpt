@@ -1368,10 +1368,41 @@ def merge_pdf_files():
                 pass
 
 
+def clean_word_export_text(text):
+    """تنظيف نص المحادثة قبل تحويله إلى مستند Word دون استدعاء نموذج إضافي."""
+    text = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+
+    # حذف المقدمة الودية التي لا تضيف محتوى للمستند عند كونها مجرد إعلان عن التلخيص.
+    if paragraphs and re.search(
+        r"(?:لخصت لك|رتبتها|رتبته|جهزت لك).*(?:جاهز للنسخ|جاهزة للنسخ|للنسخ في Word|بصيغة)",
+        paragraphs[0],
+        flags=re.IGNORECASE
+    ):
+        paragraphs.pop(0)
+
+    cleaned = []
+    for paragraph in paragraphs:
+        # إزالة الجمل التي تنفي إمكانية إنشاء Word رغم أن المستخدم ضغط زر التصدير.
+        if re.search(
+            r"(?:ما أقدر أرسل لك من هنا نسخة Word|لا أستطيع.*(?:إنشاء|إرسال).*(?:Word|وورد)|"
+            r"النص فوق جاهز للنسخ واللصق في Word)",
+            paragraph,
+            flags=re.IGNORECASE
+        ):
+            continue
+        cleaned.append(paragraph)
+
+    text = "\n".join(cleaned)
+    # إزالة backslash الخاص بتهريب علامات Markdown فقط، دون المساس ببقية النص.
+    text = re.sub(r"\\([*_~])", r"\1", text)
+    return text.strip()
+
+
 @app.route('/tools/export-summary', methods=['POST'])
 @limiter.limit("10 per hour")
 def export_file_summary():
-    """إنشاء نسخة Word من ملخص نبراس محلياً دون استدعاء OpenAI."""
+    """إنشاء نسخة Word مرتبة من رد نبراس محلياً دون استدعاء OpenAI."""
     try:
         user_email = session.get('user_email', '')
         is_admin = bool(session.get('is_admin'))
@@ -1380,9 +1411,9 @@ def export_file_summary():
             return jsonify({"status": "error", "message": "تصدير الملفات متاح للمستخدمين المسجلين فقط."}), 403
 
         data = request.get_json(silent=True) or {}
-        summary = str(data.get('text') or '').strip()
+        summary = clean_word_export_text(data.get('text') or '')
         if not summary:
-            return jsonify({"status": "error", "message": "لا يوجد نص لتصديره."}), 400
+            return jsonify({"status": "error", "message": "لا يوجد محتوى مناسب لتصديره."}), 400
         if len(summary) > 30000:
             return jsonify({"status": "error", "message": "الملخص طويل جداً للتصدير."}), 413
 
@@ -1390,6 +1421,9 @@ def export_file_summary():
         section = document.sections[0]
         section.top_margin = 720000
         section.bottom_margin = 720000
+        section.left_margin = 850000
+        section.right_margin = 850000
+
         heading = document.add_heading('ملخص الملف', level=1)
         heading.alignment = 2
         for run in heading.runs:
@@ -1402,23 +1436,41 @@ def export_file_summary():
             line = raw_line.strip()
             if not line:
                 continue
+
+            is_heading = bool(re.match(r'^#{1,6}\s*', line)) or bool(re.match(r'^(?:ملخص\b|تفاصيل\b|Summary\b|Details\b)', line, flags=re.IGNORECASE))
             line = re.sub(r'^#{1,6}\s*', '', line)
-            line = re.sub(r'^[-*•]\s*', '• ', line)
+            is_bullet = bool(re.match(r'^(?:[-*•])\s+', line))
+            line = re.sub(r'^(?:[-*•])\s+', '', line)
+
+            # إزالة علامات Markdown مع إبقاء النص نفسه.
             line = re.sub(r'\*\*(.*?)\*\*', r'\1', line)
-            line = re.sub(r'\*(.*?)\*', r'\1', line)
+            line = re.sub(r'(?<!\w)\*(.*?)\*(?!\w)', r'\1', line)
+            line = re.sub(r'(?<!\w)\*|\*(?!\w)', '', line)
             line = re.sub(r'\[(.*?)\]\((https?://[^)]+)\)', r'\1 — \2', line)
-            paragraph = document.add_paragraph()
+            line = line.strip()
+            if not line:
+                continue
+
+            if is_heading:
+                paragraph = document.add_heading(line, level=2)
+            elif is_bullet:
+                paragraph = document.add_paragraph(style='List Bullet')
+                paragraph.add_run(line)
+            else:
+                paragraph = document.add_paragraph()
+                paragraph.add_run(line)
+
             paragraph.alignment = 2
             paragraph.paragraph_format.space_after = 6
-            run = paragraph.add_run(line)
-            run.font.name = 'Arial'
-            run._element.get_or_add_rPr().rFonts.set(
-                '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
-            )
+            for run in paragraph.runs:
+                run.font.name = 'Arial'
+                run._element.get_or_add_rPr().rFonts.set(
+                    '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
+                )
 
         footer = section.footer.paragraphs[0]
         footer.alignment = 2
-        footer.add_run('تم إعداد الملخص بواسطة نبراس GP')
+        footer.add_run('تم إعداد المستند بواسطة نبراس GP')
 
         output = io.BytesIO()
         document.save(output)
