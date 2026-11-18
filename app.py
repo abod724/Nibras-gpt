@@ -1368,72 +1368,81 @@ def merge_pdf_files():
                 pass
 
 
-def clean_word_export_text(text):
-    """تحويل رد نبراس إلى نص مستند محايد دون استدعاء نموذج إضافي."""
+def prepare_word_report(text):
+    """تهيئة رد نبراس كتقرير مستقل ومنظم محلياً دون استدعاء نموذج إضافي."""
     text = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
-    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+    text = re.sub(r"(?<!\w)\*(.*?)\*(?!\w)", r"\1", text)
+    text = re.sub(r"\\([*_~])", r"\1", text)
 
-    cleaned = []
-    for paragraph in paragraphs:
-        # حذف التحيات والنداءات الودية في بداية الرد فقط.
-        paragraph = re.sub(
-            r"^(?:(?:يا\s+(?:طويل\s+العمر|الغالي|عزيزي|أبو\s+[\u0600-\u06FF]+)|"
-            r"أبشر|أبشري|حياك\s+الله|تفضل|تفضلي)\s*[,،:!\-]?\s*)+",
-            "",
-            paragraph,
-            flags=re.IGNORECASE
-        ).strip()
-
-        # حذف جمل المزاح والتشبيهات الحوارية التي لا تنتمي إلى المستند.
-        paragraph = re.sub(
-            r"(?:[.!؟]?\s*)(?:زي\s+(?:شهادة|كأن|يعني)|"
-            r"خلّصت\s+التدريب\s+وجبتها\s+من\s+الآخر).*$",
-            "",
-            paragraph,
-            flags=re.IGNORECASE
-        ).strip()
-
-        # حذف عروض المساعدة والأسئلة الحوارية الختامية.
-        if re.match(
-            r"^(?:إذا\s+(?:تبي|تبغى|حبيت)|هل\s+تبي|أقدر\s+أساعدك|"
-            r"إذا\s+احتجت|علمني\s+إذا)",
-            paragraph,
-            flags=re.IGNORECASE
-        ):
-            continue
-
-        # إزالة جمل النفي المتناقضة مع وجود زر التصدير.
-        if re.search(
-            r"(?:ما أقدر أرسل لك من هنا نسخة Word|لا أستطيع.*(?:إنشاء|إرسال).*(?:Word|وورد)|"
-            r"النص فوق جاهز للنسخ واللصق في Word)",
-            paragraph,
-            flags=re.IGNORECASE
-        ):
-            continue
-
-        if paragraph:
-            cleaned.append(paragraph)
-
-    text = "\n".join(cleaned)
-    # إزالة رموز الإيموجي والعناصر الزخرفية من المستند.
+    # حذف عبارات المحادثة فقط، مع إبقاء البيانات والحقائق.
+    text = re.sub(
+        r"(?im)^\s*(?:أبشر(?:،)?|حياك الله(?:،)?|يا طويل العمر(?:،)?|"
+        r"تفضل(?:،)?|لخصت لك(?: الملخص)?(?: التالي)?[:،]?)\s*",
+        "",
+        text
+    )
+    text = re.sub(
+        r"(?im)^\s*(?:إذا\s+(?:تبي|تبغى|حبيت)|هل\s+تبي|أقدر\s+أساعدك|"
+        r"إذا\s+احتجت|علمني\s+إذا).*$",
+        "",
+        text
+    )
+    text = re.sub(
+        r"(?i)(?:ما أقدر أرسل لك من هنا نسخة Word|لا أستطيع.*(?:إنشاء|إرسال).*(?:Word|وورد)|"
+        r"النص فوق جاهز للنسخ واللصق في Word)",
+        "",
+        text
+    )
     text = re.sub(
         r"[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0000FE0F\U0000200D]",
         "",
         text
     )
-    # إزالة backslash الخاص بتهريب علامات Markdown فقط.
-    text = re.sub(r"\\([*_~])", r"\1", text)
-    # تنظيف المسافات وعلامات الترقيم المتروكة بعد إزالة الزخارف.
+
+    # تحويل الوصف الافتتاحي إلى بيانات تقريرية بدلاً من أسلوب المحادثة.
+    text = re.sub(
+        r"(?i)الملف\s+عبارة\s+عن\s+([^،.\n]+)",
+        r"نوع المستند: \1",
+        text
+    )
+    text = re.sub(r"(?i)وفترتها\s+من\s+", "فترة الفاتورة: من ", text)
+    text = re.sub(r"(?i)وفترته\s+من\s+", "فترة المستند: من ", text)
+    text = re.sub(r"(?i)وعدد\s+الأيام\s+", "عدد الأيام: ", text)
+    text = re.sub(r"(?i)والاستهلاك\s+المسجل\s+", "الاستهلاك المسجل: ", text)
+    text = re.sub(r"(?i)الاستهلاك\s+المسجل\s+", "الاستهلاك المسجل: ", text)
+    text = re.sub(
+        r"(?i)العداد\s+مسجل\s+عليه\s+قراءة\s+بداية\s+([\d,.]+)\s+ونهاية\s+([\d,.]+)",
+        r"قراءة العداد السابقة: \1\nقراءة العداد الحالية: \2",
+        text
+    )
+
+    # تنسيق كل معلومة في سطر مستقل متى كانت مفصولة بفاصلة عربية.
+    text = re.sub(r"،\s*(?=(?:فترة الفاتورة|فترة المستند|عدد الأيام|الاستهلاك المسجل):)", "\n", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"\s+([،؛:,.!?؟])", r"\1", text)
-    text = re.sub(r"[ \t]*\n[ \t]*", "\n", text)
-    return text.strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    # تحديد عنوان مناسب حسب نوع المستند دون تخمين محتواه.
+    joined = "\n".join(lines)
+    if re.search(r"فاتورة\s+(?:كهرباء|الكهرباء)|الكهرباء\s+السكنية", joined, re.IGNORECASE):
+        title = "ملخص فاتورة الكهرباء"
+    elif re.search(r"فاتورة", joined):
+        title = "ملخص الفاتورة"
+    else:
+        title = "ملخص المستند"
+
+    # حذف عنوان قديم حتى لا يتكرر في الملف.
+    lines = [line for line in lines if not re.fullmatch(r"(?:ملخص الملف|ملخص المستند|ملخص فاتورة الكهرباء)", line)]
+    return title, lines
 
 
 @app.route('/tools/export-summary', methods=['POST'])
 @limiter.limit("10 per hour")
 def export_file_summary():
-    """إنشاء نسخة Word مرتبة من رد نبراس محلياً دون استدعاء OpenAI."""
+    """إنشاء تقرير Word محلي ومنظم من رد نبراس دون استدعاء OpenAI."""
     try:
         user_email = session.get('user_email', '')
         is_admin = bool(session.get('is_admin'))
@@ -1442,10 +1451,10 @@ def export_file_summary():
             return jsonify({"status": "error", "message": "تصدير الملفات متاح للمستخدمين المسجلين فقط."}), 403
 
         data = request.get_json(silent=True) or {}
-        summary = clean_word_export_text(data.get('text') or '')
-        if not summary:
+        title, report_lines = prepare_word_report(data.get('text') or '')
+        if not report_lines:
             return jsonify({"status": "error", "message": "لا يوجد محتوى مناسب لتصديره."}), 400
-        if len(summary) > 30000:
+        if sum(len(line) for line in report_lines) > 30000:
             return jsonify({"status": "error", "message": "الملخص طويل جداً للتصدير."}), 413
 
         document = Document()
@@ -1455,7 +1464,7 @@ def export_file_summary():
         section.left_margin = 850000
         section.right_margin = 850000
 
-        heading = document.add_heading('ملخص الملف', level=1)
+        heading = document.add_heading(title, level=1)
         heading.alignment = 2
         for run in heading.runs:
             run.font.name = 'Arial'
@@ -1463,32 +1472,27 @@ def export_file_summary():
                 '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
             )
 
-        for raw_line in summary.splitlines():
+        for raw_line in report_lines:
             line = raw_line.strip()
             if not line:
                 continue
 
-            is_heading = bool(re.match(r'^#{1,6}\s*', line)) or bool(re.match(r'^(?:ملخص\b|تفاصيل\b|Summary\b|Details\b)', line, flags=re.IGNORECASE))
-            line = re.sub(r'^#{1,6}\s*', '', line)
             is_bullet = bool(re.match(r'^(?:[-*•])\s+', line))
-            line = re.sub(r'^(?:[-*•])\s+', '', line)
-
-            # إزالة علامات Markdown مع إبقاء النص نفسه.
-            line = re.sub(r'\*\*(.*?)\*\*', r'\1', line)
-            line = re.sub(r'(?<!\w)\*(.*?)\*(?!\w)', r'\1', line)
-            line = re.sub(r'(?<!\w)\*|\*(?!\w)', '', line)
-            line = re.sub(r'\[(.*?)\]\((https?://[^)]+)\)', r'\1 — \2', line)
-            line = line.strip()
+            line = re.sub(r'^(?:[-*•])\s+', '', line).strip()
             if not line:
                 continue
 
-            if is_heading:
-                paragraph = document.add_heading(line, level=2)
-            elif is_bullet:
-                paragraph = document.add_paragraph(style='List Bullet')
-                paragraph.add_run(line)
+            paragraph = document.add_paragraph(style='List Bullet' if is_bullet else 'Normal')
+            # إبراز اسم الحقل قبل النقطتين، مع إبقاء القيمة كما وردت.
+            if ":" in line:
+                label, value = line.split(":", 1)
+                paragraph.add_run(label.strip() + ": ").bold = True
+                paragraph.add_run(value.strip())
+            elif "：" in line:
+                label, value = line.split("：", 1)
+                paragraph.add_run(label.strip() + "：").bold = True
+                paragraph.add_run(value.strip())
             else:
-                paragraph = document.add_paragraph()
                 paragraph.add_run(line)
 
             paragraph.alignment = 2
