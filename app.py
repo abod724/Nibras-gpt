@@ -1082,12 +1082,12 @@ def fetch_news(query, limit=6):
         page.raise_for_status()
 
         signature_match = re.search(
-            r'data-n-a-sg=["\\']([^"\\']+)["\\']',
+            r"""data-n-a-sg=["']([^"']+)["']""",
             page.text,
             flags=re.IGNORECASE,
         )
         timestamp_match = re.search(
-            r'data-n-a-ts=["\\'](\\d+)["\\']',
+            r"""data-n-a-ts=["'](\d+)["']""",
             page.text,
             flags=re.IGNORECASE,
         )
@@ -1128,10 +1128,10 @@ def fetch_news(query, limit=6):
         decode_response.raise_for_status()
 
         response_text = decode_response.text
-        if "\\n\\n" in response_text:
-            response_text = response_text.split("\\n\\n", 1)[1]
+        if "\n\n" in response_text:
+            response_text = response_text.split("\n\n", 1)[1]
         else:
-            response_text = re.sub(r"^\\)\\]}'[^\\n]*\\n", "", response_text)
+            response_text = re.sub(r"^\)\]\}'[^\n]*\n", "", response_text)
 
         decoded_payload = json.loads(json.loads(response_text)[0][2])
         publisher_url = decoded_payload[1]
@@ -1177,12 +1177,12 @@ def fetch_news(query, limit=6):
                 if publisher_response.ok:
                     page_html = publisher_response.text[:700000]
                     for meta_tag in re.findall(
-                        r"<meta\\b[^>]*>", page_html, flags=re.IGNORECASE
+                        r"<meta\b[^>]*>", page_html, flags=re.IGNORECASE
                     ):
                         attrs = {
                             key.lower(): html_lib.unescape(value)
                             for key, _, value in re.findall(
-                                r"""([\\w:-]+)\\s*=\\s*(['"])(.*?)\\2""",
+                                r"""([\w:-]+)\s*=\s*(['"])(.*?)\2""",
                                 meta_tag,
                             )
                         }
