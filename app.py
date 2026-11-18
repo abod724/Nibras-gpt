@@ -827,64 +827,75 @@ def should_web_search(message):
 
 
 def detect_news_query(message):
+    """تفعيل Google News فقط عند طلب نشرة أو أخبار عن موضوع محدد."""
     if not message or not isinstance(message, str):
         return None
+
     msg = message.strip()
     if len(msg) < 2:
         return None
 
-    clean_msg = re.sub(r"[؟?!،,.]", "", msg).strip()
-    clean_msg = re.sub(r"\s+", " ", clean_msg).strip().lower()
+    normalized = msg.lower()
+    normalized = normalized.translate(str.maketrans({
+        "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ة": "ه"
+    }))
+    normalized = re.sub(r"[؟?!،,.]", " ", normalized)
+    normalized = re.sub(r"\\s+", " ", normalized).strip()
 
-    greeting_words = [
-        "اخبارك", "أخبارك", "شخبارك", "شلونك", "شلون", "علومك",
-        "كيف", "وش", "ايش", "إيش", "هلا", "مرحبا", "السلام", "عليكم",
-        "يا", "طويل", "العمر", "و", "الحال", "الدنيا",
-        "صباح", "مساء", "الخير", "النور", "الله", "يعطيك", "العافية", "بخير",
-        "عساك", "طيب", "شحالك"
+    # أسئلة التحقق من صحة خبر محدد ليست طلباً لنشرة Google News.
+    verification_phrases = [
+        "هل الخبر صحيح", "هل هذا الخبر صحيح", "هل الخبر ذا صحيح",
+        "صحيح الخبر", "صحة الخبر", "تاكد من الخبر", "تحقق من الخبر",
+        "هل صحيح ان", "صحيح ان", "سمعت ان", "وصلني خبر",
+        "الخبر المتداول", "هل الكلام صحيح"
     ]
-    temp_msg = clean_msg
-    for w in greeting_words:
-        temp_msg = temp_msg.replace(w, "")
-    temp_msg = re.sub(r"\s+", "", temp_msg).strip()
-
-    if not temp_msg:
+    if any(p in normalized for p in verification_phrases):
         return None
 
-    news_keywords = ["أخبار", "اخبار", "الأخبار", "الاخبار", "خبر", "news"]
-    has_news_kw = any(kw in msg or kw.lower() in msg.lower() for kw in news_keywords)
-    if not has_news_kw:
+    # التحيات والسؤال الاجتماعي عن الحال لا تشغّل الأخبار.
+    social_phrases = [
+        "اخبارك", "وش اخبارك", "وش اخبارك اليوم", "كيف اخبارك",
+        "شخبارك", "وش علومك", "كيف حالك", "شلونك", "صباح الخير",
+        "مساء الخير", "كيفك", "عساك بخير"
+    ]
+    if any(p in normalized for p in social_phrases):
         return None
 
-    general_markers = [
-        "أهم أخبار السعودية والعالم اليوم",
-        "اهم اخبار السعودية والعالم اليوم",
-        "أهم الأخبار", "اهم الاخبار",
-        "آخر الأخبار", "اخر الاخبار",
-        "أخبار اليوم", "اخبار اليوم",
-        "أخبار السعودية والعالم",
-        "كيف الأخبار", "كيف الاخبار",
+    # لا تعرض نشرة عامة إلا بطلب واضح.
+    general_news_markers = [
+        "اخر الاخبار", "اهم الاخبار", "اخبار اليوم",
+        "اخر اخبار اليوم", "عطني الاخبار", "اعطني الاخبار",
+        "جيب الاخبار", "هات الاخبار", "نشرة اخبار",
+        "اخر المستجدات", "وش جديد الاخبار", "اخبار السعودية والعالم",
+        "اهم اخبار السعودية والعالم"
     ]
-    for g in general_markers:
-        if g in msg:
-            return "أهم أخبار السعودية والعالم اليوم"
+    if any(p in normalized for p in general_news_markers):
+        return "أهم أخبار السعودية والعالم اليوم"
 
-    topic = msg
+    # يجب أن تكون كلمة الأخبار مقصودة كطلب، لا مجرد ورود كلمة «خبر».
+    news_terms = ["اخبار", "الاخبار", "news"]
+    has_news_term = any(term in normalized for term in news_terms)
+    if not has_news_term:
+        return None
+
+    # استخرج الموضوع بعد حذف صياغة الطلب والكلمات العامة.
+    topic = normalized
     filler_words = [
-        "وش", "ايش", "إيش", "ما", "ماهي", "ماهو",
-        "أبي", "ابي", "أبغى", "ابغى", "عطني", "أعطني", "هات", "جيب",
-        "آخر", "اخر", "أهم", "اهم", "عن", "حول", "اليوم", "الآن", "الان",
-        "ابحث", "بالويب", "في الويب", "على الويب", "ويب", "لي", "اعطني", "أعطني", "وريني", "شوف"
+        "وش", "ايش", "ما", "ماهي", "ماهو", "ابي", "ابغى",
+        "عطني", "اعطني", "هات", "جيب", "اخر", "اهم",
+        "عن", "حول", "اليوم", "الان", "الحين", "ابحث",
+        "بالويب", "في الويب", "على الويب", "ويب", "لي",
+        "وريني", "شوف", "اخبار", "الاخبار", "news"
     ]
     for word in filler_words:
-        topic = re.sub(rf"\b{re.escape(word)}\b", " ", topic)
-    topic = re.sub(r"\s+", " ", topic).strip()
-    topic = topic.replace("أخبار", "").replace("اخبار", "").replace("الأخبار", "").replace("الاخبار", "").strip()
+        topic = re.sub(rf"(?<!\\w){re.escape(word)}(?!\\w)", " ", topic)
+    topic = re.sub(r"\\s+", " ", topic).strip(" ؟?!،,.")
 
-    if topic and len(topic) >= 2:
+    if len(topic) >= 2:
         return topic[:150]
 
-    return "أهم أخبار السعودية والعالم اليوم"
+    return None
+
 
 _news_cache = {}
 _NEWS_CACHE_TTL = 900
