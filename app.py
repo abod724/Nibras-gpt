@@ -1367,6 +1367,72 @@ def merge_pdf_files():
             except Exception:
                 pass
 
+
+@app.route('/tools/export-summary', methods=['POST'])
+@limiter.limit("10 per hour")
+def export_file_summary():
+    """إنشاء نسخة Word من ملخص نبراس محلياً دون استدعاء OpenAI."""
+    try:
+        user_email = session.get('user_email', '')
+        is_admin = bool(session.get('is_admin'))
+        user_role = get_user_role(user_email) if user_email else 'guest'
+        if not (is_admin or (user_email and user_role in ('user', 'admin'))):
+            return jsonify({"status": "error", "message": "تصدير الملفات متاح للمستخدمين المسجلين فقط."}), 403
+
+        data = request.get_json(silent=True) or {}
+        summary = str(data.get('text') or '').strip()
+        if not summary:
+            return jsonify({"status": "error", "message": "لا يوجد نص لتصديره."}), 400
+        if len(summary) > 30000:
+            return jsonify({"status": "error", "message": "الملخص طويل جداً للتصدير."}), 413
+
+        document = Document()
+        section = document.sections[0]
+        section.top_margin = 720000
+        section.bottom_margin = 720000
+        heading = document.add_heading('ملخص الملف', level=1)
+        heading.alignment = 2
+        for run in heading.runs:
+            run.font.name = 'Arial'
+            run._element.get_or_add_rPr().rFonts.set(
+                '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
+            )
+
+        for raw_line in summary.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            line = re.sub(r'^#{1,6}\s*', '', line)
+            line = re.sub(r'^[-*•]\s*', '• ', line)
+            line = re.sub(r'\*\*(.*?)\*\*', r'\1', line)
+            line = re.sub(r'\*(.*?)\*', r'\1', line)
+            line = re.sub(r'\[(.*?)\]\((https?://[^)]+)\)', r'\1 — \2', line)
+            paragraph = document.add_paragraph()
+            paragraph.alignment = 2
+            paragraph.paragraph_format.space_after = 6
+            run = paragraph.add_run(line)
+            run.font.name = 'Arial'
+            run._element.get_or_add_rPr().rFonts.set(
+                '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
+            )
+
+        footer = section.footer.paragraphs[0]
+        footer.alignment = 2
+        footer.add_run('تم إعداد الملخص بواسطة نبراس GP')
+
+        output = io.BytesIO()
+        document.save(output)
+        output.seek(0)
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name='Nibras_File_Summary.docx',
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+    except Exception as e:
+        print("export_file_summary error:", e)
+        return jsonify({"status": "error", "message": "تعذر إنشاء ملف الملخص حالياً."}), 500
+
 @app.route('/clear_pdf', methods=['POST'])
 def clear_pdf():
     uid = get_user_id()
