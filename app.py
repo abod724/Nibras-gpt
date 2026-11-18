@@ -29,6 +29,7 @@ import fitz # <--- مكتبة PyMuPDF الاحترافية لقراءة PDF
 from docx import Document
 import email
 from email import policy
+import html as html_lib
 
 # استدعاء الواجهات من الملف المنفصل
 from templates_content import (
@@ -968,6 +969,7 @@ def fetch_news(query, limit=6):
                 title = (item.findtext("title") or "").strip()
                 link = (item.findtext("link") or "").strip()
                 published = (item.findtext("pubDate") or "").strip()
+                description_html = (item.findtext("description") or "").strip()
 
                 source_element = item.find("source")
                 source = (
@@ -976,12 +978,52 @@ def fetch_news(query, limit=6):
                     else ""
                 )
 
-                if title and link:
+                # التقاط صورة الخبر من وسوم Media RSS أو enclosure أو وصف الخبر.
+                image_url = ""
+                for image_tag in (
+                    "{http://search.yahoo.com/mrss/}thumbnail",
+                    "{http://search.yahoo.com/mrss/}content",
+                ):
+                    image_element = item.find(image_tag)
+                    if image_element is not None:
+                        candidate = (image_element.get("url") or "").strip()
+                        if candidate.startswith(("https://", "http://")):
+                            image_url = candidate
+                            break
+
+                if not image_url:
+                    enclosure = item.find("enclosure")
+                    if enclosure is not None and (enclosure.get("type") or "").startswith("image/"):
+                        candidate = (enclosure.get("url") or "").strip()
+                        if candidate.startswith(("https://", "http://")):
+                            image_url = candidate
+
+                if not image_url and description_html:
+                    image_match = re.search(
+                        r'<img[^>]+src=["\\']([^"\\']+)["\\']',
+                        description_html,
+                        flags=re.IGNORECASE
+                    )
+                    if image_match:
+                        candidate = html_lib.unescape(image_match.group(1)).strip()
+                        if candidate.startswith(("https://", "http://")):
+                            image_url = candidate
+
+                # تنظيف وصف RSS وتحويله إلى ملخص نصي قصير.
+                summary = html_lib.unescape(re.sub(r"<[^>]+>", " ", description_html))
+                summary = re.sub(r"\\s+", " ", summary).strip()
+                if title and summary.startswith(title):
+                    summary = summary[len(title):].strip(" -|:")
+                summary = summary[:360].strip()
+
+                if title and link.startswith(("https://", "http://")):
                     articles.append({
                         "title": title,
                         "link": link,
                         "published": published,
                         "source": source,
+                        "image": image_url,
+                        "summary": summary,
                     })
 
         except (requests.RequestException, ET.ParseError) as exc:
@@ -1018,42 +1060,53 @@ def fetch_news(query, limit=6):
     return results[:limit]
 
 def format_news_reply(articles, lang="ar"):
+    """تنسيق أخبار Google News كبطاقات مقروءة مع صورة وملخص ومصدر ورابط."""
     if not articles:
         return "ما لقيت أخبار جديدة عن الموضوع هذا." if lang == "ar" else "No recent news found."
-    lines = []
-    lines.append("## 📰 آخر الأخبار" if lang == "ar" else "## 📰 Latest News")
-    lines.append("")
-    lines.append("هذي القائمة بأحدث الأخبار المتعلقة بطلبك:")
-    lines.append("")
-    for i, a in enumerate(articles[:10], 1):
-        title = (a.get("title") or "").strip()
-        source = (a.get("source") or "").strip()
-        link = (a.get("link") or "").strip()
-        published = (a.get("published") or "").strip()
-        lines.append("---")
-        lines.append("")
-        lines.append(f"### {i}. {title}")
-        lines.append("")
+
+    lines = [
+        "## 📰 آخر الأخبار" if lang == "ar" else "## 📰 Latest News",
+        "",
+        "هذي أبرز الأخبار التي جمعتها لك:" if lang == "ar" else "Here are the latest stories:",
+        ""
+    ]
+
+    for i, article in enumerate(articles[:10], 1):
+        title = (article.get("title") or "").strip()
+        source = (article.get("source") or "").strip()
+        link = (article.get("link") or "").strip()
+        image_url = (article.get("image") or "").strip()
+        summary = (article.get("summary") or "").strip()
+        published = (article.get("published") or "").strip()
+
+        lines.extend(["---", ""])
+        if image_url.startswith(("https://", "http://")):
+            safe_alt = title.replace("[", "(").replace("]", ")")
+            lines.extend([f"![{safe_alt}]({image_url})", ""])
+
+        lines.extend([f"### {i}. {title}", ""])
         meta_parts = []
         if source:
-            meta_parts.append(f"**المصدر:** {source}")
+            meta_parts.append(f"**{('المصدر' if lang == 'ar' else 'Source')}:** {source}")
         if published:
             try:
                 from email.utils import parsedate_to_datetime
                 dt = parsedate_to_datetime(published)
                 date_str = dt.strftime("%d %B %Y")
-                meta_parts.append(f"*{date_str}*")
+                meta_parts.append(f"**{('التاريخ' if lang == 'ar' else 'Date')}:** {date_str}")
             except Exception:
                 pass
         if meta_parts:
-            lines.append(" · ".join(meta_parts))
-            lines.append("")
-        if link:
-            if source:
-                lines.append(f"[🔗 اقرأ من {source}]({link})")
-            else:
-                lines.append(f"[🔗 قراءة الخبر كاملاً]({link})")
-            lines.append("")
+            lines.extend([" · ".join(meta_parts), ""])
+        if summary:
+            lines.extend([summary, ""])
+        if link.startswith(("https://", "http://")):
+            label = f"اقرأ الخبر من {source}" if source and lang == "ar" else (
+                "اقرأ الخبر كاملاً" if lang == "ar" else
+                (f"Read on {source}" if source else "Read full story")
+            )
+            lines.extend([f"[↗ {label}]({link})", ""])
+
     return "\n".join(lines)
 
 # ==============================================================================
