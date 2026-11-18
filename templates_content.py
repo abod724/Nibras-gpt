@@ -658,7 +658,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
     <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button><button class="option-btn" id="pdfBtn" title="ملف PDF أو Word"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button></div>
     <textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea>
     <button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-</div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="pdfInput" accept=".pdf,.docx" style="display:none"/></div>
+</div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="pdfInput" accept=".pdf,.docx" multiple style="display:none"/></div>
 
 <div class="share-modal" id="shareModal">
     <div class="box">
@@ -1291,7 +1291,48 @@ if(pdfBtn&&pdfInput){
     pdfBtn.addEventListener('click',function(){pdfInput.click();po.classList.remove('show');});
     pdfInput.addEventListener('change',async function(e){
         if(!this.files||this.files.length===0)return;
-        var f=this.files[0];pdfInput.value='';
+        var selectedFiles=Array.from(this.files);
+        pdfInput.value='';
+
+        // اختيار أكثر من ملف PDF يشغّل الدمج المحلي دون استدعاء OpenAI.
+        if(selectedFiles.length>1){
+            if(selectedFiles.some(function(file){return !file.name.toLowerCase().endsWith('.pdf');})){
+                showToast(userLang==='en'?'Select PDF files only':'لدمج الملفات اختر ملفات PDF فقط');
+                return;
+            }
+            var totalSize=selectedFiles.reduce(function(sum,file){return sum+file.size;},0);
+            if(totalSize>7*1024*1024){
+                showToast(userLang==='en'?'Combined size must be under 8MB':'الحجم الإجمالي يجب ألا يتجاوز 7 ميجابايت');
+                return;
+            }
+            showToast(userLang==='en'?'Merging PDF files...':'جاري دمج ملفات PDF...');
+            var mergeForm=new FormData();
+            selectedFiles.forEach(function(file){mergeForm.append('files',file);});
+            try{
+                var mergeRes=await fetch('/tools/merge-pdf',{method:'POST',body:mergeForm,credentials:'same-origin'});
+                if(!mergeRes.ok){
+                    var mergeErrorData=await mergeRes.json().catch(function(){return {};});
+                    showToast('❌ '+(mergeErrorData.message||(userLang==='en'?'Merge failed':'تعذر دمج الملفات')));
+                    return;
+                }
+                var mergedBlob=await mergeRes.blob();
+                var downloadUrl=URL.createObjectURL(mergedBlob);
+                var downloadLink=document.createElement('a');
+                downloadLink.href=downloadUrl;
+                downloadLink.download='Nibras_Merged.pdf';
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                downloadLink.remove();
+                setTimeout(function(){URL.revokeObjectURL(downloadUrl);},30000);
+                showToast(userLang==='en'?'✅ PDF files merged and downloaded':'✅ تم دمج الملفات وتجهيزها للتنزيل');
+            }catch(mergeError){
+                console.error('PDF merge error:',mergeError);
+                showToast(userLang==='en'?'Connection failed':'تعذر الاتصال بالسيرفر');
+            }
+            return;
+        }
+
+        var f=selectedFiles[0];
         var lowerName = f.name.toLowerCase();
         if(!lowerName.endsWith('.pdf') && !lowerName.endsWith('.docx')){
             showToast(userLang==='en'?'PDF & Word only':'ندعم ملفات PDF و Word فقط');
