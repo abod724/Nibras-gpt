@@ -1162,6 +1162,7 @@ def fetch_news(query, limit=6):
         publisher_url = ""
         final_url = ""
         image_url = ""
+        error_detail = ""
         try:
             publisher_url = resolve_google_news_url(link)
             if not publisher_url:
