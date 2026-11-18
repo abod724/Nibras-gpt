@@ -3023,7 +3023,9 @@ def chat():
             print("[CHAT_TIMING] web_search: skipped (no search intent)")
         else:
             print("[CHAT_TIMING] web_search: skipped (not eligible or quota exhausted)")
-        if is_registered and can_search and _search_needed and not _search_succeeded:\n            msgs.append({"role": "system", "content": "تعذر الحصول على نتائج بحث حديثة موثوقة لهذا الطلب. لا تدّعِ أن البحث نجح، ولا تخترع أخبارًا أو روابط أو تواريخ. وضّح أن التحقق المباشر لم ينجح."})\n        _chat_timing("pre_stream_ready")
+        if is_registered and can_search and _search_needed and not _search_succeeded:
+            msgs.append({"role": "system", "content": "تعذر الحصول على نتائج بحث حديثة موثوقة لهذا الطلب. لا تدّعِ أن البحث نجح، ولا تخترع أخبارًا أو روابط أو تواريخ. وضّح أن التحقق المباشر لم ينجح."})
+        _chat_timing("pre_stream_ready")
 
         def generate():
             full_reply = ""
