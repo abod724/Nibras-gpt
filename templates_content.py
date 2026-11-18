@@ -1301,7 +1301,7 @@ if(pdfBtn&&pdfInput){
                 return;
             }
             var totalSize=selectedFiles.reduce(function(sum,file){return sum+file.size;},0);
-            if(totalSize>8*1024*1024){
+            if(totalSize>7*1024*1024){
                 showToast(userLang==='en'?'Combined size must be under 8MB':'الحجم الإجمالي يجب ألا يتجاوز 8 ميجابايت');
                 return;
             }
