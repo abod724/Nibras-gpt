@@ -1009,6 +1009,34 @@ def fetch_news(query, limit=6):
                         if candidate.startswith(("https://", "http://")):
                             image_url = candidate
 
+                # إذا لم يرفق Google News صورة في RSS، نستخرج صورة الخبر
+                # من Open Graph أو Twitter Card لدى الناشر.
+                if not image_url and link.startswith(("https://", "http://")):
+                    try:
+                        page_response = requests.get(
+                            link,
+                            headers=headers,
+                            timeout=(3, 5),
+                            allow_redirects=True
+                        )
+                        if page_response.ok and page_response.url.startswith(("https://", "http://")):
+                            page_html = page_response.text[:500000]
+                            for meta_tag in re.findall(r"<meta\b[^>]*>", page_html, flags=re.IGNORECASE):
+                                attrs = {
+                                    key.lower(): html_lib.unescape(value)
+                                    for key, _, value in re.findall(
+                                        r"""([\w:-]+)\s*=\s*(['"])(.*?)\2""",
+                                        meta_tag
+                                    )
+                                }
+                                image_type = (attrs.get("property") or attrs.get("name") or "").lower()
+                                candidate = (attrs.get("content") or "").strip()
+                                if image_type in ("og:image", "og:image:url", "twitter:image", "twitter:image:src") and candidate.startswith(("https://", "http://")):
+                                    image_url = candidate
+                                    break
+                    except requests.RequestException:
+                        pass
+
                 # تنظيف وصف RSS وتحويله إلى ملخص نصي قصير.
                 summary = html_lib.unescape(re.sub(r"<[^>]+>", " ", description_html))
                 summary = re.sub(r"\s+", " ", summary).strip()
