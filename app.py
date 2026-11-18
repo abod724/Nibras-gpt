@@ -1453,13 +1453,44 @@ def split_word_table_row(line):
 
 
 @app.route('/tools/export-summary', methods=['POST'])
-@limiter.limit("10 per hour"        index = 0
+@limiter.limit("10 per hour")
+def export_file_summary():
+    """إنشاء تقرير Word محلي ومنظم من رد نبراس دون استدعاء OpenAI."""
+    try:
+        user_email = session.get('user_email', '')
+        is_admin = bool(session.get('is_admin'))
+        user_role = get_user_role(user_email) if user_email else 'guest'
+        if not (is_admin or (user_email and user_role in ('user', 'admin'))):
+            return jsonify({"status": "error", "message": "تصدير الملفات متاح للمستخدمين المسجلين فقط."}), 403
+
+        data = request.get_json(silent=True) or {}
+        title, report_lines = prepare_word_report(data.get('text') or '')
+        if not report_lines:
+            return jsonify({"status": "error", "message": "لا يوجد محتوى مناسب لتصديره."}), 400
+        if sum(len(line) for line in report_lines) > 30000:
+            return jsonify({"status": "error", "message": "الملخص طويل جداً للتصدير."}), 413
+
+        document = Document()
+        section = document.sections[0]
+        section.top_margin = 720000
+        section.bottom_margin = 720000
+        section.left_margin = 850000
+        section.right_margin = 850000
+
+        heading = document.add_heading(title, level=1)
+        heading.alignment = 2
+        for run in heading.runs:
+            run.font.name = 'Arial'
+            run._element.get_or_add_rPr().rFonts.set(
+                '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
+            )
+
+        index = 0
         while index < len(report_lines):
             line = report_lines[index].strip()
             if not line:
                 index += 1
                 continue
-
             if "|" in line and line.count("|") >= 2:
                 table_lines = []
                 while index < len(report_lines):
@@ -1495,13 +1526,11 @@ def split_word_table_row(line):
                                     "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", "Arial"
                                 )
                     continue
-
             index += 1
             is_bullet = bool(re.match(r'^(?:[-*•])\s+', line))
             line = re.sub(r'^(?:[-*•])\s+', '', line).strip()
             if not line:
                 continue
-
             paragraph = document.add_paragraph(style='List Bullet' if is_bullet else 'Normal')
             if ":" in line:
                 label, value = line.split(":", 1)
@@ -1513,42 +1542,6 @@ def split_word_table_row(line):
                 add_word_hyperlinks(paragraph, value.strip())
             else:
                 add_word_hyperlinks(paragraph, line)
-
-            paragraph.alignment = 2
-            paragraph.paragraph_format.space_after = 6
-            for run in paragraph.runs:
-                run.font.name = 'Arial'
-                run._element.get_or_add_rPr().rFonts.set(
-                    '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
-                )
-
-_element.get_or_add_rPr().rFonts.set(
-                '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
-            )
-
-        for raw_line in report_lines:
-            line = raw_line.strip()
-            if not line:
-                continue
-
-            is_bullet = bool(re.match(r'^(?:[-*•])\s+', line))
-            line = re.sub(r'^(?:[-*•])\s+', '', line).strip()
-            if not line:
-                continue
-
-            paragraph = document.add_paragraph(style='List Bullet' if is_bullet else 'Normal')
-            # إبراز اسم الحقل قبل النقطتين، مع إبقاء القيمة كما وردت.
-            if ":" in line:
-                label, value = line.split(":", 1)
-                paragraph.add_run(label.strip() + ": ").bold = True
-                paragraph.add_run(value.strip())
-            elif "：" in line:
-                label, value = line.split("：", 1)
-                paragraph.add_run(label.strip() + "：").bold = True
-                paragraph.add_run(value.strip())
-            else:
-                paragraph.add_run(line)
-
             paragraph.alignment = 2
             paragraph.paragraph_format.space_after = 6
             for run in paragraph.runs:
