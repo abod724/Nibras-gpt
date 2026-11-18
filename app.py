@@ -1047,9 +1047,105 @@ def fetch_news(query, limit=6):
         if len(results) >= limit:
             break
 
-    # المرحلة الثالثة: حل روابط Google News أولاً ثم استخراج صورة الناشر.
-    # بعض روابط RSS تبقى داخل news.google.com حتى بعد إعادة التوجيه؛ لذلك نستخرج
-    # رابط الناشر من روابط الصفحة ونفضّل النطاق المعلن في وسم source.
+    # المرحلة الثالثة: فك رابط Google News بالطريقة التي تستخدمها صفحة Google نفسها.
+    # روابط RSS الحديثة لا تتحول إلى الناشر بمجرد اتباع HTTP redirects.
+    def resolve_google_news_url(google_url):
+        parsed = urllib.parse.urlparse(google_url)
+        host = (parsed.hostname or "").lower()
+        if host not in ("news.google.com", "www.news.google.com"):
+            return google_url
+
+        match = re.search(r"/(?:rss/)?(?:articles|read)/([^/?]+)", parsed.path)
+        if not match:
+            return ""
+
+        article_id = match.group(1)
+        article_page_url = (
+            "https://news.google.com/rss/articles/"
+            + article_id
+        )
+        decoder_headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "ar-SA,ar;q=0.9,en;q=0.8",
+        }
+
+        page = requests.get(
+            article_page_url,
+            headers=decoder_headers,
+            timeout=(2, 5),
+            allow_redirects=True,
+        )
+        page.raise_for_status()
+
+        signature_match = re.search(
+            r'data-n-a-sg=["\\']([^"\\']+)["\\']',
+            page.text,
+            flags=re.IGNORECASE,
+        )
+        timestamp_match = re.search(
+            r'data-n-a-ts=["\\'](\\d+)["\\']',
+            page.text,
+            flags=re.IGNORECASE,
+        )
+        if not signature_match or not timestamp_match:
+            return ""
+
+        inner = [
+            "garturlreq",
+            [
+                [
+                    "X", "X", ["X", "X"], None, None, 1, 1,
+                    "SA:ar", None, 1, None, None, None, None,
+                    None, 0, 1,
+                ],
+                "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
+            ],
+            article_id,
+            int(timestamp_match.group(1)),
+            signature_match.group(1),
+        ]
+        request_body = {
+            "f.req": json.dumps(
+                [[[
+                    "Fbv4je",
+                    json.dumps(inner, separators=(",", ":")),
+                    None,
+                    "generic",
+                ]]],
+                separators=(",", ":"),
+            )
+        }
+        decode_response = requests.post(
+            "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+            data=request_body,
+            headers=decoder_headers,
+            timeout=(2, 5),
+        )
+        decode_response.raise_for_status()
+
+        response_text = decode_response.text
+        if "\\n\\n" in response_text:
+            response_text = response_text.split("\\n\\n", 1)[1]
+        else:
+            response_text = re.sub(r"^\\)\\]}'[^\\n]*\\n", "", response_text)
+
+        decoded_payload = json.loads(json.loads(response_text)[0][2])
+        publisher_url = decoded_payload[1]
+        publisher_parsed = urllib.parse.urlparse(publisher_url or "")
+        publisher_host = (publisher_parsed.hostname or "").lower()
+        if (
+            publisher_parsed.scheme not in ("http", "https")
+            or not publisher_host
+            or publisher_host == "news.google.com"
+            or publisher_host.endswith(".google.com")
+        ):
+            return ""
+        return publisher_url
+
     for article in results:
         if article.get("image"):
             print(
@@ -1062,183 +1158,81 @@ def fetch_news(query, limit=6):
             continue
 
         link = article.get("link") or ""
-        if not link.startswith(("https://", "http://")):
-            print(
-                "NEWS_IMAGE_DIAG",
-                "title=", article["title"][:90],
-                "stage=publisher",
-                "found=False",
-                "reason=invalid_link",
-            )
-            continue
-
         started = time.perf_counter()
+        publisher_url = ""
+        final_url = ""
+        image_url = ""
         try:
-            wrapper_response = requests.get(
-                link,
-                headers=headers,
-                timeout=(2, 4),
-                allow_redirects=True
-            )
-            wrapper_response.raise_for_status()
-            wrapper_url = wrapper_response.url or link
-            page_html = wrapper_response.text[:700000]
-            publisher_url = wrapper_url
-            google_hosts = (
-                "news.google.com", "google.com", "googleusercontent.com",
-                "gstatic.com", "googleapis.com"
-            )
-
-            wrapper_host = (urllib.parse.urlparse(wrapper_url).hostname or "").lower()
-            if any(wrapper_host == host or wrapper_host.endswith("." + host) for host in google_hosts):
-                source_url = article.get("source_url") or ""
-                source_host = (urllib.parse.urlparse(source_url).hostname or "").lower()
-
-                candidates = []
-                for raw_href in re.findall(
-                    r"""\bhref\s*=\s*(['"])(.*?)\1""",
-                    page_html,
-                    flags=re.IGNORECASE | re.DOTALL
-                ):
-                    candidate = html_lib.unescape(raw_href[1]).strip()
-                    candidate = urllib.parse.urljoin(wrapper_url, candidate)
-                    parsed = urllib.parse.urlparse(candidate)
-                    host = (parsed.hostname or "").lower()
-                    if (
-                        parsed.scheme in ("http", "https")
-                        and host
-                        and not any(host == blocked or host.endswith("." + blocked) for blocked in google_hosts)
-                        and candidate not in candidates
-                    ):
-                        candidates.append(candidate)
-
-                # بعض صفحات Google News تضع رابط الناشر داخل بيانات JSON بدلاً من href.
-                if source_host:
-                    for raw_url in re.findall(
-                        r"""https?://[^\s"'<>\\]+""",
-                        page_html,
-                        flags=re.IGNORECASE
-                    ):
-                        candidate = html_lib.unescape(raw_url).replace("\\u0026", "&").rstrip(".,);")
-                        host = (urllib.parse.urlparse(candidate).hostname or "").lower()
-                        if host == source_host or host.endswith("." + source_host):
-                            if candidate not in candidates:
-                                candidates.append(candidate)
-
-                preferred = [
-                    candidate for candidate in candidates
-                    if source_host and (
-                        (urllib.parse.urlparse(candidate).hostname or "").lower() == source_host
-                        or (urllib.parse.urlparse(candidate).hostname or "").lower().endswith("." + source_host)
-                    )
-                ]
-                if preferred:
-                    publisher_url = preferred[0]
-                elif candidates:
-                    publisher_url = candidates[0]
-                else:
-                    publisher_url = ""
-
-            if publisher_url and publisher_url != wrapper_url:
+            publisher_url = resolve_google_news_url(link)
+            if not publisher_url:
+                reason = "google_news_url_decode_failed"
+            else:
                 publisher_response = requests.get(
                     publisher_url,
                     headers=headers,
-                    timeout=(2, 4),
-                    allow_redirects=True
+                    timeout=(2, 5),
+                    allow_redirects=True,
                 )
                 final_url = publisher_response.url or publisher_url
                 if publisher_response.ok:
                     page_html = publisher_response.text[:700000]
-                else:
-                    page_html = ""
-            else:
-                final_url = wrapper_url
-                if publisher_url == wrapper_url and not any(
-                    (urllib.parse.urlparse(final_url).hostname or "").lower() == host
-                    or (urllib.parse.urlparse(final_url).hostname or "").lower().endswith("." + host)
-                    for host in google_hosts
-                ):
-                    pass
-                elif not publisher_url:
-                    page_html = ""
-
-            image_url = ""
-            if page_html and final_url.startswith(("https://", "http://")):
-                for meta_tag in re.findall(
-                    r"<meta\b[^>]*>", page_html, flags=re.IGNORECASE
-                ):
-                    attrs = {
-                        key.lower(): html_lib.unescape(value)
-                        for key, _, value in re.findall(
-                            r"""([\w:-]+)\s*=\s*(['"])(.*?)\2""",
-                            meta_tag
-                        )
-                    }
-                    image_type = (attrs.get("property") or attrs.get("name") or "").lower()
-                    candidate = (attrs.get("content") or "").strip()
-                    if (
-                        image_type in ("og:image", "og:image:url", "twitter:image", "twitter:image:src")
-                        and candidate.startswith(("https://", "http://"))
+                    for meta_tag in re.findall(
+                        r"<meta\\b[^>]*>", page_html, flags=re.IGNORECASE
                     ):
-                        image_url = urllib.parse.urljoin(final_url, candidate)
-                        break
+                        attrs = {
+                            key.lower(): html_lib.unescape(value)
+                            for key, _, value in re.findall(
+                                r"""([\\w:-]+)\\s*=\\s*(['"])(.*?)\\2""",
+                                meta_tag,
+                            )
+                        }
+                        image_type = (
+                            attrs.get("property") or attrs.get("name") or ""
+                        ).lower()
+                        candidate = (attrs.get("content") or "").strip()
+                        if (
+                            image_type in (
+                                "og:image", "og:image:url",
+                                "twitter:image", "twitter:image:src",
+                            )
+                            and candidate.startswith(("https://", "http://"))
+                        ):
+                            image_url = urllib.parse.urljoin(final_url, candidate)
+                            break
 
-            if image_url:
-                article["image"] = image_url
-                reason = "image_found"
-            elif not publisher_url:
-                reason = "publisher_url_not_found"
-            elif publisher_url == wrapper_url and any(
-                (urllib.parse.urlparse(final_url).hostname or "").lower() == host
-                or (urllib.parse.urlparse(final_url).hostname or "").lower().endswith("." + host)
-                for host in google_hosts
-            ):
-                reason = "google_wrapper_not_resolved"
-            else:
-                reason = "no_supported_image_meta"
-
-            print(
-                "NEWS_IMAGE_DIAG",
-                "title=", article["title"][:90],
-                "stage=publisher",
-                "found=", bool(image_url),
-                "reason=", reason,
-                "final_url=", final_url[:220],
-                "publisher_url=", publisher_url[:220] if publisher_url else "NONE",
-                "elapsed_ms=", round((time.perf_counter() - started) * 1000),
-                "image_url=", image_url[:220] if image_url else "NONE",
-            )
+                if image_url:
+                    article["image"] = image_url
+                    reason = "image_found"
+                elif not publisher_response.ok:
+                    reason = f"publisher_http_{publisher_response.status_code}"
+                else:
+                    reason = "publisher_has_no_supported_image_meta"
 
         except requests.Timeout as exc:
-            print(
-                "NEWS_IMAGE_DIAG",
-                "title=", article["title"][:90],
-                "stage=publisher",
-                "found=False",
-                "reason=timeout",
-                "elapsed_ms=", round((time.perf_counter() - started) * 1000),
-                "error=", str(exc)[:180],
-            )
+            reason = "timeout"
+            error_detail = str(exc)[:160]
         except requests.RequestException as exc:
-            print(
-                "NEWS_IMAGE_DIAG",
-                "title=", article["title"][:90],
-                "stage=publisher",
-                "found=False",
-                "reason=request_error",
-                "elapsed_ms=", round((time.perf_counter() - started) * 1000),
-                "error=", str(exc)[:180],
-            )
+            reason = "request_error"
+            error_detail = str(exc)[:160]
+        except (ValueError, TypeError, IndexError, KeyError) as exc:
+            reason = "google_decode_parse_error"
+            error_detail = repr(exc)[:160]
         except Exception as exc:
-            print(
-                "NEWS_IMAGE_DIAG",
-                "title=", article["title"][:90],
-                "stage=publisher",
-                "found=False",
-                "reason=unexpected_error",
-                "elapsed_ms=", round((time.perf_counter() - started) * 1000),
-                "error=", repr(exc)[:180],
-            )
+            reason = "unexpected_error"
+            error_detail = repr(exc)[:160]
+
+        print(
+            "NEWS_IMAGE_DIAG",
+            "title=", article["title"][:90],
+            "stage=google_decode_and_publisher",
+            "found=", bool(image_url),
+            "reason=", reason,
+            "publisher_url=", publisher_url[:220] if publisher_url else "NONE",
+            "final_url=", final_url[:220] if final_url else "NONE",
+            "elapsed_ms=", round((time.perf_counter() - started) * 1000),
+            "image_url=", image_url[:220] if image_url else "NONE",
+            "error=", locals().get("error_detail", ""),
+        )
 
     if len(_news_cache) > 100:
         _news_cache.clear()
