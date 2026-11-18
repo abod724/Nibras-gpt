@@ -1608,6 +1608,7 @@ def export_file_summary():
                                     "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", "Arial"
                                 )
                     continue
+                index += 1
                 line = clean_line
             else:
                 index += 1
