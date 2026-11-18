@@ -910,11 +910,9 @@ def detect_news_query(message):
 
 _news_cache = {}
 _NEWS_CACHE_TTL = 900
-_NEWS_IMAGE_CACHE_TTL = 21600
-_news_image_cache = {}
-_google_news_decode_state = {"blocked_until": 0}
 
 def fetch_news(query, limit=6):
+    """جلب الأخبار من Google News RSS فقط، دون فتح صفحات الناشرين أو استخراج الصور."""
     if not isinstance(query, str) or len(query.strip()) < 2:
         return []
 
@@ -949,19 +947,16 @@ def fetch_news(query, limit=6):
         "User-Agent": "Mozilla/5.0 (compatible; NibrasGP/1.0)"
     }
 
-    feeds = []
-
-    # المرحلة الأولى: قراءة بيانات RSS فقط دون فتح صفحات الناشرين.
-    for search_query in searches:
+    def fetch_feed(search_query):
         url = (
             "https://news.google.com/rss/search?q="
             + quote_plus(search_query)
             + "&hl=ar&gl=SA&ceid=SA:ar"
         )
         articles = []
-
         try:
-            response = requests.get(url, headers=headers, timeout=10)
+            # مهلة قصيرة مع اتصال وقراءة منفصلين لتجنب تعليق الطلب طويلاً.
+            response = requests.get(url, headers=headers, timeout=(3, 6))
             response.raise_for_status()
             root = ET.fromstring(response.content)
 
@@ -977,34 +972,6 @@ def fetch_news(query, limit=6):
                     if source_element is not None
                     else ""
                 )
-                source_url = (
-                    (source_element.get("url") or "").strip()
-                    if source_element is not None
-                    else ""
-                )
-
-                image_url = ""
-                for image_tag in (
-                    "{http://search.yahoo.com/mrss/}thumbnail",
-                    "{http://search.yahoo.com/mrss/}content",
-                ):
-                    image_element = item.find(image_tag)
-                    if image_element is not None:
-                        candidate = (image_element.get("url") or "").strip()
-                        if candidate.startswith(("https://", "http://")):
-                            image_url = candidate
-                            break
-
-                if not image_url and description_html:
-                    image_match = re.search(
-                        r"<img[^>]+src=['\"]([^'\"]+)['\"]",
-                        description_html,
-                        flags=re.IGNORECASE
-                    )
-                    if image_match:
-                        candidate = html_lib.unescape(image_match.group(1)).strip()
-                        if candidate.startswith(("https://", "http://")):
-                            image_url = candidate
 
                 summary = html_lib.unescape(re.sub(r"<[^>]+>", " ", description_html))
                 summary = re.sub(r"\s+", " ", summary).strip()
@@ -1018,17 +985,25 @@ def fetch_news(query, limit=6):
                         "link": link,
                         "published": published,
                         "source": source,
-                        "source_url": source_url,
-                        "image": image_url,
                         "summary": summary,
                     })
 
         except (requests.RequestException, ET.ParseError) as exc:
             print("News RSS fetch error:", type(exc).__name__, str(exc))
+        except Exception as exc:
+            print("News RSS unexpected error:", type(exc).__name__, str(exc))
 
-        feeds.append(articles)
+        return articles
 
-    # المرحلة الثانية: دمج النتائج وإزالة التكرار واختيار العدد المطلوب أولاً.
+    # جلب التصنيفات الثلاثة بالتوازي بدلاً من انتظار كل طلب بالتتابع.
+    try:
+        from gevent.pool import Pool
+        feeds = Pool(len(searches)).map(fetch_feed, searches)
+    except Exception as exc:
+        print("News RSS parallel fetch fallback:", type(exc).__name__, str(exc))
+        feeds = [fetch_feed(search_query) for search_query in searches]
+
+    # دمج النتائج وإزالة التكرار مع الإبقاء على العدد المطلوب.
     results = []
     seen = set()
     max_items = max((len(feed) for feed in feeds), default=0)
@@ -1050,230 +1025,15 @@ def fetch_news(query, limit=6):
         if len(results) >= limit:
             break
 
-    # المرحلة الثالثة: فك رابط Google News بالطريقة التي تستخدمها صفحة Google نفسها.
-    # روابط RSS الحديثة لا تتحول إلى الناشر بمجرد اتباع HTTP redirects.
-    def resolve_google_news_url(google_url):
-        parsed = urllib.parse.urlparse(google_url)
-        host = (parsed.hostname or "").lower()
-        if host not in ("news.google.com", "www.news.google.com"):
-            return google_url
-
-        match = re.search(r"/(?:rss/)?(?:articles|read)/([^/?]+)", parsed.path)
-        if not match:
-            return ""
-
-        article_id = match.group(1)
-        article_page_url = (
-            "https://news.google.com/rss/articles/"
-            + article_id
-        )
-        decoder_headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/131.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "ar-SA,ar;q=0.9,en;q=0.8",
-        }
-
-        page = requests.get(
-            article_page_url,
-            headers=decoder_headers,
-            timeout=(2, 5),
-            allow_redirects=True,
-        )
-        page.raise_for_status()
-
-        signature_match = re.search(
-            r"""data-n-a-sg=["']([^"']+)["']""",
-            page.text,
-            flags=re.IGNORECASE,
-        )
-        timestamp_match = re.search(
-            r"""data-n-a-ts=["'](\d+)["']""",
-            page.text,
-            flags=re.IGNORECASE,
-        )
-        if not signature_match or not timestamp_match:
-            return ""
-
-        inner = [
-            "garturlreq",
-            [
-                [
-                    "X", "X", ["X", "X"], None, None, 1, 1,
-                    "SA:ar", None, 1, None, None, None, None,
-                    None, 0, 1,
-                ],
-                "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0,
-            ],
-            article_id,
-            int(timestamp_match.group(1)),
-            signature_match.group(1),
-        ]
-        request_body = {
-            "f.req": json.dumps(
-                [[[
-                    "Fbv4je",
-                    json.dumps(inner, separators=(",", ":")),
-                    None,
-                    "generic",
-                ]]],
-                separators=(",", ":"),
-            )
-        }
-        decode_response = requests.post(
-            "https://news.google.com/_/DotsSplashUi/data/batchexecute",
-            data=request_body,
-            headers=decoder_headers,
-            timeout=(2, 5),
-        )
-        decode_response.raise_for_status()
-
-        response_text = decode_response.text
-        if "\n\n" in response_text:
-            response_text = response_text.split("\n\n", 1)[1]
-        else:
-            response_text = re.sub(r"^\)\]\}'[^\n]*\n", "", response_text)
-
-        decoded_payload = json.loads(json.loads(response_text)[0][2])
-        publisher_url = decoded_payload[1]
-        publisher_parsed = urllib.parse.urlparse(publisher_url or "")
-        publisher_host = (publisher_parsed.hostname or "").lower()
-        if (
-            publisher_parsed.scheme not in ("http", "https")
-            or not publisher_host
-            or publisher_host == "news.google.com"
-            or publisher_host.endswith(".google.com")
-        ):
-            return ""
-        return publisher_url
-
-    image_decode_attempted = False
-    for article in results:
-        if article.get("image"):
-            print(
-                "NEWS_IMAGE_DIAG",
-                "title=", article["title"][:90],
-                "stage=RSS",
-                "found=True",
-                "image_url=", article["image"][:220],
-            )
-            continue
-
-        link = article.get("link") or ""
-        cached_image = _news_image_cache.get(link)
-        if cached_image:
-            cache_age = time.time() - cached_image[0]
-            cache_ttl = _NEWS_IMAGE_CACHE_TTL if cached_image[1] else 1800
-            if cache_age < cache_ttl:
-                if cached_image[1]:
-                    article["image"] = cached_image[1]
-                continue
-            _news_image_cache.pop(link, None)
-
-        if time.time() < _google_news_decode_state["blocked_until"]:
-            print("NEWS_IMAGE_DIAG", "stage=google_decode_and_publisher", "reason=google_429_cooldown_active")
-            break
-        if image_decode_attempted:
-            continue
-        image_decode_attempted = True
-
-        started = time.perf_counter()
-        publisher_url = ""
-        final_url = ""
-        image_url = ""
-        error_detail = ""
-        rate_limited = False
-        try:
-            publisher_url = resolve_google_news_url(link)
-            if not publisher_url:
-                reason = "google_news_url_decode_failed"
-            else:
-                publisher_response = requests.get(
-                    publisher_url,
-                    headers=headers,
-                    timeout=(2, 5),
-                    allow_redirects=True,
-                )
-                final_url = publisher_response.url or publisher_url
-                if publisher_response.ok:
-                    page_html = publisher_response.text[:700000]
-                    for meta_tag in re.findall(
-                        r"<meta\b[^>]*>", page_html, flags=re.IGNORECASE
-                    ):
-                        attrs = {
-                            key.lower(): html_lib.unescape(value)
-                            for key, _, value in re.findall(
-                                r"""([\w:-]+)\s*=\s*(['"])(.*?)\2""",
-                                meta_tag,
-                            )
-                        }
-                        image_type = (
-                            attrs.get("property") or attrs.get("name") or ""
-                        ).lower()
-                        candidate = (attrs.get("content") or "").strip()
-                        if (
-                            image_type in (
-                                "og:image", "og:image:url",
-                                "twitter:image", "twitter:image:src",
-                            )
-                            and candidate.startswith(("https://", "http://"))
-                        ):
-                            image_url = urllib.parse.urljoin(final_url, candidate)
-                            break
-
-                if image_url:
-                    article["image"] = image_url
-                    reason = "image_found"
-                elif not publisher_response.ok:
-                    reason = f"publisher_http_{publisher_response.status_code}"
-                else:
-                    reason = "publisher_has_no_supported_image_meta"
-
-        except requests.Timeout as exc:
-            reason = "timeout"
-            error_detail = str(exc)[:160]
-        except requests.RequestException as exc:
-            reason = "request_error"
-            error_detail = str(exc)[:160]
-            if getattr(getattr(exc, "response", None), "status_code", None) == 429:
-                _google_news_decode_state["blocked_until"] = time.time() + 1800
-                rate_limited = True
-        except (ValueError, TypeError, IndexError, KeyError) as exc:
-            reason = "google_decode_parse_error"
-            error_detail = repr(exc)[:160]
-        except Exception as exc:
-            reason = "unexpected_error"
-            error_detail = repr(exc)[:160]
-
-        print(
-            "NEWS_IMAGE_DIAG",
-            "title=", article["title"][:90],
-            "stage=google_decode_and_publisher",
-            "found=", bool(image_url),
-            "reason=", reason,
-            "publisher_url=", publisher_url[:220] if publisher_url else "NONE",
-            "final_url=", final_url[:220] if final_url else "NONE",
-            "elapsed_ms=", round((time.perf_counter() - started) * 1000),
-            "image_url=", image_url[:220] if image_url else "NONE",
-            "error=", error_detail,
-        )
-        _news_image_cache[link] = (time.time(), image_url or "")
-        if len(_news_image_cache) > 500:
-            _news_image_cache.clear()
-        if rate_limited:
-            print("NEWS_IMAGE_DIAG", "stage=google_decode_and_publisher", "reason=stopped_after_429", "cooldown_seconds=1800")
-            break
-
     if len(_news_cache) > 100:
         _news_cache.clear()
 
     _news_cache[query] = (now, results)
     return results[:limit]
 
+
 def format_news_reply(articles, lang="ar"):
-    """تنسيق أخبار Google News كبطاقات مقروءة مع صورة وملخص ومصدر ورابط."""
+    """تنسيق أخبار Google News باستخدام Markdown دون صور."""
     if not articles:
         return "ما لقيت أخبار جديدة عن الموضوع هذا." if lang == "ar" else "No recent news found."
 
@@ -1288,16 +1048,10 @@ def format_news_reply(articles, lang="ar"):
         title = (article.get("title") or "").strip()
         source = (article.get("source") or "").strip()
         link = (article.get("link") or "").strip()
-        image_url = (article.get("image") or "").strip()
         summary = (article.get("summary") or "").strip()
         published = (article.get("published") or "").strip()
 
-        lines.extend(["---", ""])
-        if image_url.startswith(("https://", "http://")):
-            safe_alt = title.replace("[", "(").replace("]", ")")
-            lines.extend([f"![{safe_alt}]({image_url})", ""])
-
-        lines.extend([f"### {i}. {title}", ""])
+        lines.extend(["---", "", f"### {i}. {title}", ""])
         meta_parts = []
         if source:
             meta_parts.append(f"**{('المصدر' if lang == 'ar' else 'Source')}:** {source}")
@@ -2681,23 +2435,11 @@ def chat():
 
         if news_articles:
             news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
-            prompt_for_news = (
-                f"المستخدم طلب أخبار. إليك أهم العناوين اللي جبتها:\n{news_titles}\n\n"
-                "اكتب مقدمة قصيرة جداً (جملة أو جملتين) بالعامي السعودي كأنك صديق يبشره بالأخبار، "
-                "ثم قل له إنك رتبت له الأخبار تحت عشان يقرأها. لا تكرر العناوين، بس تفاعل معها."
+            news_intro = (
+                "أبشر، هذي أهم الأخبار اللي جمعتها لك:"
+                if user_lang == "ar"
+                else "Here are the top stories I found:"
             )
-
-            try:
-                news_intro_res = client.chat.completions.create(
-                    model=OPENAI_MODEL,
-                    messages=[{"role": "system", "content": SP + personality_inst + lang_inst}, {"role": "user", "content": prompt_for_news}],
-                    max_completion_tokens=150,
-                    stream=False
-                )
-                news_intro = news_intro_res.choices[0].message.content.strip()
-            except:
-                news_intro = "أبشر يا طويل العمر، هذي آخر الأخبار اللي جمعتها لك:"
-
             news_md = f"**{news_intro}**\n\n" + format_news_reply(news_articles, user_lang)
             news_html = str(format_nibras_response(news_md))
             print(
