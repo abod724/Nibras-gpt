@@ -1045,6 +1045,12 @@ def fetch_news(query, limit=6):
                 summary = summary[:360].strip()
 
                 if title and link.startswith(("https://", "http://")):
+                    print(
+                        "NEWS_IMAGE_DIAG",
+                        "title=", title[:100],
+                        "found=", bool(image_url),
+                        "image_url=", image_url or "NONE",
+                    )
                     articles.append({
                         "title": title,
                         "link": link,
@@ -2515,6 +2521,12 @@ def chat():
 
             news_md = f"**{news_intro}**\n\n" + format_news_reply(news_articles, user_lang)
             news_html = str(format_nibras_response(news_md))
+            print(
+                "NEWS_RENDER_DIAG",
+                "articles=", len(news_articles),
+                "markdown_images=", news_md.count("!["),
+                "html_images=", news_html.lower().count("<img"),
+            )
 
             def news_stream():
                 try:
