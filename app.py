@@ -924,7 +924,6 @@ def fetch_news(query, limit=6):
         return cached[1][:limit]
 
     normalized = re.sub(r"\s+", " ", query).strip().lower()
-
     general_queries = {
         "أهم أخبار السعودية والعالم اليوم",
         "اهم اخبار السعودية والعالم اليوم",
@@ -949,19 +948,17 @@ def fetch_news(query, limit=6):
 
     feeds = []
 
+    # المرحلة الأولى: قراءة بيانات RSS فقط دون فتح صفحات الناشرين.
     for search_query in searches:
         url = (
             "https://news.google.com/rss/search?q="
             + quote_plus(search_query)
             + "&hl=ar&gl=SA&ceid=SA:ar"
         )
-
         articles = []
 
         try:
-            response = requests.get(
-                url, headers=headers, timeout=10
-            )
+            response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             root = ET.fromstring(response.content)
 
@@ -978,7 +975,6 @@ def fetch_news(query, limit=6):
                     else ""
                 )
 
-                # التقاط صورة الخبر من وسوم Media RSS أو enclosure أو وصف الخبر.
                 image_url = ""
                 for image_tag in (
                     "{http://search.yahoo.com/mrss/}thumbnail",
@@ -991,13 +987,6 @@ def fetch_news(query, limit=6):
                             image_url = candidate
                             break
 
-                if not image_url:
-                    enclosure = item.find("enclosure")
-                    if enclosure is not None and (enclosure.get("type") or "").startswith("image/"):
-                        candidate = (enclosure.get("url") or "").strip()
-                        if candidate.startswith(("https://", "http://")):
-                            image_url = candidate
-
                 if not image_url and description_html:
                     image_match = re.search(
                         r"<img[^>]+src=['\"]([^'\"]+)['\"]",
@@ -1009,35 +998,6 @@ def fetch_news(query, limit=6):
                         if candidate.startswith(("https://", "http://")):
                             image_url = candidate
 
-                # إذا لم يرفق Google News صورة في RSS، نستخرج صورة الخبر
-                # من Open Graph أو Twitter Card لدى الناشر.
-                if not image_url and link.startswith(("https://", "http://")):
-                    try:
-                        page_response = requests.get(
-                            link,
-                            headers=headers,
-                            timeout=(3, 5),
-                            allow_redirects=True
-                        )
-                        if page_response.ok and page_response.url.startswith(("https://", "http://")):
-                            page_html = page_response.text[:500000]
-                            for meta_tag in re.findall(r"<meta\b[^>]*>", page_html, flags=re.IGNORECASE):
-                                attrs = {
-                                    key.lower(): html_lib.unescape(value)
-                                    for key, _, value in re.findall(
-                                        r"""([\w:-]+)\s*=\s*(['"])(.*?)\2""",
-                                        meta_tag
-                                    )
-                                }
-                                image_type = (attrs.get("property") or attrs.get("name") or "").lower()
-                                candidate = (attrs.get("content") or "").strip()
-                                if image_type in ("og:image", "og:image:url", "twitter:image", "twitter:image:src") and candidate.startswith(("https://", "http://")):
-                                    image_url = candidate
-                                    break
-                    except requests.RequestException:
-                        pass
-
-                # تنظيف وصف RSS وتحويله إلى ملخص نصي قصير.
                 summary = html_lib.unescape(re.sub(r"<[^>]+>", " ", description_html))
                 summary = re.sub(r"\s+", " ", summary).strip()
                 if title and summary.startswith(title):
@@ -1045,12 +1005,6 @@ def fetch_news(query, limit=6):
                 summary = summary[:360].strip()
 
                 if title and link.startswith(("https://", "http://")):
-                    print(
-                        "NEWS_IMAGE_DIAG",
-                        "title=", title[:100],
-                        "found=", bool(image_url),
-                        "image_url=", image_url or "NONE",
-                    )
                     articles.append({
                         "title": title,
                         "link": link,
@@ -1061,10 +1015,11 @@ def fetch_news(query, limit=6):
                     })
 
         except (requests.RequestException, ET.ParseError) as exc:
-            print("News fetch error:", type(exc).__name__, str(exc))
+            print("News RSS fetch error:", type(exc).__name__, str(exc))
 
         feeds.append(articles)
 
+    # المرحلة الثانية: دمج النتائج وإزالة التكرار واختيار العدد المطلوب أولاً.
     results = []
     seen = set()
     max_items = max((len(feed) for feed in feeds), default=0)
@@ -1076,7 +1031,6 @@ def fetch_news(query, limit=6):
 
             article = feed[index]
             key = re.sub(r"\W+", "", article["title"].casefold())
-
             if key and key not in seen:
                 seen.add(key)
                 results.append(article)
@@ -1086,6 +1040,125 @@ def fetch_news(query, limit=6):
 
         if len(results) >= limit:
             break
+
+    # المرحلة الثالثة: استخراج صور الناشرين للأخبار المختارة فقط.
+    # حد أقصى طلب واحد لكل خبر، مع مهلة قصيرة وسجل يوضح سبب الفشل.
+    for article in results:
+        if article.get("image"):
+            print(
+                "NEWS_IMAGE_DIAG",
+                "title=", article["title"][:90],
+                "stage=RSS",
+                "found=True",
+                "image_url=", article["image"][:220],
+            )
+            continue
+
+        link = article.get("link") or ""
+        if not link.startswith(("https://", "http://")):
+            print(
+                "NEWS_IMAGE_DIAG",
+                "title=", article["title"][:90],
+                "stage=publisher",
+                "found=False",
+                "reason=invalid_link",
+            )
+            continue
+
+        started = time.perf_counter()
+        try:
+            page_response = requests.get(
+                link,
+                headers=headers,
+                timeout=(2, 4),
+                allow_redirects=True
+            )
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            final_url = page_response.url or ""
+            image_url = ""
+
+            if page_response.ok and final_url.startswith(("https://", "http://")):
+                page_html = page_response.text[:500000]
+                for meta_tag in re.findall(
+                    r"<meta\b[^>]*>", page_html, flags=re.IGNORECASE
+                ):
+                    attrs = {
+                        key.lower(): html_lib.unescape(value)
+                        for key, _, value in re.findall(
+                            r"""([\w:-]+)\s*=\s*(['"])(.*?)\2""",
+                            meta_tag
+                        )
+                    }
+                    image_type = (
+                        attrs.get("property") or attrs.get("name") or ""
+                    ).lower()
+                    candidate = (attrs.get("content") or "").strip()
+
+                    if (
+                        image_type in (
+                            "og:image", "og:image:url",
+                            "twitter:image", "twitter:image:src"
+                        )
+                        and candidate.startswith(("https://", "http://"))
+                    ):
+                        image_url = urllib.parse.urljoin(final_url, candidate)
+                        break
+
+            if image_url:
+                article["image"] = image_url
+                reason = "image_found"
+            elif not page_response.ok:
+                reason = f"http_status_{page_response.status_code}"
+            elif not final_url.startswith(("https://", "http://")):
+                reason = "invalid_final_url"
+            else:
+                reason = "no_supported_image_meta"
+
+            print(
+                "NEWS_IMAGE_DIAG",
+                "title=", article["title"][:90],
+                "stage=publisher",
+                "found=", bool(image_url),
+                "reason=", reason,
+                "status=", page_response.status_code,
+                "final_url=", final_url[:220],
+                "elapsed_ms=", round(elapsed_ms),
+                "image_url=", image_url[:220] if image_url else "NONE",
+            )
+
+        except requests.Timeout as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            print(
+                "NEWS_IMAGE_DIAG",
+                "title=", article["title"][:90],
+                "stage=publisher",
+                "found=False",
+                "reason=timeout",
+                "elapsed_ms=", round(elapsed_ms),
+                "error=", str(exc)[:180],
+            )
+        except requests.RequestException as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            print(
+                "NEWS_IMAGE_DIAG",
+                "title=", article["title"][:90],
+                "stage=publisher",
+                "found=False",
+                "reason=request_error",
+                "elapsed_ms=", round(elapsed_ms),
+                "error=", str(exc)[:180],
+            )
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            print(
+                "NEWS_IMAGE_DIAG",
+                "title=", article["title"][:90],
+                "stage=publisher",
+                "found=False",
+                "reason=unexpected_error",
+                "elapsed_ms=", round(elapsed_ms),
+                "error=", repr(exc)[:180],
+            )
 
     if len(_news_cache) > 100:
         _news_cache.clear()
