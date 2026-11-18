@@ -1273,6 +1273,39 @@ function formatSavedBotHtml(html){
     return template.innerHTML;
 }
 
+function autoAttachWordDownload(messageEl, reportText, sourceName){
+    if(!messageEl || !reportText || messageEl.nextElementSibling?.classList.contains('auto-word-download'))return;
+    const box=document.createElement('div');
+    box.className='auto-word-download';
+    box.style.cssText='margin:8px 0 18px 46px;padding:12px 14px;border:1px solid #dce5ee;border-radius:12px;background:#f8fbff;display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
+    const label=document.createElement('span');
+    label.textContent='جاري تجهيز نسخة Word من الملخص...';
+    label.style.cssText='font-size:13px;color:#536779;';
+    box.appendChild(label);
+    messageEl.insertAdjacentElement('afterend',box);
+    fetch('/tools/export-summary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:reportText})})
+        .then(async function(response){
+            if(!response.ok){let data={};try{data=await response.json();}catch(e){}throw new Error(data.message||'تعذر تجهيز ملف Word');}
+            return response.blob();
+        })
+        .then(function(blob){
+            const url=URL.createObjectURL(blob);
+            const base=String(sourceName||'ملخص المستند').replace(/\.[^.]+$/,'').replace(/[\\:*?"<>|]/g,' ').trim().slice(0,90)||'ملخص المستند';
+            const link=document.createElement('a');
+            link.href=url;
+            link.download='ملخص - '+base+'.docx';
+            link.textContent='تحميل ملف Word';
+            link.style.cssText='display:inline-block;padding:8px 14px;border-radius:9px;background:#426b91;color:#fff;text-decoration:none;font-size:13px;font-weight:700;';
+            label.textContent='تم تجهيز المستند';
+            box.appendChild(link);
+            setTimeout(function(){URL.revokeObjectURL(url);},120000);
+        })
+        .catch(function(error){
+            label.textContent=error.message||'تعذر تجهيز ملف Word';
+            label.style.color='#b42318';
+        });
+}
+
 function addMessage(t,s,isSys,img,imageUrl,isHtml,rawText){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el}let content=isHtml?formatSavedBotHtml(t):formatBotText(t);if(isHtml&&rawText&&/```/.test(rawText)&&!content.includes('class="code-block"')){content=formatBotText(rawText);}if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}el.innerHTML=content;if(isHtml){el.classList.add('nibras-response');}if(s==='bot'&&!isSys){attachBotActions(el,rawText||t);}cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el;}
 
 function showImagePreview(d){ip.src=d;ipc.classList.add('show');}
@@ -1583,6 +1616,9 @@ async function sendMessage(){
             botEl.innerHTML=formatBotText(displayText);
             if(displayText&&displayText.trim().length>0){
                 attachBotActions(botEl,displayText);
+                if(pdfToSend && IS_REGISTERED){
+                    autoAttachWordDownload(botEl,displayText,pdfToSend);
+                }
                 ch.push({role:'assistant',content:displayText});
             }
             iw=false;
