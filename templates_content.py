@@ -1619,7 +1619,7 @@ async function sendMessage(){
     let _payloadMsg = msgText;
     if(!_payloadMsg && pdfToSend) _payloadMsg = "لخص لي محتوى الملف المرفق";
     if(!_payloadMsg) _payloadMsg = "مرفق";
-    const payload={message:_payloadMsg,image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito};
+    const payload={message:_payloadMsg,word_attachment:Boolean(pdfToSend && IS_REGISTERED),image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito};
     let displayText='';
     let bufferText='';
     let streamDone=false;
