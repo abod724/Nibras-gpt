@@ -1608,11 +1608,9 @@ def export_file_summary():
                                     "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", "Arial"
                                 )
                     continue
-                index += 1
-                line = clean_line
             else:
                 index += 1
-                line = clean_line
+            line = clean_line
             if not line:
                 continue
             paragraph = document.add_paragraph(style='List Bullet' if is_bullet else 'Normal')
