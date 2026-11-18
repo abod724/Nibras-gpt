@@ -1290,7 +1290,7 @@ function autoAttachWordDownload(messageEl, reportText, sourceName){
         })
         .then(function(blob){
             const url=URL.createObjectURL(blob);
-            const base=String(sourceName||'ملخص المستند').replace(/\.[^.]+$/,'').replace(/[\\/:*?"<>|]/g,' ').trim().slice(0,90)||'ملخص المستند';
+            const base=String(sourceName||'ملخص المستند').replace(/\.[^.]+$/,'').replace(/[\\:*?"<>|]/g,' ').trim().slice(0,90)||'ملخص المستند';
             const link=document.createElement('a');
             link.href=url;
             link.download='ملخص - '+base+'.docx';
