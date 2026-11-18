@@ -1369,21 +1369,40 @@ def merge_pdf_files():
 
 
 def clean_word_export_text(text):
-    """تنظيف نص المحادثة قبل تحويله إلى مستند Word دون استدعاء نموذج إضافي."""
+    """تحويل رد نبراس إلى نص مستند محايد دون استدعاء نموذج إضافي."""
     text = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
 
-    # حذف المقدمة الودية التي لا تضيف محتوى للمستند عند كونها مجرد إعلان عن التلخيص.
-    if paragraphs and re.search(
-        r"(?:لخصت لك|رتبتها|رتبته|جهزت لك).*(?:جاهز للنسخ|جاهزة للنسخ|للنسخ في Word|بصيغة)",
-        paragraphs[0],
-        flags=re.IGNORECASE
-    ):
-        paragraphs.pop(0)
-
     cleaned = []
     for paragraph in paragraphs:
-        # إزالة الجمل التي تنفي إمكانية إنشاء Word رغم أن المستخدم ضغط زر التصدير.
+        # حذف التحيات والنداءات الودية في بداية الرد فقط.
+        paragraph = re.sub(
+            r"^(?:(?:يا\s+(?:طويل\s+العمر|الغالي|عزيزي|أبو\s+[\u0600-\u06FF]+)|"
+            r"أبشر|أبشري|حياك\s+الله|تفضل|تفضلي)\s*[,،:!\-]?\s*)+",
+            "",
+            paragraph,
+            flags=re.IGNORECASE
+        ).strip()
+
+        # حذف جمل المزاح والتشبيهات الحوارية التي لا تنتمي إلى المستند.
+        paragraph = re.sub(
+            r"(?:[.!؟]?\s*)(?:زي\s+(?:شهادة|كأن|يعني)|"
+            r"خلّصت\s+التدريب\s+وجبتها\s+من\s+الآخر).*$",
+            "",
+            paragraph,
+            flags=re.IGNORECASE
+        ).strip()
+
+        # حذف عروض المساعدة والأسئلة الحوارية الختامية.
+        if re.match(
+            r"^(?:إذا\s+(?:تبي|تبغى|حبيت)|هل\s+تبي|أقدر\s+أساعدك|"
+            r"إذا\s+احتجت|علمني\s+إذا)",
+            paragraph,
+            flags=re.IGNORECASE
+        ):
+            continue
+
+        # إزالة جمل النفي المتناقضة مع وجود زر التصدير.
         if re.search(
             r"(?:ما أقدر أرسل لك من هنا نسخة Word|لا أستطيع.*(?:إنشاء|إرسال).*(?:Word|وورد)|"
             r"النص فوق جاهز للنسخ واللصق في Word)",
@@ -1391,11 +1410,23 @@ def clean_word_export_text(text):
             flags=re.IGNORECASE
         ):
             continue
-        cleaned.append(paragraph)
+
+        if paragraph:
+            cleaned.append(paragraph)
 
     text = "\n".join(cleaned)
-    # إزالة backslash الخاص بتهريب علامات Markdown فقط، دون المساس ببقية النص.
+    # إزالة رموز الإيموجي والعناصر الزخرفية من المستند.
+    text = re.sub(
+        r"[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0000FE0F\U0000200D]",
+        "",
+        text
+    )
+    # إزالة backslash الخاص بتهريب علامات Markdown فقط.
     text = re.sub(r"\\([*_~])", r"\1", text)
+    # تنظيف المسافات وعلامات الترقيم المتروكة بعد إزالة الزخارف.
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\s+([،؛:,.!?؟])", r"\1", text)
+    text = re.sub(r"[ \t]*\n[ \t]*", "\n", text)
     return text.strip()
 
 
