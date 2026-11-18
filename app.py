@@ -1370,43 +1370,18 @@ def merge_pdf_files():
 
 def prepare_word_report(text):
     """تهيئة رد نبراس كتقرير مستقل ومنظم محلياً دون استدعاء نموذج إضافي."""
-    text = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = html_lib.unescape(str(text or "")).replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = re.sub(r"(?i)\b(https?)\s*:\s*/\s*/", r"\1://", text)
     text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"(?<!\w)\*(.*?)\*(?!\w)", r"\1", text)
     text = re.sub(r"\\([*_~])", r"\1", text)
-
-    # حذف عبارات المحادثة فقط، مع إبقاء البيانات والحقائق.
-    text = re.sub(
-        r"(?im)^\s*(?:أبشر(?:،)?|حياك الله(?:،)?|يا طويل العمر(?:،)?|"
-        r"تفضل(?:،)?|لخصت لك(?: الملخص)?(?: التالي)?[:،]?)\s*",
-        "",
-        text
-    )
-    text = re.sub(
-        r"(?im)^\s*(?:إذا\s+(?:تبي|تبغى|حبيت)|هل\s+تبي|أقدر\s+أساعدك|"
-        r"إذا\s+احتجت|علمني\s+إذا).*$",
-        "",
-        text
-    )
-    text = re.sub(
-        r"(?i)(?:ما أقدر أرسل لك من هنا نسخة Word|لا أستطيع.*(?:إنشاء|إرسال).*(?:Word|وورد)|"
-        r"النص فوق جاهز للنسخ واللصق في Word)",
-        "",
-        text
-    )
-    text = re.sub(
-        r"[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0000FE0F\U0000200D]",
-        "",
-        text
-    )
-
-    # تحويل الوصف الافتتاحي إلى بيانات تقريرية بدلاً من أسلوب المحادثة.
-    text = re.sub(
-        r"(?i)الملف\s+عبارة\s+عن\s+([^،.\n]+)",
-        r"نوع المستند: \1",
-        text
-    )
+    text = re.sub(r"(?im)^\s*يا\s+[^،:：\n]{1,25}?[،،]?\s+(?:رتبت|جهزت|جمعت|استخرجت|لخصت)\s+لك[^\n]*(?:[:：])?\s*", "", text)
+    text = re.sub(r"(?im)^\s*(?:أبشر(?:،)?|حياك الله(?:،)?|يا طويل العمر(?:،)?|تفضل(?:،)?|لخصت لك(?: الملخص)?(?: التالي)?[:،]?)\s*", "", text)
+    text = re.sub(r"(?im)^\s*(?:إذا\s+(?:تبي|تبغى|حبيت)|هل\s+تبي|أقدر\s+أساعدك|إذا\s+احتجت|علمني\s+إذا|أتمنى أن أكون قد|يسعدني مساعدتك).*$", "", text)
+    text = re.sub(r"(?i)(?:ما أقدر أرسل لك من هنا نسخة Word|لا أستطيع.*(?:إنشاء|إرسال).*(?:Word|وورد)|النص فوق جاهز للنسخ واللصق في Word)", "", text)
+    text = re.sub(r"[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0000FE0F\U0000200D]", "", text)
+    text = re.sub(r"(?i)الملف\s+عبارة\s+عن\s+([^،.\n]+)", r"نوع المستند: \1", text)
     text = re.sub(r"(?i)وفترتها\s+من\s+", "فترة الفاتورة: من ", text)
     text = re.sub(r"(?i)وفترته\s+من\s+", "فترة المستند: من ", text)
     text = re.sub(r"(?i)وعدد\s+الأيام\s+", "عدد الأيام: ", text)
@@ -1414,32 +1389,68 @@ def prepare_word_report(text):
     text = re.sub(r"(?i)الاستهلاك\s+المسجل\s+", "الاستهلاك المسجل: ", text)
     text = re.sub(r"(?i)الفاتورة\s+تذكر\s+بعد\s+خيار\s+الفاتورة\s+الثابتة\s+بقيمة\s+", "قيمة الفاتورة الثابتة: ", text)
     text = re.sub(r"(?i)خيار\s+الفاتورة\s+الثابتة\s+بقيمة\s+", "قيمة الفاتورة الثابتة: ", text)
-    text = re.sub(
-        r"(?i)و?العداد\s+مسجل\s+عليه\s+قراءة\s+بداية\s+([\d,.]+)\s+ونهاية\s+([\d,.]+)",
-        r"قراءة العداد السابقة: \1\nقراءة العداد الحالية: \2",
-        text
-    )
+    text = re.sub(r"(?i)و?العداد\s+مسجل\s+عليه\s+قراءة\s+بداية\s+([\d,.]+)\s+ونهاية\s+([\d,.]+)", r"قراءة العداد السابقة: \1\nقراءة العداد الحالية: \2", text)
     text = re.sub(r"(?i)\.\s*(الاستهلاك المسجل:)", r"\n\1", text)
-
-    # تنسيق كل معلومة في سطر مستقل متى كانت مفصولة بفاصلة عربية.
-    text = re.sub(r"،\s*(?=(?:فترة الفاتورة|فترة المستند|عدد الأيام|الاستهلاك المسجل|قراءة العداد السابقة):)", "\n", text)
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"\s+([،؛:,.!?؟])", r"\1", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-
-    # تحديد عنوان مناسب حسب نوع المستند دون تخمين محتواه.
     joined = "\n".join(lines)
     if re.search(r"فاتورة\s+(?:كهرباء|الكهرباء)|الكهرباء\s+السكنية", joined, re.IGNORECASE):
         title = "ملخص فاتورة الكهرباء"
     elif re.search(r"فاتورة", joined):
         title = "ملخص الفاتورة"
+    elif re.search(r"عقد|اتفاقية", joined):
+        title = "ملخص العقد"
+    elif re.search(r"شهادة", joined):
+        title = "ملخص الشهادة"
     else:
         title = "ملخص المستند"
-
-    # حذف عنوان قديم حتى لا يتكرر في الملف.
-    lines = [line for line in lines if not re.fullmatch(r"(?:ملخص الملف|ملخص المستند|ملخص فاتورة الكهرباء)", line)]
+    lines = [line for line in lines if not re.fullmatch(r"(?:ملخص الملف|ملخص المستند|ملخص فاتورة الكهرباء|ملخص الفاتورة|ملخص العقد|ملخص الشهادة)", line)]
     return title, lines
+
+
+def add_word_hyperlinks(paragraph, text):
+    """إضافة الروابط بصيغة قابلة للنقر داخل Word."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    pattern = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)|(https?://[^\s<>]+)", re.IGNORECASE)
+    cursor = 0
+    for match in pattern.finditer(text):
+        if match.start() > cursor:
+            paragraph.add_run(text[cursor:match.start()])
+        label = html_lib.unescape(match.group(1) or match.group(3))
+        url = html_lib.unescape(match.group(2) or match.group(3)).rstrip(".,،؛)")
+        rel_id = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+        hyperlink = OxmlElement("w:hyperlink")
+        hyperlink.set(qn("r:id"), rel_id)
+        run = OxmlElement("w:r")
+        props = OxmlElement("w:rPr")
+        color = OxmlElement("w:color")
+        color.set(qn("w:val"), "0563C1")
+        props.append(color)
+        underline = OxmlElement("w:u")
+        underline.set(qn("w:val"), "single")
+        props.append(underline)
+        run.append(props)
+        node = OxmlElement("w:t")
+        node.text = label
+        run.append(node)
+        hyperlink.append(run)
+        paragraph._p.append(hyperlink)
+        cursor = match.end()
+    if cursor < len(text):
+        paragraph.add_run(text[cursor:])
+
+
+def is_word_table_separator(line):
+    cells = [cell.strip().replace(" ", "") for cell in line.strip().strip("|").split("|")]
+    return len(cells) >= 2 and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
+
+
+def split_word_table_row(line):
+    return [html_lib.unescape(cell.strip()) for cell in line.strip().strip("|").split("|")]
 
 
 @app.route('/tools/export-summary', methods=['POST'])
@@ -1475,29 +1486,63 @@ def export_file_summary():
                 '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
             )
 
-        for raw_line in report_lines:
-            line = raw_line.strip()
+        index = 0
+        while index < len(report_lines):
+            line = report_lines[index].strip()
             if not line:
+                index += 1
                 continue
-
+            if "|" in line and line.count("|") >= 2:
+                table_lines = []
+                while index < len(report_lines):
+                    candidate = report_lines[index].strip()
+                    if "|" not in candidate or candidate.count("|") < 2:
+                        break
+                    table_lines.append(candidate)
+                    index += 1
+                rows = [split_word_table_row(row) for row in table_lines if not is_word_table_separator(row)]
+                if rows:
+                    column_count = max(len(row) for row in rows)
+                    table = document.add_table(rows=0, cols=column_count)
+                    table.style = "Table Grid"
+                    try:
+                        from docx.oxml import OxmlElement
+                        table._tbl.tblPr.append(OxmlElement("w:bidiVisual"))
+                    except Exception:
+                        pass
+                    for row_number, values in enumerate(rows):
+                        cells = table.add_row().cells
+                        for col_number in range(column_count):
+                            cell = cells[col_number]
+                            cell.text = ""
+                            paragraph = cell.paragraphs[0]
+                            paragraph.alignment = 2
+                            add_word_hyperlinks(paragraph, values[col_number] if col_number < len(values) else "")
+                            if row_number == 0:
+                                for run in paragraph.runs:
+                                    run.bold = True
+                            for run in paragraph.runs:
+                                run.font.name = "Arial"
+                                run._element.get_or_add_rPr().rFonts.set(
+                                    "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", "Arial"
+                                )
+                    continue
+            index += 1
             is_bullet = bool(re.match(r'^(?:[-*•])\s+', line))
             line = re.sub(r'^(?:[-*•])\s+', '', line).strip()
             if not line:
                 continue
-
             paragraph = document.add_paragraph(style='List Bullet' if is_bullet else 'Normal')
-            # إبراز اسم الحقل قبل النقطتين، مع إبقاء القيمة كما وردت.
             if ":" in line:
                 label, value = line.split(":", 1)
                 paragraph.add_run(label.strip() + ": ").bold = True
-                paragraph.add_run(value.strip())
+                add_word_hyperlinks(paragraph, value.strip())
             elif "：" in line:
                 label, value = line.split("：", 1)
                 paragraph.add_run(label.strip() + "：").bold = True
-                paragraph.add_run(value.strip())
+                add_word_hyperlinks(paragraph, value.strip())
             else:
-                paragraph.add_run(line)
-
+                add_word_hyperlinks(paragraph, line)
             paragraph.alignment = 2
             paragraph.paragraph_format.space_after = 6
             for run in paragraph.runs:
