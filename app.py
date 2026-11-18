@@ -7,7 +7,7 @@ monkey.patch_all()
 from flask import (
     Flask, request, jsonify, render_template_string,
     session, redirect, url_for, send_from_directory,
-    Response, stream_with_context
+    Response, stream_with_context, send_file
 )
 import openai, os, secrets, json, base64, re, requests, time
 from datetime import datetime, timedelta, date as _date
@@ -1257,6 +1257,82 @@ def upload_pdf():
     except Exception as e:
         print("upload_pdf error:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/tools/merge-pdf', methods=['POST'])
+@limiter.limit("10 per hour")
+def merge_pdf_files():
+    documents = []
+    merged = None
+    try:
+        user_email = session.get('user_email', '')
+        is_admin = bool(session.get('is_admin'))
+        user_role = get_user_role(user_email) if user_email else 'guest'
+        is_registered = is_admin or (bool(user_email) and user_role in ('user', 'admin'))
+        if not is_registered:
+            return jsonify({"status": "error", "message": "دمج الملفات متاح للمستخدمين المسجلين فقط."}), 403
+
+        uid = get_user_id()
+        _, _, _, _, _, can_file = check_limits(
+            uid, user_role if not is_admin else 'admin', email_str=user_email or None
+        )
+        if not can_file:
+            return jsonify({"status": "error", "message": "وصلت للحد اليومي لتنفيذ مهام الملفات."}), 429
+
+        files = [f for f in request.files.getlist('files') if f and f.filename]
+        if len(files) < 2:
+            return jsonify({"status": "error", "message": "اختر ملفي PDF على الأقل للدمج."}), 400
+        if len(files) > 10:
+            return jsonify({"status": "error", "message": "يمكن دمج 10 ملفات كحد أقصى في العملية الواحدة."}), 400
+
+        total_bytes = 0
+        total_pages = 0
+        merged = fitz.open()
+        for uploaded in files:
+            if not uploaded.filename.lower().endswith('.pdf'):
+                return jsonify({"status": "error", "message": "هذه المهمة تدعم ملفات PDF فقط."}), 400
+            file_bytes = uploaded.read()
+            total_bytes += len(file_bytes)
+            if total_bytes > 8 * 1024 * 1024:
+                return jsonify({"status": "error", "message": "الحجم الإجمالي للملفات يتجاوز 8 ميجابايت."}), 413
+            if not file_bytes:
+                return jsonify({"status": "error", "message": "أحد الملفات فارغ."}), 400
+            try:
+                source_doc = fitz.open(stream=file_bytes, filetype="pdf")
+            except Exception:
+                return jsonify({"status": "error", "message": "تعذر قراءة أحد ملفات PDF. تأكد أن الملف سليم."}), 400
+            documents.append(source_doc)
+            if source_doc.needs_pass:
+                return jsonify({"status": "error", "message": "أحد الملفات محمي بكلمة مرور؛ أزل الحماية ثم أعد المحاولة."}), 400
+            total_pages += len(source_doc)
+            if total_pages > 300:
+                return jsonify({"status": "error", "message": "إجمالي الصفحات يتجاوز الحد المسموح (300 صفحة)."}), 400
+            merged.insert_pdf(source_doc)
+
+        output_bytes = merged.tobytes(garbage=3, deflate=True)
+        if len(output_bytes) > 24 * 1024 * 1024:
+            return jsonify({"status": "error", "message": "حجم الملف الناتج كبير جداً للتنزيل."}), 413
+        inc_usage(uid, "file_count")
+        return send_file(
+            io.BytesIO(output_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name="Nibras_Merged.pdf",
+            max_age=0
+        )
+    except Exception as e:
+        print("merge_pdf_files error:", e)
+        return jsonify({"status": "error", "message": "تعذر دمج الملفات حالياً. حاول مرة أخرى."}), 500
+    finally:
+        if merged is not None:
+            try:
+                merged.close()
+            except Exception:
+                pass
+        for document in documents:
+            try:
+                document.close()
+            except Exception:
+                pass
 
 @app.route('/clear_pdf', methods=['POST'])
 def clear_pdf():
