@@ -381,6 +381,39 @@ def check_limits(uid, role, email_str=None):
     can_file = int(usage.get("file_count", 0) or 0) < limits.get("file", 0)
     return usage, limits, can_chat, can_search, can_image, can_file
 
+
+def file_trial_available(email_str):
+    """تحقق من توفر تجربة الملفات الدائمة للمستخدم المسجل."""
+    if not email_str:
+        return False
+    try:
+        email_key = email_str.lower().strip()
+        save_user_profile(email_key)
+        result = (sb.table("profiles").select("file_trial_used")
+                  .eq("email", email_key).limit(1).execute())
+        if not result.data:
+            return False
+        return result.data[0].get("file_trial_used") is False
+    except Exception as e:
+        print("file_trial_available:", e)
+        return False
+
+
+def claim_file_trial(email_str):
+    """حجز تجربة واحدة ذرياً؛ لا يسمح بطلبين متزامنين باستهلاكها مرتين."""
+    if not email_str:
+        return False
+    try:
+        email_key = email_str.lower().strip()
+        result = (sb.table("profiles").update({"file_trial_used": True})
+                  .eq("email", email_key)
+                  .eq("file_trial_used", False)
+                  .select("email").execute())
+        return bool(result.data)
+    except Exception as e:
+        print("claim_file_trial:", e)
+        return False
+
 def get_user_conversations(uid):
     try:
         r = (sb.table("assistant_chats").select("conv_id,title,created_at").eq("user_id", uid).order("created_at", desc=True).limit(200).execute())
@@ -1180,14 +1213,8 @@ def upload_pdf():
             return jsonify({"status": "error", "message": "رفع الملفات للمسجلين فقط."}), 403
 
         uid = get_user_id()
-        usage, limits, can_chat, can_search, can_image, can_file = check_limits(
-            uid,
-            user_role if not is_admin else 'admin',
-            email_str=user_email or None
-        )
-
-        if not can_file:
-            return jsonify({"status": "error", "message": "وصلت للحد الأقصى لرفع الملفات اليوم."}), 429
+        if not is_admin and not file_trial_available(user_email):
+            return jsonify({"status": "error", "message": "استخدمت مهمة الملفات التجريبية الوحيدة. شكراً لتجربتك نبراس GP."}), 429
 
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "لم يتم إرسال ملف"}), 400
@@ -1251,8 +1278,9 @@ def upload_pdf():
         else:
             user_pdf_context[uid] = {"filename": file.filename, "chunks": chunks}
         
-        inc_usage(uid, "file_count")
-        
+        if not is_admin and not claim_file_trial(user_email):
+            return jsonify({"status": "error", "message": "انتهت مهمة الملفات التجريبية أو استُخدمت من طلب آخر."}), 429
+
         return jsonify({"status": "ok", "message": "تم تجهيز الملف بنجاح!", "filename": file.filename})
     except Exception as e:
         print("upload_pdf error:", e)
@@ -1272,11 +1300,8 @@ def merge_pdf_files():
             return jsonify({"status": "error", "message": "دمج الملفات متاح للمستخدمين المسجلين فقط."}), 403
 
         uid = get_user_id()
-        _, _, _, _, _, can_file = check_limits(
-            uid, user_role if not is_admin else 'admin', email_str=user_email or None
-        )
-        if not can_file:
-            return jsonify({"status": "error", "message": "وصلت للحد اليومي لتنفيذ مهام الملفات."}), 429
+        if not is_admin and not file_trial_available(user_email):
+            return jsonify({"status": "error", "message": "استخدمت مهمة الملفات التجريبية الوحيدة. شكراً لتجربتك نبراس GP."}), 429
 
         files = [f for f in request.files.getlist('files') if f and f.filename]
         if len(files) < 2:
@@ -1311,7 +1336,8 @@ def merge_pdf_files():
         output_bytes = merged.tobytes(garbage=3, deflate=True)
         if len(output_bytes) > 24 * 1024 * 1024:
             return jsonify({"status": "error", "message": "حجم الملف الناتج كبير جداً للتنزيل."}), 413
-        inc_usage(uid, "file_count")
+        if not is_admin and not claim_file_trial(user_email):
+            return jsonify({"status": "error", "message": "انتهت مهمة الملفات التجريبية أو استُخدمت من طلب آخر."}), 429
         return send_file(
             io.BytesIO(output_bytes),
             mimetype="application/pdf",
