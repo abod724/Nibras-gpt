@@ -1545,9 +1545,74 @@ def export_file_summary():
                                     "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", "Arial"
                                 )
                     continue
-            index += 1
             is_bullet = bool(re.match(r'^(?:[-*•])\s+', line))
-            line = re.sub(r'^(?:[-*•])\s+', '', line).strip()
+            clean_line = re.sub(r'^(?:[-*•])\s+', '', line).strip()
+            heading_match = (
+                not is_bullet
+                and not re.search(r'[:：.!?؟]', clean_line)
+                and len(clean_line) <= 70
+                and re.match(r'^(?:بيانات|تفاصيل|روابط|ملاحظات|ملخص|نتيجة|التزامات|حقوق|واجبات|الأطراف|الشروط|الأحكام|الرسوم|مدة|نطاق)', clean_line)
+            )
+            if heading_match:
+                index += 1
+                section_heading = document.add_heading(clean_line, level=2)
+                section_heading.alignment = 2
+                section_heading.paragraph_format.space_before = 12
+                section_heading.paragraph_format.space_after = 6
+                for run in section_heading.runs:
+                    run.font.name = 'Arial'
+                    run._element.get_or_add_rPr().rFonts.set(
+                        '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
+                    )
+                continue
+            field_match = re.match(r'^(?:[-*•]\s*)?([^:：]{1,55})[:：]\s*(.+)$', line)
+            if field_match:
+                field_rows = []
+                while index < len(report_lines):
+                    candidate = report_lines[index].strip()
+                    match = re.match(r'^(?:[-*•]\s*)?([^:：]{1,55})[:：]\s*(.+)$', candidate)
+                    if not match:
+                        break
+                    field_rows.append((match.group(1).strip(), match.group(2).strip()))
+                    index += 1
+                if len(field_rows) >= 2:
+                    table = document.add_table(rows=0, cols=2)
+                    table.style = "Table Grid"
+                    try:
+                        from docx.oxml import OxmlElement
+                        from docx.oxml.ns import qn
+                        table._tbl.tblPr.append(OxmlElement("w:bidiVisual"))
+                    except Exception:
+                        pass
+                    for label_text, value_text in field_rows:
+                        cells = table.add_row().cells
+                        for cell, value, is_label in ((cells[0], label_text, True), (cells[1], value_text, False)):
+                            cell.text = ""
+                            paragraph = cell.paragraphs[0]
+                            paragraph.alignment = 2
+                            add_word_hyperlinks(paragraph, value)
+                            if is_label:
+                                for run in paragraph.runs:
+                                    run.bold = True
+                                try:
+                                    from docx.oxml import OxmlElement
+                                    from docx.oxml.ns import qn
+                                    shade = OxmlElement("w:shd")
+                                    shade.set(qn("w:fill"), "EEF3F8")
+                                    cell._tc.get_or_add_tcPr().append(shade)
+                                except Exception:
+                                    pass
+                            for run in paragraph.runs:
+                                run.font.name = "Arial"
+                                run._element.get_or_add_rPr().rFonts.set(
+                                    "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia", "Arial"
+                                )
+                    continue
+                index += 1
+                line = clean_line
+            else:
+                index += 1
+                line = clean_line
             if not line:
                 continue
             paragraph = document.add_paragraph(style='List Bullet' if is_bullet else 'Normal')
