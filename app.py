@@ -372,6 +372,27 @@ def inc_usage(uid, field):
     except Exception as e: print("inc_usage:", e)
     return current
 
+def change_search_slot(uid, day, change, limit):
+    """احجز بحثاً أو أعد حصته مع حماية العداد من الطلبات المتزامنة."""
+    try:
+        for _ in range(4):
+            table = sb.table("assistant_usage")
+            result = table.select("search_count").eq("user_id", uid).eq("date", day).limit(1).execute()
+            if not result.data:
+                return False
+            previous = result.data[0].get("search_count")
+            updated = int(previous or 0) + change
+            if updated < 0 or (change > 0 and updated > limit):
+                return False
+            update = table.update({"search_count": updated}).eq("user_id", uid).eq("date", day)
+            update = update.is_("search_count", "null") if previous is None else update.eq("search_count", previous)
+            if update.execute().data:
+                return True
+    except Exception as exc:
+        print(f"[SEARCH_QUOTA] {type(exc).__name__}")
+    return False
+
+
 def check_limits(uid, role, email_str=None):
     usage = get_usage_today(uid)
     limits = LIMITS.get(role, LIMITS["guest"])
@@ -853,7 +874,7 @@ def should_web_search(message):
     explicit_freshness = [
         "اخر تحديث", "احدث", "اخر اصدار", "اخر نسخه",
         "اخر المستجدات", "اخر مستجدات", "اخر التطورات",
-        "اخر تطورات", "latest", "recent", "up to date"
+        "اخر تطورات", "اخر الاحداث", "latest", "recent", "up to date"
     ]
     if contains_phrase(explicit_freshness):
         return True
@@ -879,9 +900,8 @@ def should_web_search(message):
 
 def contextual_search_decision(message, history=None):
     """تقييم نية البحث مع سياق المحادثة؛ الرجوع للقواعد القديمة عند تعذر التصنيف."""
-    fallback = should_web_search(message)
     if not isinstance(message, str) or not message.strip():
-        return fallback, message
+        return "NO", message
     history = history or []
     context = []
     for item in history[-8:]:
@@ -890,17 +910,19 @@ def contextual_search_decision(message, history=None):
         content = item.get("content")
         if isinstance(content, str) and content.strip():
             context.append({"role": item["role"], "content": content[:700]})
-    normalized = re.sub(r"\\s+", " ", message.strip().lower())
+    normalized = re.sub(r"[؟?!،,.\s]+", " ", message.lower()).strip()
+    normalized = normalized.translate(str.maketrans("أإآ", "ااا"))
     if normalized in {"السلام عليكم", "هلا", "مرحبا", "صباح الخير", "مساء الخير",
-                      "كيف حالك", "شلونك", "وش اخبارك", "وش أخبارك", "شكرا", "شكراً"}:
-        return False, message
+                      "كيف حالك", "شلونك", "اخبارك", "وش اخبارك", "وش اخبارك اليوم", "شكرا", "شكراً"}:
+        return "NO", message
     try:
         decision = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[{"role": "system", "content": (
                 "أنت موجّه بحث لنبراس GP. اقرأ رسالة المستخدم وسياق المحادثة. "
-                "أجب بسطرين فقط: السطر الأول SEARCH أو NO، والثاني استعلام بحث مستقل وواضح "
-                "إذا اخترت SEARCH، أو اتركه فارغًا عند NO. "
+                "أجب بسطرين فقط: السطر الأول NEWS أو SEARCH أو NO، والثاني استعلام بحث مستقل وواضح "
+                "عند البحث، أو اتركه فارغًا عند NO. "
+                "اختر NEWS لطلب عناوين أو موجز أخبار. احتفظ بالموضوع أو البلد المذكور في السياق، واستخدم «أهم أخبار السعودية والعالم اليوم» للنشرة العامة. "
                 "اختر SEARCH إذا كان الجواب يحتاج مستجدات أو معلومات متغيرة أو تحققًا من خبر، "
                 "حتى إن لم يذكر المستخدم كلمة بحث. افهم الإحالات مثل: طيب والسعودية؟ "
                 "واربطها بموضوع الحوار السابق. "
@@ -914,15 +936,18 @@ def contextual_search_decision(message, history=None):
         content = (decision.choices[0].message.content or "").strip()
         parts = content.splitlines()
         verdict = parts[0].strip().upper() if parts else ""
-        if verdict == "SEARCH":
+        if verdict in {"NEWS", "SEARCH"}:
             query = " ".join(parts[1:]).strip()[:250] or message
-            return True, query
+            return verdict, query
         if verdict == "NO":
-            return False, message
+            return "NO", message
         print("[SEARCH_DECISION] unexpected_format")
     except Exception as exc:
         print(f"[SEARCH_DECISION] fallback: {type(exc).__name__}: {exc}")
-    return fallback, message
+    news_query = detect_news_query(message)
+    if news_query:
+        return "NEWS", news_query
+    return ("SEARCH" if should_web_search(message) else "NO"), message
 
 
 def detect_news_query(message):
@@ -939,7 +964,7 @@ def detect_news_query(message):
         "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ة": "ه"
     }))
     normalized = re.sub(r"[؟?!،,.]", " ", normalized)
-    normalized = re.sub(r"\\s+", " ", normalized).strip()
+    normalized = re.sub(r"\s+", " ", normalized).strip()
 
     # أسئلة التحقق من صحة خبر محدد ليست طلباً لنشرة Google News.
     verification_phrases = [
@@ -968,7 +993,7 @@ def detect_news_query(message):
         "اخر المستجدات", "وش جديد الاخبار", "اخبار السعودية والعالم",
         "اهم اخبار السعودية والعالم"
     ]
-    if any(p in normalized for p in general_news_markers):
+    if normalized in general_news_markers:
         return "أهم أخبار السعودية والعالم اليوم"
 
     # يجب أن تكون كلمة الأخبار مقصودة كطلب، لا مجرد ورود كلمة «خبر».
@@ -987,8 +1012,8 @@ def detect_news_query(message):
         "وريني", "شوف", "اخبار", "الاخبار", "news"
     ]
     for word in filler_words:
-        topic = re.sub(rf"(?<!\\w){re.escape(word)}(?!\\w)", " ", topic)
-    topic = re.sub(r"\\s+", " ", topic).strip(" ؟?!،,.")
+        topic = re.sub(rf"(?<!\w){re.escape(word)}(?!\w)", " ", topic)
+    topic = re.sub(r"\s+", " ", topic).strip(" ؟?!،,.")
 
     if len(topic) >= 2:
         return topic[:150]
@@ -2936,20 +2961,29 @@ def chat():
             })
 
         news_articles = None
-        if is_registered and um and not has_image:
+        search_route, search_query = "NO", um
+        search_day = usage.get("date") or _date.today().isoformat()
+        admin_search = is_admin or user_role == "admin"
+        search_reserved = False
+        if is_registered and (can_search or admin_search) and um and not has_image:
+            search_route, search_query = contextual_search_decision(um, server_hist[:-1])
+            if search_route != "NO" and not admin_search:
+                search_reserved = change_search_slot(uid, search_day, 1, limits["search"])
+                if not search_reserved:
+                    search_route = "NO"
+                    can_search = False
+        if search_route == "NEWS":
             try:
-                news_query = detect_news_query(um)
-                if news_query:
-                    news_articles = fetch_news(news_query, limit=10)
-                    if news_articles:
-                        inc_usage(uid, "search_count")
-                        print(f"📰 News found for '{news_query}': {len(news_articles)} articles")
+                news_articles = fetch_news(search_query, limit=10)
             except Exception as e:
                 print(f"news error: {e}")
+            if not news_articles:
+                search_route = "SEARCH"
         _chat_timing("news_detection_and_fetch")
 
         if news_articles:
-            news_titles = "\n".join([f"- {a['title']} (المصدر: {a['source']})" for a in news_articles[:3]])
+            if admin_search:
+                inc_usage(uid, "search_count")
             news_intro = (
                 "أبشر، هذي أهم الأخبار اللي جمعتها لك:"
                 if user_lang == "ar"
@@ -2988,20 +3022,16 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        _search_needed = False
-        _search_query = um
-        if is_registered and can_search and um and not has_image:
-            _search_needed, _search_query = contextual_search_decision(um, server_hist[:-1])
-            print(f"[SEARCH_DECISION] needed={_search_needed} query={_search_query[:120]!r}")
-        if is_registered and can_search and _search_needed:
+        if search_route == "SEARCH":
             _search_started_at = time.perf_counter()
             _search_succeeded = False
             try:
                 sr = client.responses.create(
                     model=OPENAI_MODEL,
                     instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
-                    input=f"ابحث عن أحدث المعلومات مع مصادرها وتواريخها: {_search_query}",
-                    tools=[{"type": "web_search"}]
+                    input=f"ابحث عن أحدث المعلومات مع مصادرها وتواريخها: {search_query}",
+                    tools=[{"type": "web_search"}],
+                    tool_choice="required"
                 )
                 res = ""
                 if hasattr(sr, "output_text") and sr.output_text:
@@ -3012,18 +3042,24 @@ def chat():
                 if res:
                     msgs.append({"role": "system", "content": f"نتائج البحث الفعلية من الويب (بيانات داخلية مو رسالة من المستخدم):\n\n{res}"})
                     _search_succeeded = True
-                    inc_usage(uid, "search_count")
+                    if admin_search:
+                        inc_usage(uid, "search_count")
             except Exception as e:
                 print(f"فشل البحث ({type(e).__name__}): {e}")
             finally:
+                if search_reserved and not _search_succeeded:
+                    if not change_search_slot(uid, search_day, -1, limits["search"]):
+                        print("[SEARCH_QUOTA] refund failed")
                 _search_ms = (time.perf_counter() - _search_started_at) * 1000
-                _search_status = "results" if _search_succeeded else "no results; quota unchanged"
+                _search_status = "results" if _search_succeeded else "no results"
                 print(f"[CHAT_TIMING] web_search: {_search_ms:.0f}ms ({_search_status})")
         elif is_registered and can_search:
             print("[CHAT_TIMING] web_search: skipped (no search intent)")
         else:
             print("[CHAT_TIMING] web_search: skipped (not eligible or quota exhausted)")
-        if is_registered and can_search and _search_needed and not _search_succeeded:
+        if is_registered and not admin_search and not can_search:
+            msgs.append({"role": "system", "content": "البحث المباشر غير متاح حاليًا لهذا الحساب. إذا احتاج السؤال مصدرًا حديثًا وضّح ذلك ولا تخمّن. أجب عن الأسئلة الأخرى كالمعتاد."})
+        if search_route == "SEARCH" and not _search_succeeded:
             msgs.append({"role": "system", "content": "تعذر الحصول على نتائج بحث حديثة موثوقة لهذا الطلب. لا تدّعِ أن البحث نجح، ولا تخترع أخبارًا أو روابط أو تواريخ. وضّح أن التحقق المباشر لم ينجح."})
         _chat_timing("pre_stream_ready")
 
