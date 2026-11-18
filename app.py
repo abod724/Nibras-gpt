@@ -877,6 +877,54 @@ def should_web_search(message):
     return contains_phrase(freshness) and contains_phrase(current_topics)
 
 
+def contextual_search_decision(message, history=None):
+    """تقييم نية البحث مع سياق المحادثة؛ الرجوع للقواعد القديمة عند تعذر التصنيف."""
+    fallback = should_web_search(message)
+    if not isinstance(message, str) or not message.strip():
+        return fallback, message
+    history = history or []
+    context = []
+    for item in history[-8:]:
+        if not isinstance(item, dict) or item.get("role") not in ("user", "assistant"):
+            continue
+        content = item.get("content")
+        if isinstance(content, str) and content.strip():
+            context.append({"role": item["role"], "content": content[:700]})
+    normalized = re.sub(r"\\s+", " ", message.strip().lower())
+    if normalized in {"السلام عليكم", "هلا", "مرحبا", "صباح الخير", "مساء الخير",
+                      "كيف حالك", "شلونك", "وش اخبارك", "وش أخبارك", "شكرا", "شكراً"}:
+        return False, message
+    try:
+        decision = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "system", "content": (
+                "أنت موجّه بحث لنبراس GP. اقرأ رسالة المستخدم وسياق المحادثة. "
+                "أجب بسطرين فقط: السطر الأول SEARCH أو NO، والثاني استعلام بحث مستقل وواضح "
+                "إذا اخترت SEARCH، أو اتركه فارغًا عند NO. "
+                "اختر SEARCH إذا كان الجواب يحتاج مستجدات أو معلومات متغيرة أو تحققًا من خبر، "
+                "حتى إن لم يذكر المستخدم كلمة بحث. افهم الإحالات مثل: طيب والسعودية؟ "
+                "واربطها بموضوع الحوار السابق. "
+                "اختر NO للسوالف والتحيات والكتابة والترجمة والأسئلة المعرفية الثابتة "
+                "والتعليق على نتائج سبق عرضها، ما لم يُطلب تحديثها. "
+                "لا تختر SEARCH لسؤال اجتماعي مثل وش أخبارك. "
+                "لا تجب عن سؤال المستخدم ولا تخترع أخبارًا."
+            )}] + context + [{"role": "user", "content": message[:1200]}],
+            max_completion_tokens=110
+        )
+        content = (decision.choices[0].message.content or "").strip()
+        parts = content.splitlines()
+        verdict = parts[0].strip().upper() if parts else ""
+        if verdict == "SEARCH":
+            query = " ".join(parts[1:]).strip()[:250] or message
+            return True, query
+        if verdict == "NO":
+            return False, message
+        print("[SEARCH_DECISION] unexpected_format")
+    except Exception as exc:
+        print(f"[SEARCH_DECISION] fallback: {type(exc).__name__}: {exc}")
+    return fallback, message
+
+
 def detect_news_query(message):
     """تفعيل Google News فقط عند طلب نشرة أو أخبار عن موضوع محدد."""
     if not message or not isinstance(message, str):
@@ -2940,14 +2988,19 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        if is_registered and can_search and should_web_search(um):
+        _search_needed = False
+        _search_query = um
+        if is_registered and can_search and um and not has_image:
+            _search_needed, _search_query = contextual_search_decision(um, server_hist[:-1])
+            print(f"[SEARCH_DECISION] needed={_search_needed} query={_search_query[:120]!r}")
+        if is_registered and can_search and _search_needed:
             _search_started_at = time.perf_counter()
             _search_succeeded = False
             try:
                 sr = client.responses.create(
                     model=OPENAI_MODEL,
                     instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
-                    input=f"ابحث عن أحدث المعلومات: {um}",
+                    input=f"ابحث عن أحدث المعلومات مع مصادرها وتواريخها: {_search_query}",
                     tools=[{"type": "web_search"}]
                 )
                 res = ""
@@ -2970,7 +3023,7 @@ def chat():
             print("[CHAT_TIMING] web_search: skipped (no search intent)")
         else:
             print("[CHAT_TIMING] web_search: skipped (not eligible or quota exhausted)")
-        _chat_timing("pre_stream_ready")
+        if is_registered and can_search and _search_needed and not _search_succeeded:\n            msgs.append({"role": "system", "content": "تعذر الحصول على نتائج بحث حديثة موثوقة لهذا الطلب. لا تدّعِ أن البحث نجح، ولا تخترع أخبارًا أو روابط أو تواريخ. وضّح أن التحقق المباشر لم ينجح."})\n        _chat_timing("pre_stream_ready")
 
         def generate():
             full_reply = ""
