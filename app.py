@@ -877,40 +877,6 @@ def should_web_search(message):
     return contains_phrase(freshness) and contains_phrase(current_topics)
 
 
-def decide_web_search(message):
-    """اختيار البحث تلقائيًا: قواعد سريعة، ثم مصنّف للأسئلة غير الواضحة."""
-    if should_web_search(message):
-        return True
-    if not isinstance(message, str) or not message.strip():
-        return False
-    normalized = message.strip().lower()
-    if normalized in {"السلام عليكم", "وعليكم السلام", "هلا", "مرحبا", "صباح الخير",
-                      "مساء الخير", "كيف حالك", "وش اخبارك", "وش أخبارك",
-                      "شكرا", "شكراً", "يعطيك العافية"}:
-        return False
-    try:
-        decision = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": (
-                    "حدد هل يحتاج سؤال المستخدم بحثًا مباشرًا بالويب حتى يكون الرد موثوقًا. "
-                    "أجب فقط SEARCH أو NO. "
-                    "SEARCH للأخبار والمستجدات والتحقق من الأخبار والوقائع المتغيرة والأسعار "
-                    "والمعلومات الراهنة حتى لو لم يطلب المستخدم البحث صراحة. "
-                    "NO للتحيات والأسئلة الاجتماعية والكتابة والترجمة والبرمجة والمعرفة الثابتة. "
-                    "وش أخبارك سؤال اجتماعي وليس طلب نشرة."
-                )},
-                {"role": "user", "content": message[:1200]}
-            ],
-            max_completion_tokens=12
-        )
-        answer = (decision.choices[0].message.content or "").strip().upper()
-        return answer.startswith("SEARCH")
-    except Exception as e:
-        print(f"[SEARCH_DECISION] classifier_failed: {type(e).__name__}")
-        return False
-
-
 def detect_news_query(message):
     """تفعيل Google News فقط عند طلب نشرة أو أخبار عن موضوع محدد."""
     if not message or not isinstance(message, str):
@@ -925,7 +891,7 @@ def detect_news_query(message):
         "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ة": "ه"
     }))
     normalized = re.sub(r"[؟?!،,.]", " ", normalized)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
+    normalized = re.sub(r"\\s+", " ", normalized).strip()
 
     # أسئلة التحقق من صحة خبر محدد ليست طلباً لنشرة Google News.
     verification_phrases = [
@@ -973,8 +939,8 @@ def detect_news_query(message):
         "وريني", "شوف", "اخبار", "الاخبار", "news"
     ]
     for word in filler_words:
-        topic = re.sub(rf"(?<!\w){re.escape(word)}(?!\w)", " ", topic)
-    topic = re.sub(r"\s+", " ", topic).strip(" ؟?!،,.")
+        topic = re.sub(rf"(?<!\\w){re.escape(word)}(?!\\w)", " ", topic)
+    topic = re.sub(r"\\s+", " ", topic).strip(" ؟?!،,.")
 
     if len(topic) >= 2:
         return topic[:150]
@@ -2924,7 +2890,7 @@ def chat():
         news_articles = None
         if is_registered and um and not has_image:
             try:
-                news_query = None if should_web_search(um) else detect_news_query(um)
+                news_query = detect_news_query(um)
                 if news_query:
                     news_articles = fetch_news(news_query, limit=10)
                     if news_articles:
@@ -2974,9 +2940,7 @@ def chat():
                 headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
             )
 
-        _web_search_required = is_registered and decide_web_search(um)
-        _search_succeeded = False
-        if _web_search_required and can_search:
+        if is_registered and can_search and should_web_search(um):
             _search_started_at = time.perf_counter()
             _search_succeeded = False
             try:
@@ -3006,8 +2970,6 @@ def chat():
             print("[CHAT_TIMING] web_search: skipped (no search intent)")
         else:
             print("[CHAT_TIMING] web_search: skipped (not eligible or quota exhausted)")
-        if _web_search_required and not _search_succeeded:
-            msgs.append({"role": "system", "content": "المستخدم يسأل عن معلومات تتطلب بحثًا حديثًا، لكن لم تتوفر نتائج بحث ناجحة. لا تختلق أخبارًا أو أحداثًا أو تواريخ أو مصادر، ولا تدّعِ أنك بحثت. وضح تعذر التحقق في هذه اللحظة."})
         _chat_timing("pre_stream_ready")
 
         def generate():
