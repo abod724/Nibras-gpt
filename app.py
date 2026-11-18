@@ -740,12 +740,14 @@ def generate_speech_free(text):
     return None
 
 def should_use_pdf_context(message, history=None):
-    """لاسترجاع الملف عند طلب استخدامه صراحةً، أو متابعة طلب سابق متعلق بملف."""
+    """تحديد طلبات الملف بصياغة طبيعية، بما فيها الإشارات المختصرة والمتابعة."""
     def normalize(value):
-        value = (value or "").strip().lower()
+        value = str(value or "").strip().lower()
         value = value.translate(str.maketrans({
-            "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ة": "ه"
+            "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ة": "ه",
+            "ؤ": "و", "ئ": "ي"
         }))
+        value = re.sub(r"[\u064b-\u065f\u0670ـ]", "", value)
         return re.sub(r"[^\w\s]", " ", value)
 
     text = normalize(message)
@@ -753,33 +755,38 @@ def should_use_pdf_context(message, history=None):
         return False
 
     file_terms = (
-        "ملف", "الملف", "المرفق", "مرفق", "pdf", "document",
-        "attachment", "محاكي نافس"
+        "ملف", "الملف", "ملفات", "المرفق", "مرفق", "المرفقات",
+        "pdf", "document", "attachment", "محاكي نافس"
     )
     file_actions = (
         "لخص", "تلخيص", "اختصر", "اختصار", "اشرح", "شرح",
-        "اقرا", "قراءه", "اقرأ", "حلل", "تحليل", "استخرج",
-        "محتوى", "وش فيه", "ماذا يحتوي", "عن ماذا يتحدث",
-        "اقتبس", "راجع", "افحص"
+        "اقرا", "قراءه", "حلل", "تحليل", "استخرج", "استخراج",
+        "محتوى", "وش فيه", "وشو", "ماذا يحتوي", "عن ماذا يتحدث",
+        "اقتبس", "راجع", "افحص", "عدل", "عدله", "عدل عليه",
+        "رتب", "رتبه", "استخرج منه", "طلع منه", "اهم ما فيه",
+        "اهم النقاط", "ارسل لي", "جهزه"
     )
+
     has_file_reference = any(term in text for term in file_terms)
     has_file_action = any(term in text for term in file_actions)
 
-    if has_file_reference and has_file_action:
+    # ذكر الملف وحده كافٍ: مثل «هذا الملف» أو «وش وضع المرفق؟».
+    if has_file_reference:
         return True
 
-    # يسمح بمتابعة طلب الملف بكلمات مثل: اختصره، كمل، وضح أكثر.
+    # متابعة طلب سابق عن ملف حتى لو استخدم المستخدم ضميراً أو صياغة مختصرة.
     follow_up_terms = (
         "اختصره", "لخصه", "كمله", "كمل", "وضح اكثر",
-        "اشرح اكثر", "تابع", "استخرج الباقي"
+        "اشرح اكثر", "تابع", "استخرج الباقي", "منه", "فيه",
+        "عدله", "عدل عليه", "رتبه", "وش فيه", "وشو", "هذا",
+        "هذي", "اقراه", "اقراه لي", "اشتغل عليه"
     )
-    if any(term in text for term in follow_up_terms):
-        for item in (history or [])[-8:]:
+    if any(term in text for term in follow_up_terms) or has_file_action:
+        for item in (history or [])[-12:]:
             if not isinstance(item, dict) or item.get("role") != "user":
                 continue
             previous = normalize(item.get("content", ""))
-            if (any(term in previous for term in file_terms)
-                    and any(term in previous for term in file_actions)):
+            if any(term in previous for term in file_terms):
                 return True
 
     return False
@@ -2451,9 +2458,19 @@ def chat():
         except Exception as e:
             print("Error fetching approved knowledge:", e)
 
-        # استرجاع PDF فقط عند وجود طلب واضح لاستخدام الملف.
+        # قد تحمل الواجهة علامة الملف في سجل العميل، بينما سجل المسجلين يُقرأ من قاعدة البيانات.
+        # نستخدم العلامة كإشارة فقط، ولا نثق بأي محتوى ملف يرسله العميل.
+        client_history = d.get("history") if isinstance(d.get("history"), list) else []
+        client_pdf_marker = any(
+            isinstance(item, dict)
+            and item.get("role") == "user"
+            and isinstance(item.get("content"), str)
+            and "[ملف مرفق:" in item.get("content", "")
+            for item in client_history[-12:]
+        )
+
         pdf_context = ""
-        wants_pdf = should_use_pdf_context(um, server_hist)
+        wants_pdf = should_use_pdf_context(um, server_hist) or client_pdf_marker
         pdf_data = None
 
         if wants_pdf:
