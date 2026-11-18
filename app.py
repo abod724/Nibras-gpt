@@ -1437,7 +1437,7 @@ def export_file_summary():
             if not line:
                 continue
 
-            is_heading = bool(re.match(r'^#{1,6}\s*', line))
+            is_heading = bool(re.match(r'^#{1,6}\s*', line)) or bool(re.match(r'^(?:ملخص\b|تفاصيل\b|Summary\b|Details\b)', line, flags=re.IGNORECASE))
             line = re.sub(r'^#{1,6}\s*', '', line)
             is_bullet = bool(re.match(r'^(?:[-*•])\s+', line))
             line = re.sub(r'^(?:[-*•])\s+', '', line)
