@@ -1368,6 +1368,21 @@ def merge_pdf_files():
                 pass
 
 
+def is_print_ready_request(text):
+    """كشف طلبات إخراج النص مباشرة للطباعة دون مقدمات حوارية."""
+    normalized = html_lib.unescape(str(text or "")).strip().lower()
+    normalized = re.sub(r"[\u064b-\u065f\u0670ـ]", "", normalized)
+    patterns = [
+        r"\b(?:للطباعة|جاهز للطباعة|نسخة للطباعة|ابي اطبعه|ابغى اطبعه|ابغى اطبع|ابي اطبع)\b",
+        r"(?:لا|لات)\s*تكتب\s*(?:لي\s*)?(?:مقدمات|مقدمة)",
+        r"(?:بدون|بلا)\s*(?:اي\s*)?(?:مقدمات|مقدمة)",
+        r"(?:النص|المحتوى|المستند)\s*فقط",
+        r"اطبع(?:ه|ها|ه لي)?\s*(?:مباشرة|كما هو)?",
+        r"جهزه?\s*(?:لي\s*)?للطباعة",
+    ]
+    return any(re.search(pattern, normalized) for pattern in patterns)
+
+
 def prepare_word_report(text):
     """تهيئة رد نبراس كتقرير مستقل ومنظم محلياً دون استدعاء نموذج إضافي."""
     text = html_lib.unescape(str(text or "")).replace("\r\n", "\n").replace("\r", "\n").strip()
@@ -1394,7 +1409,10 @@ def prepare_word_report(text):
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"\s+([،؛:,.!?؟])", r"\1", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    lines = [
+        line.strip() for line in text.splitlines()
+        if line.strip() and not re.fullmatch(r"\s*(?:---+|___+|\*\*\*+)\s*", line)
+    ]
     joined = "\n".join(lines)
     if re.search(r"فاتورة\s+(?:كهرباء|الكهرباء)|الكهرباء\s+السكنية", joined, re.IGNORECASE):
         title = "ملخص فاتورة الكهرباء"
@@ -2739,6 +2757,22 @@ def chat():
         msgs = [{"role": "system", "content": 
             personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + pdf_context + lang_inst + assistant_persona_extra
         }] + server_hist[-40:]
+
+        # عند طلب نسخة للطباعة، نوجّه نفس استدعاء المحادثة لإخراج الوثيقة فقط.
+        # لا يوجد استدعاء OpenAI إضافي ولا يتغير سلوك المحادثات العادية.
+        if is_print_ready_request(um):
+            msgs.append({
+                "role": "system",
+                "content": (
+                    "تعليمات إخراج إلزامية لهذا الطلب: المستخدم يريد محتوى جاهزاً للطباعة. "
+                    "أخرج نص الوثيقة أو محتوى الملف فقط، دون أي مقدمة أو تحية أو نداء للمستخدم "
+                    "أو تعليق على عملية الاستخراج أو ملاحظة من عندك أو خاتمة أو عرض مساعدة. "
+                    "لا تكتب عبارات مثل: إليك النص، رتبت لك، يا طويل العمر، أو يا أبو مشعل. "
+                    "لا تضف عناوين Markdown التي تبدأ بعلامة # ولا خطوطاً فاصلة مثل --- ولا أسواراً برمجية. "
+                    "حافظ على جميع الأسماء والأرقام والتواريخ والحقول كما وردت، ولا تخمّن النص غير الواضح؛ "
+                    "ضع [غير واضح في المصدر] عند الحاجة. اجعل الناتج مستقلاً ويمكن طباعته مباشرة."
+                )
+            })
 
         news_articles = None
         if is_registered and um and not has_image:
