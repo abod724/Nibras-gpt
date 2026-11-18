@@ -1011,7 +1011,7 @@ def fetch_news(query, limit=6):
 
                 # تنظيف وصف RSS وتحويله إلى ملخص نصي قصير.
                 summary = html_lib.unescape(re.sub(r"<[^>]+>", " ", description_html))
-                summary = re.sub(r"\\s+", " ", summary).strip()
+                summary = re.sub(r"\s+", " ", summary).strip()
                 if title and summary.startswith(title):
                     summary = summary[len(title):].strip(" -|:")
                 summary = summary[:360].strip()
