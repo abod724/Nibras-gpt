@@ -1015,6 +1015,7 @@ def fetch_news(query, limit=6):
                         "link": link,
                         "published": published,
                         "source": source,
+                        "source_url": source_url,
                         "image": image_url,
                         "summary": summary,
                     })
@@ -1164,12 +1165,12 @@ def fetch_news(query, limit=6):
             image_url = ""
             if page_html and final_url.startswith(("https://", "http://")):
                 for meta_tag in re.findall(
-                    r"<meta\\b[^>]*>", page_html, flags=re.IGNORECASE
+                    r"<meta\b[^>]*>", page_html, flags=re.IGNORECASE
                 ):
                     attrs = {
                         key.lower(): html_lib.unescape(value)
                         for key, _, value in re.findall(
-                            r"""([\\w:-]+)\\s*=\\s*(['"])(.*?)\\2""",
+                            r"""([\w:-]+)\s*=\s*(['"])(.*?)\2""",
                             meta_tag
                         )
                     }
