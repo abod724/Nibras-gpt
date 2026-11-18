@@ -216,20 +216,21 @@ html.dark-mode .input-area textarea{color:#ffffff;}
 .msg-actions .act-export-word svg{width:17px;height:17px;stroke:currentColor;stroke-width:1.8;fill:none;flex-shrink:0}
 .msg-actions .act-export-word:hover{background:var(--bg-hover);border-color:var(--primary-color);transform:translateY(-1px)}
 .msg-actions .act-export-word:disabled{opacity:.55;cursor:wait;transform:none}
-.auto-word-download{margin:10px 0 18px 46px;padding:12px 14px;border:1px solid var(--border-color);border-radius:15px;background:var(--bg-app);display:flex;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 3px 12px rgba(0,0,0,.035);animation:wordCardIn .22s ease}
-.auto-word-download .word-file-icon{width:42px;height:46px;border-radius:10px;background:#e8f1fb;color:#245b91;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;font-weight:900;letter-spacing:-1px;position:relative}
-.auto-word-download .word-file-icon:after{content:"DOCX";position:absolute;bottom:4px;font-size:8px;letter-spacing:.5px;font-weight:800}
+.auto-word-download{margin:10px 0 18px 46px;padding:14px 15px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-app);display:flex;align-items:center;gap:13px;flex-wrap:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.045);animation:wordCardIn .22s ease;max-width:620px}
+.auto-word-download .word-file-icon{width:48px;height:52px;border-radius:12px;background:#eaf2fc;color:#2875b9;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;padding-bottom:7px;box-sizing:border-box}
+.auto-word-download .word-file-icon svg{width:31px;height:34px;display:block}
+.auto-word-download .word-file-icon:after{content:"DOCX";position:absolute;bottom:3px;font-size:7px;letter-spacing:.6px;font-weight:900;color:currentColor}
 .auto-word-download .word-file-info{flex:1;min-width:130px;display:flex;flex-direction:column;gap:3px}
 .auto-word-download .word-file-title{font-size:13px;font-weight:800;color:var(--text-primary)}
 .auto-word-download .word-file-status{font-size:11.5px;color:var(--text-secondary);line-height:1.5}
-.auto-word-download .word-download-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 13px;border-radius:10px;background:var(--primary-color);color:#fff;text-decoration:none;font-size:12px;font-weight:800;white-space:nowrap;transition:filter .18s,transform .18s}
+.auto-word-download .word-download-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 15px;border-radius:11px;background:#2875b9;color:#fff;text-decoration:none;font-size:12px;font-weight:800;white-space:nowrap;transition:filter .18s,transform .18s;box-shadow:0 2px 6px rgba(40,117,185,.18);flex-shrink:0}
 .auto-word-download .word-download-link:hover{filter:brightness(1.08);transform:translateY(-1px)}
 .auto-word-download .word-download-link svg{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none}
 .auto-word-download.is-error{border-color:rgba(220,38,38,.25);background:rgba(220,38,38,.04)}
 .auto-word-download.is-error .word-file-icon{background:rgba(220,38,38,.1);color:#c62828}
 @keyframes wordCardIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 html.dark-mode .auto-word-download .word-file-icon,html[data-theme="neon"] .auto-word-download .word-file-icon{background:rgba(74,144,226,.16);color:#8fc2ff}
-@media(max-width:520px){.auto-word-download{margin-right:0;margin-left:0;padding:11px}.auto-word-download .word-download-link{width:100%}}
+@media(max-width:520px){.auto-word-download{margin-right:0;margin-left:0;padding:12px;gap:11px;flex-wrap:wrap}.auto-word-download .word-file-icon{width:45px;height:49px}.auto-word-download .word-file-info{min-width:calc(100% - 70px)}.auto-word-download .word-download-link{width:100%;min-height:42px;box-sizing:border-box}}
 .assistant-bar{padding:6px 14px 0;flex-shrink:0;display:none;justify-content:flex-start}
 .assistant-bar.show{display:flex}
 .assistant-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 14px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:20px;font-size:12.5px;font-weight:600;color:var(--text-primary);cursor:pointer;font-family:inherit;transition:all .15s;-webkit-tap-highlight-color:transparent;max-width:200px}
@@ -1297,7 +1298,7 @@ function autoAttachWordDownload(messageEl, reportText, sourceName){
     box.className='auto-word-download';
     const icon=document.createElement('div');
     icon.className='word-file-icon';
-    icon.textContent='W';
+    icon.innerHTML='<svg viewBox="0 0 48 52" aria-hidden="true"><path d="M10 3.5h19l10 10V45a3.5 3.5 0 0 1-3.5 3.5h-22A3.5 3.5 0 0 1 10 45z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M29 3.5V14h10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="m15 23 3.1 13 3.8-8.2 3.8 8.2 3.1-13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     const info=document.createElement('div');
     info.className='word-file-info';
     const title=document.createElement('div');
