@@ -1000,7 +1000,7 @@ def fetch_news(query, limit=6):
 
                 if not image_url and description_html:
                     image_match = re.search(
-                        r'<img[^>]+src=["\\']([^"\\']+)["\\']',
+                        r"<img[^>]+src=['\"]([^'\"]+)['\"]",
                         description_html,
                         flags=re.IGNORECASE
                     )
