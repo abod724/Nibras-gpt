@@ -1383,18 +1383,61 @@ def is_print_ready_request(text):
     return any(re.search(pattern, normalized) for pattern in patterns)
 
 
+def strip_word_chat_edges(text):
+    """Clean conversational edges of replies without explicit document boundaries."""
+    lines = text.strip().splitlines()
+    opening = re.compile(
+        r"^(?:أبشر|ابشر|حياك الله|يا (?:أبو|ابو) مشعل|يا طويل العمر|"
+        r"(?:رتبت|جهزت|لخصت|استخرجت) لك|تفضل(?: يا|\s*[,،:]))\b"
+    )
+    closing = re.compile(r"^(?:إذا (?:تبي|تبغى|حبيت)|هل تبي|أقدر أساعدك|علمني إذا|يسعدني مساعدتك)\b")
+    start, end = 0, len(lines)
+    heading = []
+    if lines and re.fullmatch(r"#{1,6}\s+.+", lines[0].strip()):
+        heading = [lines[0]]
+        start = 1
+    while start < end:
+        raw = lines[start].strip()
+        probe = re.sub(r"[\u064b-\u065fـ]", "", raw.lstrip("* "))
+        if not probe:
+            start += 1
+            continue
+        if not opening.match(probe):
+            break
+        # Preserve document text when a greeting and the first fact share a line.
+        body = re.search(
+            r"(?:الملف عبارة عن|(?:رقم|تاريخ|اسم|قيمة|نوع|مدة) [^،:\n]{1,30}:|"
+            r"إجمالي الفاتورة:|الإجمالي:|المدينة:|الحالة:)", raw
+        )
+        if not body:
+            # For unstructured prose, retain the sentence following the introduction.
+            body = re.search(r"(?<=[.!؟:：])\s*\S[\s\S]*$", raw)
+        if body:
+            lines[start] = raw[body.start():]
+            break
+        start += 1
+    while end > start:
+        tail = lines[end - 1].strip().lstrip("* ")
+        if tail and not closing.match(tail):
+            break
+        end -= 1
+    return "\n".join(heading + lines[start:end])
+
+
 def prepare_word_report(text):
     """تهيئة رد نبراس كتقرير مستقل ومنظم محلياً دون استدعاء نموذج إضافي."""
     text = html_lib.unescape(str(text or "")).replace("\r\n", "\n").replace("\r", "\n").strip()
+    # File replies use an explicit document section; chat before/after it is display-only.
+    section = re.search(r"(?m)^##[ \t]+نص المستند[ \t]*$", text)
+    if section:
+        text = re.split(r"(?m)^##[ \t]+ملاحظة من نبراس[ \t]*$", text[section.end():], maxsplit=1)[0]
+    else:
+        text = strip_word_chat_edges(text)
     text = re.sub(r"(?i)\b(https?)\s*:\s*/\s*/", r"\1://", text)
     text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"(?<!\w)\*(.*?)\*(?!\w)", r"\1", text)
     text = re.sub(r"\\([*_~])", r"\1", text)
-    text = re.sub(r"(?im)^\s*يا\s+[^،:：\n]{1,25}?[،،]?\s+(?:رتبت|جهزت|جمعت|استخرجت|لخصت)\s+لك[^\n]*(?:[:：])?\s*", "", text)
-    text = re.sub(r"(?im)^\s*(?:أبشر(?:،)?|حياك الله(?:،)?|يا طويل العمر(?:،)?|تفضل(?:،)?|لخصت لك(?: الملخص)?(?: التالي)?[:،]?)\s*", "", text)
-    text = re.sub(r"(?im)^\s*(?:إذا\s+(?:تبي|تبغى|حبيت)|هل\s+تبي|أقدر\s+أساعدك|إذا\s+احتجت|علمني\s+إذا|أتمنى أن أكون قد|يسعدني مساعدتك).*$", "", text)
-    text = re.sub(r"(?i)(?:ما أقدر أرسل لك من هنا نسخة Word|لا أستطيع.*(?:إنشاء|إرسال).*(?:Word|وورد)|النص فوق جاهز للنسخ واللصق في Word)", "", text)
     text = re.sub(r"[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0000FE0F\U0000200D]", "", text)
     text = re.sub(r"(?i)الملف\s+عبارة\s+عن\s+([^،.\n]+)", r"نوع المستند: \1", text)
     text = re.sub(r"(?i)وفترتها\s+من\s+", "فترة الفاتورة: من ", text)
@@ -1631,10 +1674,6 @@ def export_file_summary():
                 run._element.get_or_add_rPr().rFonts.set(
                     '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}eastAsia', 'Arial'
                 )
-
-        footer = section.footer.paragraphs[0]
-        footer.alignment = 2
-        footer.add_run('تم إعداد المستند بواسطة نبراس GP')
 
         output = io.BytesIO()
         document.save(output)
@@ -2823,7 +2862,18 @@ def chat():
 
         # عند طلب نسخة للطباعة، نوجّه نفس استدعاء المحادثة لإخراج الوثيقة فقط.
         # لا يوجد استدعاء OpenAI إضافي ولا يتغير سلوك المحادثات العادية.
-        if is_print_ready_request(um):
+        if is_registered and d.get("word_attachment") is True:
+            msgs.append({
+                "role": "system",
+                "content": (
+                    "سيُستخدم هذا الرد أيضًا لإنشاء ملف Word. ابدأ قسم الوثيقة بسطر مستقل مطابق: ## نص المستند\n"
+                    "اكتب تحته محتوى الوثيقة وحده بلغة المستخدم، بما فيه العناوين والجداول والملاحظات "
+                    "المستندة إلى المصدر. تجنب التحية والنداء ووصف عملك وعروض المساعدة داخل الوثيقة. "
+                    "إذا احتجت تعليقًا للمستخدم فضعه قبل القسم، أو بعد عنوان مستقل مطابق: ## ملاحظة من نبراس\n"
+                    "عند تعذّر قراءة الملف، اشرح السبب في المحادثة فقط واترك قسم نص المستند فارغًا."
+                )
+            })
+        elif is_print_ready_request(um):
             msgs.append({
                 "role": "system",
                 "content": (
