@@ -1302,7 +1302,7 @@ if(pdfBtn&&pdfInput){
             }
             var totalSize=selectedFiles.reduce(function(sum,file){return sum+file.size;},0);
             if(totalSize>7*1024*1024){
-                showToast(userLang==='en'?'Combined size must be under 8MB':'الحجم الإجمالي يجب ألا يتجاوز 8 ميجابايت');
+                showToast(userLang==='en'?'Combined size must be under 8MB':'الحجم الإجمالي يجب ألا يتجاوز 7 ميجابايت');
                 return;
             }
             showToast(userLang==='en'?'Merging PDF files...':'جاري دمج ملفات PDF...');
