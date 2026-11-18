@@ -910,6 +910,9 @@ def detect_news_query(message):
 
 _news_cache = {}
 _NEWS_CACHE_TTL = 900
+_NEWS_IMAGE_CACHE_TTL = 21600
+_news_image_cache = {}
+_google_news_decode_state = {"blocked_until": 0}
 
 def fetch_news(query, limit=6):
     if not isinstance(query, str) or len(query.strip()) < 2:
@@ -1146,6 +1149,7 @@ def fetch_news(query, limit=6):
             return ""
         return publisher_url
 
+    image_decode_attempted = False
     for article in results:
         if article.get("image"):
             print(
@@ -1158,11 +1162,29 @@ def fetch_news(query, limit=6):
             continue
 
         link = article.get("link") or ""
+        cached_image = _news_image_cache.get(link)
+        if cached_image:
+            cache_age = time.time() - cached_image[0]
+            cache_ttl = _NEWS_IMAGE_CACHE_TTL if cached_image[1] else 1800
+            if cache_age < cache_ttl:
+                if cached_image[1]:
+                    article["image"] = cached_image[1]
+                continue
+            _news_image_cache.pop(link, None)
+
+        if time.time() < _google_news_decode_state["blocked_until"]:
+            print("NEWS_IMAGE_DIAG", "stage=google_decode_and_publisher", "reason=google_429_cooldown_active")
+            break
+        if image_decode_attempted:
+            continue
+        image_decode_attempted = True
+
         started = time.perf_counter()
         publisher_url = ""
         final_url = ""
         image_url = ""
         error_detail = ""
+        rate_limited = False
         try:
             publisher_url = resolve_google_news_url(link)
             if not publisher_url:
@@ -1215,6 +1237,9 @@ def fetch_news(query, limit=6):
         except requests.RequestException as exc:
             reason = "request_error"
             error_detail = str(exc)[:160]
+            if getattr(getattr(exc, "response", None), "status_code", None) == 429:
+                _google_news_decode_state["blocked_until"] = time.time() + 1800
+                rate_limited = True
         except (ValueError, TypeError, IndexError, KeyError) as exc:
             reason = "google_decode_parse_error"
             error_detail = repr(exc)[:160]
@@ -1232,8 +1257,14 @@ def fetch_news(query, limit=6):
             "final_url=", final_url[:220] if final_url else "NONE",
             "elapsed_ms=", round((time.perf_counter() - started) * 1000),
             "image_url=", image_url[:220] if image_url else "NONE",
-            "error=", locals().get("error_detail", ""),
+            "error=", error_detail,
         )
+        _news_image_cache[link] = (time.time(), image_url or "")
+        if len(_news_image_cache) > 500:
+            _news_image_cache.clear()
+        if rate_limited:
+            print("NEWS_IMAGE_DIAG", "stage=google_decode_and_publisher", "reason=stopped_after_429", "cooldown_seconds=1800")
+            break
 
     if len(_news_cache) > 100:
         _news_cache.clear()
