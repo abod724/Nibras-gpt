@@ -1292,7 +1292,7 @@ def merge_pdf_files():
                 return jsonify({"status": "error", "message": "هذه المهمة تدعم ملفات PDF فقط."}), 400
             file_bytes = uploaded.read()
             total_bytes += len(file_bytes)
-            if total_bytes > 8 * 1024 * 1024:
+            if total_bytes > 7 * 1024 * 1024:
                 return jsonify({"status": "error", "message": "الحجم الإجمالي للملفات يتجاوز 8 ميجابايت."}), 413
             if not file_bytes:
                 return jsonify({"status": "error", "message": "أحد الملفات فارغ."}), 400
