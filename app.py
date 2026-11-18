@@ -1371,6 +1371,7 @@ def merge_pdf_files():
 def prepare_word_report(text):
     """تهيئة رد نبراس كتقرير مستقل ومنظم محلياً دون استدعاء نموذج إضافي."""
     text = html_lib.unescape(str(text or "")).replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = re.sub(r"(?i)\\b(https?)\\s*:\\s*/\\s*/", r"\\1://", text)
     text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
     text = re.sub(r"(?<!\w)\*(.*?)\*(?!\w)", r"\1", text)
