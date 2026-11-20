@@ -653,8 +653,13 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
   </button>
 </div>
 <div class="assistant-menu" id="assistantMenu"></div>
+<script src="/static/media-chat.js"></script>
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
+    <div id="mediaBadge" hidden style="width:100%;font-size:13px;padding:4px">
+        <span id="mediaNames"></span> <button type="button" id="removeMedia" aria-label="إزالة المرفق">×</button>
+        <div id="mediaHint" style="color:var(--text-secondary)"></div>
+    </div>
     <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div></div>
     
     <!-- 🔴 بداية كود الإيموجي 🔴 -->
@@ -674,10 +679,10 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 
     <button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
     <button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button><button class="option-btn" id="pdfBtn" title="ملف PDF أو Word"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button></div>
+    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="صور وفيديو وصوت"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button><button class="option-btn" id="pdfBtn" title="ملف PDF أو Word"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button></div>
     <textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea>
     <button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-</div><input type="file" id="fileInput" accept="image/*" style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="pdfInput" accept=".pdf,.docx" multiple style="display:none"/></div>
+</div><input type="file" id="fileInput" accept="image/*,video/*,audio/*,.heic,.heif,.mkv" multiple style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="pdfInput" accept=".pdf,.docx,image/*,video/*,audio/*,.heic,.heif,.mkv" multiple style="display:none"/></div>
 
 <div class="share-modal" id="shareModal">
     <div class="box">
@@ -1159,6 +1164,7 @@ async function loadConversation(id){
         stopAllAudio();
         const r=await fetch('/load_conversation/'+id), d=await r.json();
         if(d.messages){
+            clearPending();
             cb.innerHTML='';
             ch=[];
             cid=id;
@@ -1172,7 +1178,7 @@ async function loadConversation(id){
     }catch(e){}
 }
 
-document.querySelector('[data-action="new"]').addEventListener('click',function(){stopAllAudio();cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.classList.remove('show');ui.value=''});
+document.querySelector('[data-action="new"]').addEventListener('click',function(){stopAllAudio();clearPending();cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.classList.remove('show');ui.value=''});
 
 document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();dd.classList.remove('show');const msgs=ch.slice(-20).map(function(m){return{r:m.role==='user'?'u':'b',c:String(m.content||'').slice(0,500)};}).filter(function(m){return m.c;});if(!msgs||msgs.length===0){showToast(userLang==='en'?'No conversation to share':'لا توجد محادثة لمشاركتها');return;}const text=userLang==='en'?'Check out my conversation with Nibras':'شوف محادثتي مع نبراس';if(IS_REGISTERED&&cid&&!String(cid).startsWith('guest_conv_')){const dbUrl=window.location.origin+'/share/'+cid;document.getElementById('shareWhatsapp').href='https://wa.me/?text='+encodeURIComponent(text+'\n'+dbUrl);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(dbUrl);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(dbUrl)+'&text='+encodeURIComponent(text);document.getElementById('shareSnapchat').onclick=function(){navigator.clipboard.writeText(dbUrl).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});};sm.classList.add('show');}else{let url='';try{const json=JSON.stringify(msgs);const encoded=btoa(unescape(encodeURIComponent(json)));url=window.location.origin+'/share/view#d='+encodeURIComponent(encoded);}catch(err){showToast(userLang==='en'?'Failed to prepare link':'تعذر تجهيز الرابط');return;}if(url.length>60000){showToast(userLang==='en'?'Conversation too long to share':'المحادثة طويلة جداً للمشاركة');return;}if(navigator.share){navigator.share({title:userLang==='en'?'Nibras Conversation':'محادثة نبراس',text:text,url:url}).catch(function(){});}else{navigator.clipboard.writeText(url).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});}}});
 
@@ -1336,17 +1342,120 @@ function autoAttachWordDownload(messageEl, reportText, sourceName){
 
 function addMessage(t,s,isSys,img,imageUrl,isHtml,rawText){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el}let content=isHtml?formatSavedBotHtml(t):formatBotText(t);if(isHtml&&rawText&&/```/.test(rawText)&&!content.includes('class="code-block"')){content=formatBotText(rawText);}if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}el.innerHTML=content;if(isHtml){el.classList.add('nibras-response');}if(s==='bot'&&!isSys){attachBotActions(el,rawText||t);}cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el;}
 
+const MEDIA_ENABLED={{ 'true' if media_enabled else 'false' }};
+const hintPrefix='nibras-media-{{ media_hint_id }}-';
+const mediaBadge=document.getElementById('mediaBadge'), mediaHint=document.getElementById('mediaHint');
+let mediaFiles=[];
+
+function clearMediaSelection(){
+    mediaFiles=[];
+    mediaBadge.hidden=true;
+    mediaHint.textContent='';
+}
+document.getElementById('removeMedia').addEventListener('click',clearPending);
+
+async function selectMedia(files){
+    if(iw)return;
+    clearPending();
+    if(!IS_REGISTERED){showToast('سجّل دخولك عشان تجرّب تحويل الملفات.');return;}
+    if(files.length>10){showToast('اختر ١٠ ملفات كحد أقصى.');return;}
+    mediaFiles=files;
+    document.getElementById('mediaNames').textContent=files.map(f=>f.name).join('، ');
+    mediaBadge.hidden=false;
+    const file=files[0];
+    const kind=file.type.split('/')[0] || '';
+    if(files.length===1 && kind==='image'){
+        compressImage(file,800,function(data){if(mediaFiles===files){pid=data;showImagePreview(data);}});
+    }
+    const hintKind=kind==='video'||/\.(mov|mkv|mp4|webm)$/i.test(file.name)?'video':
+        kind==='image'||/\.(heic|heif|jpe?g|png|webp)$/i.test(file.name)?'image':'';
+    if(!hintKind)return;
+    try{
+        const key=hintPrefix+hintKind;
+        if(localStorage.getItem(key))return;
+        const quota=await mediaJson('/media/quota');
+        if(mediaFiles!==files||quota.remaining<1)return;
+        mediaHint.textContent=(hintKind==='video'?'تقدر تحوّل المقطع إلى MP4 أو تطلب صوته أو الكلام اللي فيه.':
+            'تقدر تطلب ضغط الصورة أو تحويل صيغتها.')+(IS_ADMIN?'':' لك تجربة تحويل واحدة.');
+        localStorage.setItem(key,'1');
+    }catch(error){/* File selection still works when quota information is unavailable. */}
+}
+
+async function dispatchMedia(){
+    const files=mediaFiles, prompt=ui.value.trim();
+    const originalChat=cid;
+    const privateMode=isIncognito;
+    const jobId=crypto.randomUUID(), chatId=cid||crypto.randomUUID();
+    let data={state:'ordinary'};
+    if(prompt){
+        data=await mediaJson('/media/jobs',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({id:jobId,chat_id:chatId,incognito:privateMode,message:prompt,
+                files:files.map(f=>({ext:f.name.split('.').pop().toLowerCase(),size:f.size}))})});
+    }
+    if(data.state==='ordinary'){
+        if(mediaFiles!==files)return true;
+        if(files.length===1 && /\.(pdf|docx)$/i.test(files[0].name)){
+            if(!await prepareDocument(files))return true;
+            clearMediaSelection();return false;
+        }
+        if(files.length===1 && pid){clearMediaSelection();return false;}
+        showToast('اكتب المطلوب من المرفق، مثل «اضغطه» أو «اكتب كلام المقطع».');
+        return true;
+    }
+    if(cid!==originalChat || mediaFiles!==files){
+        await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'});return true;
+    }
+    cid=chatId;
+    const label=files.map(f=>f.name).join('، ');
+    const userEl=addMessage('', 'user', true);
+    userEl.textContent=label+' — '+prompt;
+    ch.push({role:'user',content:prompt});
+    const resultEl=addMessage('', 'bot', true);
+    resultEl.textContent='جاري رفع المرفق…';
+    clearPending();ui.value='';ui.style.height='auto';
+    try{
+        for(let i=0;i<files.length;i++)await uploadMedia(data.forms[i],files[i],i);
+    }catch(error){
+        await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'}).catch(()=>{});
+        resultEl.textContent=error.message;return true;
+    }
+    resultEl.textContent='جاري تجهيز الملف…';
+    try{
+        const result=await mediaResult(jobId);
+        if(result.state!=='finished'){resultEl.textContent=result.message;return true;}
+        const link=document.createElement('a');
+        link.href=result.url;link.target='_blank';link.rel='noopener noreferrer';
+        link.textContent='تحميل '+result.name;
+        resultEl.textContent='تم تجهيز الملف. ';resultEl.appendChild(link);
+        if(resultEl.isConnected){
+            ch.push({role:'assistant',content:'تم تجهيز الملف: '+result.name});
+            if(!privateMode)loadHistory();
+        }
+    }catch(error){resultEl.textContent=error.message+' تقدر ترجع لسجل المحادثات بعد اكتمال المهمة.';}
+    return true;
+}
+
 function showImagePreview(d){ip.src=d;ipc.classList.add('show');}
-function clearPending(){pid=null;ipc.classList.remove('show');ip.src='';}
+function clearPending(){clearMediaSelection();pid=null;ipc.classList.remove('show');ip.src='';}
 rib.addEventListener('click',clearPending);
 ui.addEventListener('input',function(){this.style.height='auto';const maxH=150;this.style.height=Math.min(this.scrollHeight,maxH)+'px';this.style.overflowY=this.scrollHeight>maxH?'auto':'hidden';const ums=cb.querySelectorAll('.msg.user');if(ums.length)scrollMsgToTop(ums[ums.length-1]);});
 let poOpen=false;
 pb.addEventListener('click',function(){poOpen=!poOpen;po.classList.toggle('show',poOpen);this.classList.toggle('rotate',poOpen)});
 document.addEventListener('click',function(e){if(!pb.contains(e.target)&&!po.contains(e.target)){po.classList.remove('show');poOpen=false;pb.classList.remove('rotate')}});
 gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
-fi.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];fi.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
+fi.addEventListener('change',function(){
+    if(!this.files.length)return;
+    const files=Array.from(this.files); this.value='';
+    if(MEDIA_ENABLED){selectMedia(files);return;}
+    compressImage(files[0],800,function(data){pid=data;showImagePreview(data);});
+});
 cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
-ci.addEventListener('change',function(e){if(this.files&&this.files.length>0){var f=this.files[0];ci.value='';compressImage(f,800,function(dataUrl){pid=dataUrl;showImagePreview(pid);});}});
+ci.addEventListener('change',function(){
+    if(!this.files.length)return;
+    const files=Array.from(this.files); this.value='';
+    if(MEDIA_ENABLED){selectMedia(files);return;}
+    compressImage(files[0],800,function(data){pid=data;showImagePreview(data);});
+});
 const pdfBtn=document.getElementById('pdfBtn'),pdfInput=document.getElementById('pdfInput');
 if(pdfBtn&&pdfInput){
     pdfBtn.addEventListener('click',function(){pdfInput.click();po.classList.remove('show');});
@@ -1355,7 +1464,19 @@ if(pdfBtn&&pdfInput){
         var selectedFiles=Array.from(this.files);
         pdfInput.value='';
 
-        // اختيار أكثر من ملف PDF يشغّل الدمج المحلي دون استدعاء OpenAI.
+        if(MEDIA_ENABLED){selectMedia(selectedFiles);return;}
+        await prepareDocument(selectedFiles);
+    });
+    var pdfClearBtn=document.getElementById('pdfClearBtn');
+    if(pdfClearBtn){
+        pdfClearBtn.addEventListener('click',async function(){
+            await clearPdfContext();
+        });
+    }
+}
+
+async function prepareDocument(selectedFiles){
+    // اختيار أكثر من ملف PDF يشغّل الدمج المحلي دون استدعاء OpenAI.
         if(selectedFiles.length>1){
             if(selectedFiles.some(function(file){return !file.name.toLowerCase().endsWith('.pdf');})){
                 showToast(userLang==='en'?'Select PDF files only':'لدمج الملفات اختر ملفات PDF فقط');
@@ -1413,6 +1534,7 @@ if(pdfBtn&&pdfInput){
                 currentPdfName=f.name;
                 var clearItem=document.getElementById('clearPdfBtn');
                 if(clearItem)clearItem.style.display='flex';
+                return true;
             } else {
                 showToast('❌ '+(data.message||(userLang==='en'?'Upload failed':'فشل رفع الملف')));
             }
@@ -1420,14 +1542,7 @@ if(pdfBtn&&pdfInput){
             console.error('file upload error:',err);
             showToast(userLang==='en'?'Connection failed':'تعذر الاتصال بالسيرفر');
         }
-    });
-    var pdfClearBtn=document.getElementById('pdfClearBtn');
-    if(pdfClearBtn){
-        pdfClearBtn.addEventListener('click',async function(){
-            await clearPdfContext();
-        });
     }
-}
 
 let myAssistants=[];
 let currentAssistantId=null;
@@ -1593,6 +1708,13 @@ if(IS_REGISTERED){document.getElementById('assistantBar').classList.add('show');
 
 async function sendMessage(){
     if(iw)return;
+    if(mediaFiles.length){
+        iw=true;
+        let handled;
+        try{handled=await dispatchMedia();}catch(error){showToast(error.message);return;}
+        finally{iw=false;}
+        if(handled)return;
+    }
     const msgText=ui.value.trim(),img=pid;
     if(!msgText&&!img&&!currentPdfName)return;
     stopAllAudio();

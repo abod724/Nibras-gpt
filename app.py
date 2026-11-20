@@ -39,6 +39,7 @@ from templates_content import (
 
 # استدعاء ملفات المكتبة والذاكرة (تأكد من وجودها في نفس المجلد)
 from library import library_bp, view_shared_page
+from media_jobs import register_media
 from memory_page import MEMORY_CSS, MEMORY_HTML, MEMORY_JS
 
 app = Flask(__name__, static_folder='static')
@@ -468,6 +469,9 @@ def save_message(uid, msg, resp, cid=None):
         sb.table("assistant_chats").insert({"user_id": uid, "conv_id": cid, "message": msg, "response": resp, "title": title}).execute()
     except Exception as e: print("save_message:", e)
     return cid
+
+register_media(app, sb, client, OPENAI_MODEL, get_user_role, save_message, ADMIN_EMAIL, limiter)
+
 
 def load_conversation(uid, cid):
     try:
@@ -1220,6 +1224,8 @@ def index():
         is_registered=is_registered,
         is_admin=is_admin,
         user_lang=user_lang,
+        media_enabled=bool(os.getenv("CLOUDCONVERT_API_KEY")),
+        media_hint_id=hashlib.sha256((email_str or "admin").lower().encode()).hexdigest()[:20] if is_registered else "",
         memory_css=MEMORY_CSS,
         memory_html=MEMORY_HTML,
         memory_js=MEMORY_JS
@@ -2045,6 +2051,8 @@ def delete_my_account():
         sb.table("image_library").delete().eq("user_id", uid).execute()
         sb.table("custom_assistants").delete().eq("user_id", uid).execute()
         sb.table("user_files").delete().eq("user_id", uid).execute()
+        if os.getenv("CLOUDCONVERT_API_KEY"):
+            sb.table("nibras_media_jobs").delete().eq("account", email_str.lower()).execute()
         sb.table("profiles").delete().eq("email", email_str.lower()).execute()
         dr = requests.delete(
             f"{SUPABASE_URL}/auth/v1/admin/users/{auth_user_id}",
