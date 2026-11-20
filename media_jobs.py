@@ -255,7 +255,7 @@ def register_media(app, sb, client, model, role_for, save_message, admin_email, 
         account, period, limit = who
         existing = pending(account)
         if existing and inspect(existing)["state"] == "pending":
-            return jsonify(message=LIMIT_MESSAGES["busy"]), 409
+            return jsonify(message=LIMIT_MESSAGES["busy"], active_job_id=existing["id"]), 409
         chat_id = str(d.get("chat_id") or "")[:100] if not d.get("incognito") else None
         if chat_id:
             chat_id = ("admin:" if session.get("is_admin") else "user:") + chat_id
