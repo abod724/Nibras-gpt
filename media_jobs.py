@@ -16,6 +16,20 @@ IMAGES = set("jpg jpeg png webp heic heif gif bmp tif tiff avif".split())
 VIDEOS = set("mp4 mov mkv webm avi m4v mpg mpeg mts m2ts 3gp".split())
 AUDIO = set("mp3 wav m4a aac ogg opus flac amr weba".split())
 DOCUMENTS = {"pdf", "docx"}
+# Files are uploaded directly from the browser to CloudConvert, not through Flask.
+MEDIA_MAX_BYTES = {"image": 15 * 1024 * 1024, "video": 200 * 1024 * 1024,
+                   "audio": 50 * 1024 * 1024, "document": 20 * 1024 * 1024}
+
+
+def media_category(ext):
+    if ext in IMAGES:
+        return "image"
+    if ext in VIDEOS:
+        return "video"
+    if ext in AUDIO:
+        return "audio"
+    return "document" if ext in DOCUMENTS else None
+
 LIMIT_MESSAGES = {
     "exhausted": "استخدمت حصتك المتاحة لتحويل الملفات.",
     "busy": "عندك تحويل جارٍ. انتظر نتيجته قبل طلب تحويل جديد.",
@@ -205,12 +219,17 @@ def register_media(app, sb, client, model, role_for, save_message, admin_email, 
         files = d.get("files")
         if not isinstance(files, list) or not 1 <= len(files) <= 10:
             return jsonify(message="اختر من ملف واحد إلى ١٠ ملفات."), 400
-        if any(not isinstance(f, dict) or not isinstance(f.get("size"), int) or
-               not 0 < f["size"] <= 1_000_000_000 for f in files):
-            return jsonify(message="الملف فارغ أو يتجاوز ١ جيجابايت."), 400
-        exts = [str(f.get("ext", "")).lower() for f in files]
-        if any(e not in IMAGES | VIDEOS | AUDIO | DOCUMENTS for e in exts):
-            return jsonify(message="صيغة المرفق غير مدعومة."), 400
+        exts = [str(f.get("ext", "")).lower() if isinstance(f, dict) else "" for f in files]
+        if any(media_category(ext) is None for ext in exts):
+            return jsonify(message="هذه الصيغة غير مدعومة للتحويل. يمكنك قراءة PDF وWord وTXT وEML كمستندات."), 400
+        if any(not isinstance(f, dict) or type(f.get("size")) is not int or f["size"] <= 0
+               for f in files):
+            return jsonify(message="حجم المرفق غير صالح."), 400
+        for f, ext in zip(files, exts):
+            category = media_category(ext)
+            if f["size"] > MEDIA_MAX_BYTES[category]:
+                maximum = MEDIA_MAX_BYTES[category] // (1024 * 1024)
+                return jsonify(message=f"حجم {category} يتجاوز الحد المسموح ({maximum} ميجابايت)."), 413
         prompt = str(d.get("message", "")).strip()[:2000]
         allowed = operations(exts)
         if not prompt:
