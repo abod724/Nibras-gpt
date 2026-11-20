@@ -1,7 +1,7 @@
 """Mobile-first Arabic file library with private downloads and 30-day expiry."""
 SAVED_LIBRARY_HTML = r'''<!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>مكتبتي الذكية | نبراس GP</title>
+<title>مكتبتي | نبراس GP</title>
 <style>
 :root{color-scheme:light;--ink:#172234;--muted:#657487;--primary:#3b698c;--bg:#f4f7fa;--line:#e2e8f0}
 *{box-sizing:border-box}body{background:var(--bg);color:var(--ink);margin:0;font-family:system-ui,'Segoe UI',Tahoma,Arial,sans-serif}
@@ -22,17 +22,16 @@ input[type=file]{display:none}.empty{text-align:center;color:var(--muted);paddin
 .legacy{display:flex;gap:10px;overflow-x:auto;padding:8px 0}.legacy img{width:110px;height:95px;object-fit:cover;border-radius:12px}
 .toast{position:fixed;bottom:18px;right:15px;left:15px;max-width:600px;margin:auto;background:#172234;color:white;border-radius:12px;padding:13px 16px;text-align:center;box-shadow:0 5px 25px #0003;z-index:100}
 </style></head><body><main>
-<div class="head"><h1>📁 مكتبتي الذكية</h1><a class="back" href="/">العودة للمحادثة</a></div>
+<div class="head"><h1>مكتبتي</h1><a class="back" href="/" aria-label="رجوع للمحادثة">رجوع</a></div>
 <section class="panel">
- <div class="row"><h2>مساحة ملفاتك</h2><span id="usage" class="muted">جاري التحميل...</span></div>
+ <div class="row"><h2>المساحة</h2><span id="usage" class="muted"></span></div>
  <div class="bar"><div class="used" id="usageBar"></div></div>
- <p class="hint">ملفاتك خاصة بحسابك، وتُحذف من التخزين بعد 30 يومًا من الحفظ. يصلك تنبيه داخل نبراس قبل 7 أيام وقبل يوم من انتهاء المدة.</p>
- <div class="row"><button class="primary" id="uploadBtn">+ حفظ ملف من جهازي</button><small>لا يتم حفظ الملفات تلقائيًا</small></div>
+ <div class="row"><button class="primary" id="uploadBtn">+ إضافة ملف</button></div>
  <input id="fileInput" type="file" accept=".pdf,.docx,.txt,.eml,.jpg,.jpeg,.png,.webp,.mp3,.wav,.m4a,.ogg,.mp4,.mov,.webm">
 </section>
 <div id="alerts"></div>
-<section class="panel"><h2>ملفاتي المحفوظة</h2><div id="files" class="empty">جاري تحميل الملفات...</div></section>
-<section class="panel"><h2>🖼️ صوري السابقة</h2><p class="hint">صور مكتبتك القديمة ما زالت محفوظة؛ تعرض هنا دون نقلها أو حذفها.</p><div class="legacy" id="oldImages"></div></section>
+<section class="panel"><h2>الملفات</h2><div id="files" class="empty">جاري التحميل...</div></section>
+<section class="panel" id="legacySection" hidden><h2>الصور</h2><div class="legacy" id="oldImages"></div></section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -44,24 +43,24 @@ async function api(url,opts){const response=await fetch(url,{credentials:'same-o
 async function load(){
  try{
  const data=await api('/library/files'),q=data.quota;
- $('usage').textContent=q.count+' / '+q.max_count+' ملفات · '+fmtSize(q.used)+' من '+fmtSize(q.max_bytes);
+ $('usage').textContent=q.count+' / '+q.max_count+' · '+fmtSize(q.used)+' من '+fmtSize(q.max_bytes);
  $('usageBar').style.width=Math.min(100,100*q.used/q.max_bytes)+'%';
  const alerts=$('alerts');alerts.replaceChildren();
  (data.alerts||[]).forEach(f=>{
-   const d=make('div','alert','⚠️ الملف «'+f.name+'» باقي على حذفه '+(f.days_left===1?'يوم واحد':f.days_left+' أيام')+'. حمّله إذا تبي تحتفظ فيه.');
+   const d=make('div','alert','⚠️ «'+f.name+'» · الحذف بعد '+(f.days_left===1?'يوم':' '+f.days_left+' أيام'));
    alerts.appendChild(d);
  });
  const host=$('files');host.replaceChildren();
- if(!data.files.length){host.appendChild(make('div','empty','مكتبتك فاضية. احفظ ملفًا من جهازك أو من نتيجة نبراس.'));return;}
+ if(!data.files.length){host.appendChild(make('div','empty','لا توجد ملفات'));return;}
  data.files.forEach(f=>{
   const item=make('div','file'),icon=make('div','file-icon',/\.(jpe?g|png|webp)$/i.test(f.name)?'🖼️':/\.(mp4|mov|webm)$/i.test(f.name)?'🎞️':/\.(mp3|wav|ogg|m4a)$/i.test(f.name)?'🎧':'📄');
-  const info=make('div','file-info'),name=make('div','file-name',f.name),meta=make('div','file-meta',fmtSize(f.size)+' · متبقي '+f.days_left+' يومًا');
+  const info=make('div','file-info'),name=make('div','file-name',f.name),meta=make('div','file-meta',fmtSize(f.size)+' · متبقي '+f.days_left+' يوم');
   const actions=make('div','actions'),dl=make('a','action','تحميل');
   dl.href='/library/files/'+encodeURIComponent(f.id)+'/download';dl.target='_blank';dl.rel='noopener noreferrer';
   actions.appendChild(dl);
   if(/\.(pdf|docx|txt|eml)$/i.test(f.name))
-    actions.appendChild(button('استخدام في المحادثة',async()=>{
-      if(!confirm('تبي تفتح المستند في محادثة نبراس؟ قد تُحتسب مهمة الملفات ضمن حصتك.'))return;
+    actions.appendChild(button('استخدام',async()=>{
+      if(!confirm('فتح المستند في المحادثة؟ قد تُحتسب من حصة الملفات.'))return;
       try{await api('/library/files/'+encodeURIComponent(f.id)+'/use',{method:'POST'});
           sessionStorage.setItem('nibras-library-open',f.name);window.location.href='/';}
       catch(e){toast(e.message);}
@@ -79,17 +78,16 @@ async function legacy(){
  try{const r=await api('/library/images'),host=$('oldImages');host.replaceChildren();
  (r.images||[]).forEach(img=>{const src=img.image_url||img.image_data;if(typeof src!=='string'||!(src.startsWith('https://')||src.startsWith('data:image/')))return;
  const a=make('a');a.href=src;a.target='_blank';a.rel='noopener noreferrer';const pic=make('img');pic.src=src;pic.alt=String(img.title||'صورة');pic.loading='lazy';a.appendChild(pic);host.appendChild(a);});
- if(!host.children.length)host.appendChild(make('span','muted','لا توجد صور قديمة.'));
- }catch(e){$('oldImages').textContent='تعذّر عرض الصور السابقة.';}
+ $('legacySection').hidden=!host.children.length;
+ }catch(e){$('legacySection').hidden=true;}
 }
 $('uploadBtn').onclick=()=>$('fileInput').click();
 $('fileInput').onchange=async e=>{
  const file=e.target.files[0];e.target.value='';if(!file)return;
- if(!confirm('حفظ «'+file.name+'» في مكتبتي لمدة 30 يومًا؟'))return;
  const btn=$('uploadBtn');btn.disabled=true;btn.textContent='جاري الحفظ...';
  try{const fd=new FormData();fd.append('file',file);await api('/library/files/upload',{method:'POST',body:fd});toast('تم حفظ الملف لمدة 30 يومًا');await load();}
  catch(e){toast(e.message);}
- finally{btn.disabled=false;btn.textContent='+ حفظ ملف من جهازي';}
+ finally{btn.disabled=false;btn.textContent='+ إضافة ملف';}
 };
 load();legacy();
 </script></body></html>'''
