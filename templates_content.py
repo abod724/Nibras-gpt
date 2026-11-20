@@ -653,7 +653,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
   </button>
 </div>
 <div class="assistant-menu" id="assistantMenu"></div>
-<script src="/static/media-chat.js"></script>
+<script src="/static/media-chat.js?v=2"></script>
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="mediaBadge" hidden style="width:100%;font-size:13px;padding:4px">
@@ -1411,17 +1411,9 @@ async function dispatchMedia(){
     userEl.textContent=label+' — '+prompt;
     ch.push({role:'user',content:prompt});
     const resultEl=addMessage('', 'bot', true);
-    resultEl.textContent='جاري رفع المرفق…';
     clearPending();ui.value='';ui.style.height='auto';
     try{
-        for(let i=0;i<files.length;i++)await uploadMedia(data.forms[i],files[i],i);
-    }catch(error){
-        await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'}).catch(()=>{});
-        resultEl.textContent=error.message;return true;
-    }
-    resultEl.textContent='جاري تجهيز الملف…';
-    try{
-        const result=await mediaResult(jobId);
+        const result=await trackMediaTransfer(resultEl,jobId,data.forms,files);
         if(result.state!=='finished'){resultEl.textContent=result.message;return true;}
         const link=document.createElement('a');
         link.href=result.url;link.target='_blank';link.rel='noopener noreferrer';
@@ -1431,7 +1423,7 @@ async function dispatchMedia(){
             ch.push({role:'assistant',content:'تم تجهيز الملف: '+result.name});
             if(!privateMode)loadHistory();
         }
-    }catch(error){resultEl.textContent=error.message+' تقدر ترجع لسجل المحادثات بعد اكتمال المهمة.';}
+    }catch(error){resultEl.textContent=error.message;}
     return true;
 }
 

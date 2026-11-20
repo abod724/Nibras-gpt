@@ -138,7 +138,11 @@ def register_media(app, sb, client, model, role_for, save_message, admin_email, 
             process = next((t for t in remote["tasks"] if t["name"] == "process"), {})
             if age > 7200 and process.get("status") == "waiting":
                 provider("POST", "/tasks/" + process["id"] + "/cancel")
-            return {"state": "pending"}
+            if any(t.get("status") != "finished" for t in remote["tasks"] if t["name"].startswith("source-")):
+                phase = "receiving"
+            else:
+                phase = {"processing": "converting", "finished": "exporting"}.get(process.get("status"), "queued")
+            return {"state": "pending", "phase": phase}
         export = next(t for t in remote["tasks"] if t["name"] == "download")
         file = export["result"]["files"][0]
         url = file["url"]
