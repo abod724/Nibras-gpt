@@ -16,7 +16,7 @@ import requests
 
 BUCKET = "nibras-private-library"
 EXTENSIONS = {"pdf", "docx", "txt", "eml", "jpg", "jpeg", "png", "webp",
-              "mp3", "wav", "m4a", "ogg", "mp4", "mov", "webm"}
+              "mp3", "wav", "m4a", "ogg", "mp4", "mov", "webm", "zip"}
 _last_cleanup = 0.0
 
 
