@@ -1187,6 +1187,9 @@ async function loadConversation(id){
                 const s=m.role==='user'?'user':'bot';
                 ch.push({role:m.role,content:m.content});
                 const restored=addMessage(m.display_content||m.content, s, true, null, null, m.is_html, m.content);
+                if(s==='bot' && IS_REGISTERED && m.media_job_id && !isIncognito){
+                    attachMediaSaveButton(restored,m.media_job_id);
+                }
                 if(s==='bot' && IS_REGISTERED && (m.word_attachment===true || /##\s*نص المستند/.test(m.content||''))){
                     restoreWordDownload(restored,m.content,m.word_source||'ملخص المستند');
                 }
@@ -1529,6 +1532,35 @@ async function selectMedia(files){
     }
 }
 
+// The same one-click save action works for freshly converted files and
+// conversion results shown again when a conversation is reopened.
+function attachMediaSaveButton(messageEl,jobId){
+    if(!messageEl || !jobId || messageEl.querySelector('.media-save-to-library'))return;
+    const saveBtn=document.createElement('button');
+    saveBtn.type='button';
+    saveBtn.className='media-save-to-library';
+    saveBtn.textContent='حفظ في مكتبتي';
+    saveBtn.style.cssText='display:block;margin-top:10px;border:1px solid var(--primary-color,#4a6a8a);background:transparent;color:var(--primary-color,#4a6a8a);border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer';
+    saveBtn.onclick=async()=>{
+        if(saveBtn.disabled)return;
+        saveBtn.disabled=true;
+        saveBtn.textContent='جاري الحفظ...';
+        try{
+            const res=await fetch('/library/files/save-job',{method:'POST',
+                headers:{'Content-Type':'application/json'},credentials:'same-origin',
+                body:JSON.stringify({job_id:jobId})});
+            const data=await res.json().catch(()=>({}));
+            if(!res.ok)throw new Error(data.message||'تعذّر حفظ الملف');
+            saveBtn.textContent='✓ محفوظ في مكتبتي';
+        }catch(error){
+            showToast(error.message||'تعذّر حفظ الملف');
+            saveBtn.disabled=false;
+            saveBtn.textContent='حفظ في مكتبتي';
+        }
+    };
+    messageEl.appendChild(saveBtn);
+}
+
 async function dispatchMedia(){
     const files=mediaFiles, prompt=ui.value.trim();
     const isDocument=files.length===1 && /\.(pdf|docx|txt|eml)$/i.test(files[0].name);
@@ -1611,22 +1643,7 @@ async function dispatchMedia(){
         link.textContent='تحميل '+result.name;
         resultEl.textContent='تم تجهيز الملف. ';resultEl.appendChild(link);
         if(IS_REGISTERED && !privateMode){
-            const saveBtn=document.createElement('button');
-            saveBtn.type='button';
-            saveBtn.textContent='حفظ في مكتبتي';
-            saveBtn.style.cssText='display:block;margin-top:10px;border:1px solid var(--primary-color,#4a6a8a);background:transparent;color:var(--primary-color,#4a6a8a);border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer';
-            saveBtn.onclick=async()=>{
-                saveBtn.disabled=true;saveBtn.textContent='جاري حفظ الملف...';
-                try{
-                    const res=await fetch('/library/files/save-job',{method:'POST',
-                        headers:{'Content-Type':'application/json'},credentials:'same-origin',
-                        body:JSON.stringify({job_id:jobId})});
-                    const data=await res.json().catch(()=>({}));
-                    if(!res.ok)throw new Error(data.message||'فشل الحفظ.');
-                    saveBtn.textContent='✓ محفوظ في مكتبتي لمدة 30 يومًا';
-                }catch(error){showToast(error.message);saveBtn.disabled=false;saveBtn.textContent='حفظ في مكتبتي';}
-            };
-            resultEl.appendChild(saveBtn);
+            attachMediaSaveButton(resultEl,jobId);
         }
         if(resultEl.isConnected){
             ch.push({role:'assistant',content:'تم تجهيز الملف: '+result.name});
