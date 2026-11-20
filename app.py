@@ -460,21 +460,28 @@ def save_message(uid, msg, resp, cid=None, image_data=None):
     image_path = None
     try:
         if image_data:
-            # Keep images with their chat messages, separately from the optional
-            # 30-day user library. Never publish these to the public images bucket.
-            mime = image_data.split(";", 1)[0].split(":", 1)[-1].lower()
-            ext = {"image/jpeg": "jpg", "image/jpg": "jpg",
-                   "image/png": "png", "image/webp": "webp"}.get(mime)
-            if not ext:
-                raise ValueError("Unsupported chat image")
-            raw = base64.b64decode(image_data.split(",", 1)[1], validate=True)
-            if not raw or len(raw) > 5 * 1024 * 1024:
-                raise ValueError("Chat image size is invalid")
-            image_path = "chat/" + hashlib.sha256(uid.encode()).hexdigest()[:24] + "/" + uuid.uuid4().hex + "." + ext
-            sb.storage.from_("nibras-private-library").upload(
-                path=image_path, file=raw,
-                file_options={"content-type": mime, "cache-control": "0", "upsert": "false"}
-            )
+            try:
+                # Chat images remain private and do not consume the optional
+                # 30-day library quota.
+                mime = image_data.split(";", 1)[0].split(":", 1)[-1].lower()
+                ext = {"image/jpeg": "jpg", "image/jpg": "jpg",
+                       "image/png": "png", "image/webp": "webp"}.get(mime)
+                if not ext:
+                    raise ValueError("Unsupported chat image")
+                raw = base64.b64decode(image_data.split(",", 1)[1], validate=True)
+                if not raw or len(raw) > 5 * 1024 * 1024:
+                    raise ValueError("Chat image size is invalid")
+                image_path = "chat/" + hashlib.sha256(uid.encode()).hexdigest()[:24] + "/" + uuid.uuid4().hex + "." + ext
+                sb.storage.from_("nibras-private-library").upload(
+                    path=image_path, file=raw,
+                    file_options={"content-type": mime, "cache-control": "0", "upsert": "false"}
+                )
+            except Exception as storage_error:
+                app.logger.warning("chat image storage: %s", type(storage_error).__name__)
+                if image_path:
+                    try: sb.storage.from_("nibras-private-library").remove([image_path])
+                    except Exception: pass
+                image_path = None
         ex = (sb.table("assistant_chats").select("id").eq("user_id", uid).eq("conv_id", cid).limit(1).execute())
         has_prev = bool(ex.data)
         title = None
