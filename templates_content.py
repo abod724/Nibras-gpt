@@ -1465,7 +1465,20 @@ async function dispatchMedia(){
         }
     }catch(error){
         setupPanel.close();
-        if(control.cancelled){clearPending();showToast('تم إلغاء الطلب.');return true;}
+        if(control.cancelled){
+            // The server may still have created a job despite a lost response.
+            const canceled=await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'}).catch(()=>null);
+            clearPending();
+            showToast(canceled?(canceled.message||'تم إلغاء الطلب.'):'أوقفت الانتظار، لكن تعذّر تأكيد إلغاء المهمة.');
+            return true;
+        }
+        if(error.activeJobId){
+            if(confirm('عندك مهمة تحويل سابقة ما انتهت. تبي تلغيها عشان ترفع ملفًا جديدًا؟')){
+                const prior=await mediaJson('/media/jobs/'+error.activeJobId+'/cancel',{method:'POST'}).catch(()=>null);
+                showToast(prior?(prior.message||'تم إلغاء المهمة السابقة. أعد إرسال الملف.'):'تعذّر إلغاء المهمة السابقة، حاول بعد قليل.');
+            }else showToast('المهمة السابقة ما زالت جارية.');
+            return true;
+        }
         throw error;
     }
     if(control.cancelled){
