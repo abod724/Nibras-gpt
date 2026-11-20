@@ -658,7 +658,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="mediaBadge" hidden style="width:100%;font-size:13px;padding:4px">
         <span id="mediaNames"></span> <button type="button" id="removeMedia" aria-label="إزالة المرفق">×</button>
-        <div id="mediaHint" style="color:var(--text-secondary)"></div>
+        
     </div>
     <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div><button type="button" id="pdfSaveBtn" style="display:none;margin:6px 0 0;border:1px solid var(--border-color);background:transparent;color:var(--primary-color);border-radius:10px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer">حفظ في مكتبتي</button></div>
     
@@ -1186,7 +1186,10 @@ async function loadConversation(id){
             d.messages.slice(-50).forEach(function(m){
                 const s=m.role==='user'?'user':'bot';
                 ch.push({role:m.role,content:m.content});
-                addMessage(m.display_content||m.content, s, true, null, null, m.is_html, m.content);
+                const restored=addMessage(m.display_content||m.content, s, true, null, null, m.is_html, m.content);
+                if(s==='bot' && IS_REGISTERED && (m.word_attachment===true || /##\s*نص المستند/.test(m.content||''))){
+                    restoreWordDownload(restored,m.content,m.word_source||'ملخص المستند');
+                }
                 if(s==='user' && m.image_url){
                     const photo=addMessage('', 'user', true, m.image_url);
                     photo.setAttribute('aria-label','صورة مرفقة في هذه المحادثة');
@@ -1378,6 +1381,54 @@ function autoAttachWordDownload(messageEl, reportText, sourceName){
         });
 }
 
+function restoreWordDownload(messageEl,reportText,sourceName){
+    if(!messageEl||!reportText||messageEl.nextElementSibling?.classList.contains('auto-word-download'))return;
+    const box=document.createElement('div');
+    box.className='auto-word-download';
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.className='word-download-link';
+    btn.textContent='تحميل Word';
+    box.appendChild(btn);
+    messageEl.insertAdjacentElement('afterend',box);
+    btn.onclick=async()=>{
+        if(btn.disabled)return;
+        btn.disabled=true;btn.textContent='جاري التجهيز...';
+        try{
+            const response=await fetch('/tools/export-summary',{
+                method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({text:reportText}),credentials:'same-origin'
+            });
+            if(!response.ok){
+                const error=await response.json().catch(()=>({}));
+                throw new Error(error.message||'تعذّر تجهيز Word');
+            }
+            const blob=await response.blob();
+            const base=String(sourceName||'ملخص المستند')
+                .replace(/\.[^.]+$/,'').replace(/[\\:*?"<>|]/g,' ').trim().slice(0,90)||'ملخص المستند';
+            const name='ملخص - '+base+'.docx';
+            const url=URL.createObjectURL(blob);
+            const link=document.createElement('a');
+            link.href=url;link.download=name;
+            document.body.appendChild(link);link.click();link.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),120000);
+            if(IS_REGISTERED&&!isIncognito&&!box.querySelector('.word-save-restored')){
+                const save=document.createElement('button');
+                save.type='button';save.className='word-save-restored word-download-link';
+                save.style.cssText='background:transparent;color:var(--primary-color);border:1px solid var(--border-color);';
+                save.textContent='حفظ في مكتبتي';
+                const file=new File([blob],name,{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+                save.onclick=()=>saveDocumentToLibrary(file,save);
+                box.appendChild(save);
+            }
+        }catch(error){
+            showToast(error.message||'تعذّر تجهيز Word');
+        }finally{
+            btn.disabled=false;btn.textContent='تحميل Word';
+        }
+    };
+}
+
 function addMessage(t,s,isSys,img,imageUrl,isHtml,rawText){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el}let content=isHtml?formatSavedBotHtml(t):formatBotText(t);if(isHtml&&rawText&&/```/.test(rawText)&&!content.includes('class="code-block"')){content=formatBotText(rawText);}if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}el.innerHTML=content;if(isHtml){el.classList.add('nibras-response');}if(s==='bot'&&!isSys){attachBotActions(el,rawText||t);}cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el;}
 
 const MEDIA_ENABLED={{ 'true' if media_enabled else 'false' }};
@@ -1394,7 +1445,7 @@ if(IS_REGISTERED){
         localStorage.setItem(key,'1');
     }).catch(()=>{});
 }
-const mediaBadge=document.getElementById('mediaBadge'), mediaHint=document.getElementById('mediaHint');
+const mediaBadge=document.getElementById('mediaBadge');
 let mediaFiles=[];
 
 // Shared upload indicator above the message box, with a real cancel action.
@@ -1442,7 +1493,6 @@ function xhrFilePost(url,formData,responseType,signal,onProgress){
 function clearMediaSelection(){
     mediaFiles=[];
     mediaBadge.hidden=true;
-    mediaHint.textContent='';
 }
 document.getElementById('removeMedia').addEventListener('click',clearPending);
 
@@ -1477,18 +1527,6 @@ async function selectMedia(files){
     if(files.length===1 && kind==='image'){
         compressImage(file,800,function(data){if(mediaFiles===files){pid=data;showImagePreview(data);}});
     }
-    const hintKind=kind==='video'||/\.(mov|mkv|mp4|webm)$/i.test(file.name)?'video':
-        kind==='image'||/\.(heic|heif|jpe?g|png|webp)$/i.test(file.name)?'image':'';
-    if(!hintKind)return;
-    try{
-        const key=hintPrefix+hintKind;
-        if(localStorage.getItem(key))return;
-        const quota=await mediaJson('/media/quota');
-        if(mediaFiles!==files||quota.remaining<1)return;
-        mediaHint.textContent=(hintKind==='video'?'تقدر تحوّل المقطع إلى MP4 أو تطلب صوته أو الكلام اللي فيه.':
-            'تقدر تطلب ضغط الصورة أو تحويل صيغتها.')+(IS_ADMIN?'':' لك تجربة تحويل واحدة.');
-        localStorage.setItem(key,'1');
-    }catch(error){/* File selection still works when quota information is unavailable. */}
 }
 
 async function dispatchMedia(){
@@ -1749,7 +1787,7 @@ async function prepareDocument(selectedFiles){
             }
             const clearItem=document.getElementById('clearPdfBtn');
             if(clearItem)clearItem.style.display='flex';
-            showToast(userLang==='en'?'✅ File ready! Ask me about it':'✅ الملف جاهز! اسألني عنه');
+            showToast(userLang==='en'?'File uploaded':'تم رفع الملف');
             return true;
         }
         showToast('❌ '+(data.message||(userLang==='en'?'Upload failed':'فشل رفع الملف')));
