@@ -1674,14 +1674,26 @@ ui.addEventListener('input',function(){this.style.height='auto';const maxH=150;t
 let poOpen=false;
 pb.addEventListener('click',function(){poOpen=!poOpen;po.classList.toggle('show',poOpen);this.classList.toggle('rotate',poOpen)});
 document.addEventListener('click',function(e){if(!pb.contains(e.target)&&!po.contains(e.target)){po.classList.remove('show');poOpen=false;pb.classList.remove('rotate')}});
-gb.addEventListener('click',function(){fi.click();po.classList.remove('show')});
-fi.addEventListener('change',function(){
+function closeAttachmentMenu(){
+    po.classList.remove('show');poOpen=false;pb.classList.remove('rotate');
+}
+gb.addEventListener('click',function(){closeAttachmentMenu();fi.click();});
+fi.addEventListener('change',async function(){
     if(!this.files.length)return;
-    const files=Array.from(this.files); this.value='';
+    const files=Array.from(this.files);this.value='';
     if(MEDIA_ENABLED){selectMedia(files);return;}
-    compressImage(files[0],800,function(data){pid=data;showImagePreview(data);});
+    const docExt=/\.(pdf|docx|txt|eml)$/i;
+    if(files.every(f=>docExt.test(f.name))){
+        await prepareDocument(files);
+        return;
+    }
+    if(files.length===1 && files[0].type.startsWith('image/')){
+        compressImage(files[0],800,function(data){pid=data;showImagePreview(data);});
+        return;
+    }
+    showToast('هذا النوع من الملفات غير متاح حالياً.');
 });
-cab.addEventListener('click',function(){ci.click();po.classList.remove('show')});
+cab.addEventListener('click',function(){closeAttachmentMenu();ci.click();});
 ci.addEventListener('change',function(){
     if(!this.files.length)return;
     const files=Array.from(this.files); this.value='';
