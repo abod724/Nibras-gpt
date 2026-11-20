@@ -289,18 +289,62 @@ def register_media(app, sb, client, model, role_for, save_message, admin_email, 
     def media_cancel(job_id):
         who = identity()
         if not who:
-            return jsonify(message="سجل دخولك أولاً"), 403
+            return jsonify(message="سجّل دخولك أولاً"), 403
         rows = ledger().select("*").eq("id", str(job_id)).eq("account", who[0]).limit(1).execute().data
         if not rows:
             return jsonify(message="لم يتم العثور على المهمة"), 404
         row = rows[0]
-        if row["state"] == "pending" and row["provider_id"]:
-            remote = provider("GET", "/jobs/" + row["provider_id"])
-            processor = next(t for t in remote["tasks"] if t["name"] == "process")
-            if processor["status"] == "waiting":
-                provider("POST", "/tasks/" + processor["id"] + "/cancel")
-                return jsonify(inspect(row))
-        return jsonify(inspect(row))
+        if row["state"] == "finished":
+            return jsonify(inspect(row))
+        if row["state"] == "failed":
+            return jsonify(state="canceled", message="المهمة متوقفة بالفعل. يمكنك رفع ملف آخر.")
+
+        # Cancel provider tasks AND release our pending reservation. Previously,
+        # cancellation only worked while the processor was waiting.
+        stopped = True
+        provider_id = row.get("provider_id")
+        if provider_id:
+            remote = None
+            try:
+                remote = provider("GET", "/jobs/" + provider_id)
+            except requests.HTTPError as exc:
+                if exc.response.status_code not in (404, 410):
+                    stopped = False
+            except requests.RequestException:
+                stopped = False
+            if remote and remote.get("status") == "finished":
+                return jsonify(inspect(row, remote))
+            if remote:
+                # CloudConvert supports cancelling waiting AND processing tasks.
+                for task in remote.get("tasks", []):
+                    if task.get("status") in ("waiting", "processing") and task.get("id"):
+                        try:
+                            provider("POST", "/tasks/" + task["id"] + "/cancel")
+                        except requests.HTTPError as exc:
+                            if exc.response.status_code not in (404, 410):
+                                stopped = False
+                        except requests.RequestException:
+                            stopped = False
+                # Delete the provider job and any uploaded data where possible.
+                try:
+                    provider("DELETE", "/jobs/" + provider_id)
+                except requests.HTTPError as exc:
+                    if exc.response.status_code not in (404, 410):
+                        stopped = False
+                except requests.RequestException:
+                    stopped = False
+
+        updated = (ledger().update({"state": "failed", "prompt": None,
+                                   "result_url": None, "result_name": None})
+                   .eq("id", str(job_id)).eq("account", who[0])
+                   .eq("state", "pending").execute())
+        if not updated.data:
+            current = ledger().select("*").eq("id", str(job_id)).limit(1).execute().data
+            if current and current[0]["state"] == "finished":
+                return jsonify(inspect(current[0]))
+        message = ("تم إلغاء المهمة. يمكنك رفع ملف جديد." if stopped
+                   else "أوقفنا الطلب في نبراس ويمكنك رفع ملف آخر، لكن تعذّر تأكيد إيقاف المعالجة لدى خدمة التحويل.")
+        return jsonify(state="canceled", message=message)
 
     @app.get("/media/jobs/<uuid:job_id>")
     @limiter.limit("60 per minute")
