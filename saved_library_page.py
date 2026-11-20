@@ -54,12 +54,12 @@ async function load(){
  const host=$('files');host.replaceChildren();
  if(!data.files.length){host.appendChild(make('div','empty','مكتبتك فاضية. احفظ ملفًا من جهازك أو من نتيجة نبراس.'));return;}
  data.files.forEach(f=>{
-  const item=make('div','file'),icon=make('div','file-icon',/\\.(jpe?g|png|webp)$/i.test(f.name)?'🖼️':/\\.(mp4|mov|webm)$/i.test(f.name)?'🎞️':/\\.(mp3|wav|ogg|m4a)$/i.test(f.name)?'🎧':'📄');
+  const item=make('div','file'),icon=make('div','file-icon',/\.(jpe?g|png|webp)$/i.test(f.name)?'🖼️':/\.(mp4|mov|webm)$/i.test(f.name)?'🎞️':/\.(mp3|wav|ogg|m4a)$/i.test(f.name)?'🎧':'📄');
   const info=make('div','file-info'),name=make('div','file-name',f.name),meta=make('div','file-meta',fmtSize(f.size)+' · متبقي '+f.days_left+' يومًا');
   const actions=make('div','actions'),dl=make('a','action','تحميل');
   dl.href='/library/files/'+encodeURIComponent(f.id)+'/download';dl.target='_blank';dl.rel='noopener noreferrer';
   actions.appendChild(dl);
-  if(/\\.(pdf|docx|txt|eml)$/i.test(f.name))
+  if(/\.(pdf|docx|txt|eml)$/i.test(f.name))
     actions.appendChild(button('استخدام في المحادثة',async()=>{
       if(!confirm('تبي تفتح المستند في محادثة نبراس؟ قد تُحتسب مهمة الملفات ضمن حصتك.'))return;
       try{await api('/library/files/'+encodeURIComponent(f.id)+'/use',{method:'POST'});
