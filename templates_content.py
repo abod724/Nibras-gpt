@@ -653,7 +653,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
   </button>
 </div>
 <div class="assistant-menu" id="assistantMenu"></div>
-<script src="/static/media-chat.js?v=3"></script>
+<script src="/static/media-chat.js?v=4"></script>
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="mediaBadge" hidden style="width:100%;font-size:13px;padding:4px">
@@ -1516,6 +1516,7 @@ async function dispatchMedia(){
     try{
         const result=await trackMediaTransfer(resultEl,jobId,data.forms,files,
             {signal:control.abort.signal,onCancel:cancel});
+        if(control.cancelled)throw mediaCanceledError();
         if(result.state!=='finished'){resultEl.textContent=result.message||'تعذّر التحويل.';return true;}
         const link=document.createElement('a');
         link.href=result.url;link.target='_blank';link.rel='noopener noreferrer';
