@@ -455,9 +455,26 @@ def get_user_conversations(uid):
         if not seen[cid]["title"]: seen[cid]["title"] = "محادثة"
     return list(seen.values())
 
-def save_message(uid, msg, resp, cid=None):
+def save_message(uid, msg, resp, cid=None, image_data=None):
     if not cid: cid = secrets.token_hex(5)
+    image_path = None
     try:
+        if image_data:
+            # Keep images with their chat messages, separately from the optional
+            # 30-day user library. Never publish these to the public images bucket.
+            mime = image_data.split(";", 1)[0].split(":", 1)[-1].lower()
+            ext = {"image/jpeg": "jpg", "image/jpg": "jpg",
+                   "image/png": "png", "image/webp": "webp"}.get(mime)
+            if not ext:
+                raise ValueError("Unsupported chat image")
+            raw = base64.b64decode(image_data.split(",", 1)[1], validate=True)
+            if not raw or len(raw) > 5 * 1024 * 1024:
+                raise ValueError("Chat image size is invalid")
+            image_path = "chat/" + hashlib.sha256(uid.encode()).hexdigest()[:24] + "/" + uuid.uuid4().hex + "." + ext
+            sb.storage.from_("nibras-private-library").upload(
+                path=image_path, file=raw,
+                file_options={"content-type": mime, "cache-control": "0", "upsert": "false"}
+            )
         ex = (sb.table("assistant_chats").select("id").eq("user_id", uid).eq("conv_id", cid).limit(1).execute())
         has_prev = bool(ex.data)
         title = None
@@ -468,8 +485,15 @@ def save_message(uid, msg, resp, cid=None):
                 title = clean_msg[:30]
                 if len(clean_msg) > 30: title += "..."
             else: title = "محادثة جديدة"
-        sb.table("assistant_chats").insert({"user_id": uid, "conv_id": cid, "message": msg, "response": resp, "title": title}).execute()
-    except Exception as e: print("save_message:", e)
+        chat_row = {"user_id": uid, "conv_id": cid, "message": msg, "response": resp, "title": title}
+        if image_path:
+            chat_row["image_path"] = image_path
+        sb.table("assistant_chats").insert(chat_row).execute()
+    except Exception as e:
+        print("save_message:", e)
+        if image_path:
+            try: sb.storage.from_("nibras-private-library").remove([image_path])
+            except Exception: pass
     return cid
 
 register_media(app, sb, client, OPENAI_MODEL, get_user_role, save_message, ADMIN_EMAIL, limiter)
@@ -478,13 +502,17 @@ register_saved_files(app, sb, get_user_role, get_user_id, ADMIN_EMAIL, file_tria
 
 def load_conversation(uid, cid):
     try:
-        r = (sb.table("assistant_chats").select("message,response,created_at").eq("user_id", uid).eq("conv_id", cid).order("created_at").execute())
+        r = (sb.table("assistant_chats").select("id,message,response,image_path,created_at").eq("user_id", uid).eq("conv_id", cid).order("created_at").execute())
         rows = r.data or []
     except Exception as e: return None
     if not rows: return None
     msgs = []
     for row in rows:
-        if row.get("message"): msgs.append({"role": "user", "content": row["message"]})
+        if row.get("message") or row.get("image_path"):
+            message = {"role": "user", "content": row.get("message") or "[صورة مرفقة]"}
+            if row.get("image_path"):
+                message["image_url"] = "/chat/images/" + str(row["id"])
+            msgs.append(message)
         if row.get("response"): msgs.append({"role": "assistant", "content": row["response"]})
     return msgs
 
@@ -1952,6 +1980,30 @@ def history():
     pinned_ids = get_pinned_convs(email_str) if email_str else []
     return jsonify({"conversations": [{"id": c["id"], "title": c["title"], "pinned": c["id"] in pinned_ids} for c in cs]})
 
+@app.get('/chat/images/<uuid:image_id>')
+def chat_image(image_id):
+    if not session.get('user_email') and not session.get('is_admin'):
+        return jsonify({"message": "سجّل دخولك أولاً"}), 401
+    try:
+        rows = (sb.table("assistant_chats").select("image_path")
+                .eq("id", str(image_id)).eq("user_id", get_user_id())
+                .limit(1).execute().data or [])
+        if not rows or not rows[0].get("image_path"):
+            return jsonify({"message": "الصورة غير موجودة"}), 404
+        signed = sb.storage.from_("nibras-private-library").create_signed_url(rows[0]["image_path"], 120)
+        image_url = signed.get("signedURL") or signed.get("signedUrl") or signed.get("signed_url")
+        if image_url and image_url.startswith("/"):
+            image_url = SUPABASE_URL.rstrip("/") + image_url
+        if not image_url or not image_url.startswith(SUPABASE_URL.rstrip("/") + "/"):
+            return jsonify({"message": "تعذّر فتح الصورة"}), 502
+        response = redirect(image_url, code=302)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+    except Exception as exc:
+        app.logger.warning("chat image read: %s", type(exc).__name__)
+        return jsonify({"message": "تعذّر فتح الصورة"}), 503
+
+
 @app.route('/load_conversation/<cid>')
 def load_conversation_route(cid):
     ms = load_conversation(get_user_id(), cid)
@@ -2844,12 +2896,41 @@ def chat():
                             "content": h["content"][:2000]
                         })
         
+        # When a follow-up explicitly refers to a photo, supply the actual
+        # privately saved image again. Text history alone cannot show the model
+        # what was in a previous image.
+        previous_image_data = None
+        if not img_data and is_registered and cid and not incognito and re.search(
+            r"صورة|الصوره|الصور|الصورة|الصورت|الصوره|عليها|فيها|photo|picture|image", um, re.I
+        ):
+            try:
+                saved_image = (sb.table("assistant_chats").select("image_path")
+                               .eq("user_id", uid).eq("conv_id", cid)
+                               .not_.is_("image_path", "null")
+                               .order("created_at", desc=True).limit(1).execute().data or [])
+                if saved_image and saved_image[0].get("image_path"):
+                    path = saved_image[0]["image_path"]
+                    blob = sb.storage.from_("nibras-private-library").download(path)
+                    raw = blob if isinstance(blob, bytes) else blob.content
+                    if raw and len(raw) <= 5 * 1024 * 1024:
+                        ext = path.rsplit(".", 1)[-1].lower()
+                        mime = {"jpg": "image/jpeg", "png": "image/png",
+                                "webp": "image/webp"}.get(ext, "image/jpeg")
+                        previous_image_data = "data:" + mime + ";base64," + base64.b64encode(raw).decode()
+            except Exception as exc:
+                app.logger.warning("chat image follow-up: %s", type(exc).__name__)
+
         if img_data and is_registered and can_image:
             user_content = [
                 {"type": "text", "text": um or "حلل الصورة"},
                 {"type": "image_url", "image_url": {"url": img_data}}
             ]
             server_hist.append({"role": "user", "content": user_content})
+        elif previous_image_data:
+            server_hist.append({"role": "user", "content": [
+                {"type": "text", "text": um},
+                {"type": "image_url", "image_url": {"url": previous_image_data}}
+            ]})
         else:
             server_hist.append({"role": "user", "content": um})
         lang_inst = LANG_INSTRUCTION.get(user_lang, "")
@@ -3116,7 +3197,8 @@ def chat():
                 nid = cid
                 
                 if is_registered and not incognito:
-                    nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid)
+                    nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid,
+                                       image_data=img_data if has_image and can_image else None)
                 else:
                     if not nid:
                         nid = "incognito_conv_" + secrets.token_hex(5) if incognito else "guest_conv_" + secrets.token_hex(5)
