@@ -11,7 +11,11 @@ async function mediaJson(url, options) {
     try {
         const response = await fetch(url, {...options, signal: controller.signal});
         const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(body.message || 'تعذّر الاتصال بخدمة التحويل.');
+        if (!response.ok) {
+            const error = new Error(body.message || 'تعذّر الاتصال بخدمة التحويل.');
+            if (response.status === 409 && body.active_job_id) error.activeJobId = body.active_job_id;
+            throw error;
+        }
         return body;
     } catch(error) {
         if (externalSignal && externalSignal.aborted) throw mediaCanceledError();
