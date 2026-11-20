@@ -653,7 +653,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
   </button>
 </div>
 <div class="assistant-menu" id="assistantMenu"></div>
-<script src="/static/media-chat.js?v=4"></script>
+<script src="/static/media-chat.js?v=5"></script>
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="mediaBadge" hidden style="width:100%;font-size:13px;padding:4px">
@@ -744,6 +744,19 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 })();
 (function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;let currentPdfName=null;
 const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
+// Restore a previously selected library document after navigating from /library.
+try{
+    const libraryDoc=sessionStorage.getItem('nibras-library-open');
+    if(libraryDoc){
+        sessionStorage.removeItem('nibras-library-open');
+        currentPdfName=libraryDoc;
+        const badge=document.getElementById('pdfBadge'),name=document.getElementById('pdfBadgeName');
+        if(badge&&name){name.textContent='📄 '+libraryDoc;badge.style.display='block';}
+        const clearBtn=document.getElementById('clearPdfBtn');
+        if(clearBtn)clearBtn.style.display='flex';
+    }
+}catch(e){}
+
 const SVG_SPK_ON='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
 const SVG_SPK_OFF='<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
 
@@ -1331,6 +1344,25 @@ function autoAttachWordDownload(messageEl, reportText, sourceName){
             link.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg><span>تحميل ملف Word</span>';
             status.textContent='تم إعداد نسخة قابلة للتعديل.';
             box.appendChild(link);
+            if(IS_REGISTERED){
+                const saveBtn=document.createElement('button');
+                saveBtn.type='button';
+                saveBtn.textContent='حفظ في مكتبتي';
+                saveBtn.className='word-download-link';
+                saveBtn.style.cssText='cursor:pointer;background:transparent;color:var(--primary-color);border:1px solid var(--border-color);border-radius:10px;margin-top:6px';
+                saveBtn.onclick=async()=>{
+                    saveBtn.disabled=true;saveBtn.textContent='جاري الحفظ...';
+                    try{
+                        const body=new FormData();
+                        body.append('file',blob,link.download);
+                        const res=await fetch('/library/files/upload',{method:'POST',body,credentials:'same-origin'});
+                        const data=await res.json().catch(()=>({}));
+                        if(!res.ok)throw new Error(data.message||'تعذّر حفظ الملف.');
+                        saveBtn.textContent='✓ محفوظ في مكتبتي';
+                    }catch(error){showToast(error.message);saveBtn.disabled=false;saveBtn.textContent='حفظ في مكتبتي';}
+                };
+                box.appendChild(saveBtn);
+            }
             setTimeout(function(){URL.revokeObjectURL(url);},120000);
         })
         .catch(function(error){
@@ -1344,6 +1376,18 @@ function addMessage(t,s,isSys,img,imageUrl,isHtml,rawText){s=s||'bot';isSys=isSy
 
 const MEDIA_ENABLED={{ 'true' if media_enabled else 'false' }};
 const hintPrefix='nibras-media-{{ media_hint_id }}-';
+// Show expiring library files once a day when the user opens Nibras.
+if(IS_REGISTERED){
+    fetch('/library/files',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(data=>{
+        if(!data||!data.alerts||!data.alerts.length)return;
+        const key=hintPrefix+'library-alert-'+new Date().toISOString().slice(0,10);
+        if(localStorage.getItem(key))return;
+        const urgent=data.alerts.filter(f=>f.days_left<=1);
+        const count=urgent.length||data.alerts.length;
+        showToast('⚠️ '+count+' ملف من مكتبتي '+(urgent.length?'ينتهي خلال 24 ساعة.':'باقي على حذفه 7 أيام أو أقل.')+' افتح مكتبتي وحمّله.');
+        localStorage.setItem(key,'1');
+    }).catch(()=>{});
+}
 const mediaBadge=document.getElementById('mediaBadge'), mediaHint=document.getElementById('mediaHint');
 let mediaFiles=[];
 
@@ -1522,6 +1566,24 @@ async function dispatchMedia(){
         link.href=result.url;link.target='_blank';link.rel='noopener noreferrer';
         link.textContent='تحميل '+result.name;
         resultEl.textContent='تم تجهيز الملف. ';resultEl.appendChild(link);
+        if(IS_REGISTERED && !privateMode){
+            const saveBtn=document.createElement('button');
+            saveBtn.type='button';
+            saveBtn.textContent='حفظ في مكتبتي';
+            saveBtn.style.cssText='display:block;margin-top:10px;border:1px solid var(--primary-color,#4a6a8a);background:transparent;color:var(--primary-color,#4a6a8a);border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer';
+            saveBtn.onclick=async()=>{
+                saveBtn.disabled=true;saveBtn.textContent='جاري حفظ الملف...';
+                try{
+                    const res=await fetch('/library/files/save-job',{method:'POST',
+                        headers:{'Content-Type':'application/json'},credentials:'same-origin',
+                        body:JSON.stringify({job_id:jobId})});
+                    const data=await res.json().catch(()=>({}));
+                    if(!res.ok)throw new Error(data.message||'فشل الحفظ.');
+                    saveBtn.textContent='✓ محفوظ في مكتبتي لمدة 30 يومًا';
+                }catch(error){showToast(error.message);saveBtn.disabled=false;saveBtn.textContent='حفظ في مكتبتي';}
+            };
+            resultEl.appendChild(saveBtn);
+        }
         if(resultEl.isConnected){
             ch.push({role:'assistant',content:'تم تجهيز الملف: '+result.name});
             if(!privateMode)loadHistory();
