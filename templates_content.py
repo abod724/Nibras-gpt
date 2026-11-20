@@ -1570,74 +1570,83 @@ if(pdfBtn&&pdfInput){
     }
 }
 
+let documentUploadBusy=false;
 async function prepareDocument(selectedFiles){
-    // اختيار أكثر من ملف PDF يشغّل الدمج المحلي دون استدعاء OpenAI.
-        if(selectedFiles.length>1){
-            if(selectedFiles.some(function(file){return !file.name.toLowerCase().endsWith('.pdf');})){
-                showToast(userLang==='en'?'Select PDF files only':'لدمج الملفات اختر ملفات PDF فقط');
-                return;
-            }
-            var totalSize=selectedFiles.reduce(function(sum,file){return sum+file.size;},0);
-            if(totalSize>7*1024*1024){
-                showToast(userLang==='en'?'Combined size must be under 8MB':'الحجم الإجمالي يجب ألا يتجاوز 7 ميجابايت');
-                return;
-            }
-            showToast(userLang==='en'?'Merging PDF files...':'جاري دمج ملفات PDF...');
-            var mergeForm=new FormData();
-            selectedFiles.forEach(function(file){mergeForm.append('files',file);});
-            try{
-                var mergeRes=await fetch('/tools/merge-pdf',{method:'POST',body:mergeForm,credentials:'same-origin'});
-                if(!mergeRes.ok){
-                    var mergeErrorData=await mergeRes.json().catch(function(){return {};});
-                    showToast('❌ '+(mergeErrorData.message||(userLang==='en'?'Merge failed':'تعذر دمج الملفات')));
-                    return;
-                }
-                var mergedBlob=await mergeRes.blob();
-                var downloadUrl=URL.createObjectURL(mergedBlob);
-                var downloadLink=document.createElement('a');
-                downloadLink.href=downloadUrl;
-                downloadLink.download='Nibras_Merged.pdf';
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                downloadLink.remove();
-                setTimeout(function(){URL.revokeObjectURL(downloadUrl);},30000);
-                showToast(userLang==='en'?'✅ PDF files merged and downloaded':'✅ تم دمج الملفات وتجهيزها للتنزيل');
-            }catch(mergeError){
-                console.error('PDF merge error:',mergeError);
-                showToast(userLang==='en'?'Connection failed':'تعذر الاتصال بالسيرفر');
-            }
-            return;
+    if(documentUploadBusy){showToast('عندك ملف جارٍ رفعه، ألغِه أولاً قبل رفع ملف آخر.');return false;}
+    if(!selectedFiles||!selectedFiles.length)return false;
+    const multiple=selectedFiles.length>1;
+    if(multiple){
+        if(selectedFiles.some(file=>!file.name.toLowerCase().endsWith('.pdf'))){
+            showToast(userLang==='en'?'Select PDF files only':'لدمج الملفات اختر ملفات PDF فقط');return false;
         }
-
-        var f=selectedFiles[0];
-        var lowerName = f.name.toLowerCase();
+        const totalSize=selectedFiles.reduce((sum,file)=>sum+file.size,0);
+        if(totalSize>7*1024*1024){
+            showToast(userLang==='en'?'Combined size must be under 7MB':'الحجم الإجمالي يجب ألا يتجاوز 7 ميجابايت');return false;
+        }
+    }else{
+        const f=selectedFiles[0],lowerName=f.name.toLowerCase();
         if(!/\.(pdf|docx|txt|eml)$/.test(lowerName)){
-            showToast(userLang==='en'?'PDF, Word, TXT, EML only':'قراءة المستندات تدعم PDF وWord وTXT وEML. للفيديو اطلب تحويله أو ضغطه.');
-            return;
+            showToast(userLang==='en'?'PDF, Word, TXT, EML only':'قراءة المستندات تدعم PDF وWord وTXT وEML. للفيديو اطلب تحويله أو ضغطه.');return false;
         }
-        if(f.size>20*1024*1024){showToast(userLang==='en'?'Max 20MB':'حجم المستند يتجاوز 20 ميجابايت');return false;}
-        showToast(userLang==='en'?'Uploading...':'جاري تجهيز الملف...');
-        var fd=new FormData();fd.append('file',f);
-        try{
-            var res=await fetch('/upload_pdf',{method:'POST',body:fd,credentials:'same-origin'});
-            var data=await res.json();
-            if(res.ok&&data.status==='ok'){
-                showToast(userLang==='en'?'✅ File ready! Ask me about it':'✅ الملف جاهز! اسألني عنه');
-                var badge=document.getElementById('pdfBadge');
-                var badgeName=document.getElementById('pdfBadgeName');
-                if(badge&&badgeName){badgeName.textContent='📄 '+f.name;badge.style.display='block';}
-                currentPdfName=f.name;
-                var clearItem=document.getElementById('clearPdfBtn');
-                if(clearItem)clearItem.style.display='flex';
-                return true;
-            } else {
-                showToast('❌ '+(data.message||(userLang==='en'?'Upload failed':'فشل رفع الملف')));
-            }
-        }catch(err){
-            console.error('file upload error:',err);
-            showToast(userLang==='en'?'Connection failed':'تعذر الاتصال بالسيرفر');
+        if(f.size>20*1024*1024){
+            showToast(userLang==='en'?'Max 20MB':'حجم المستند يتجاوز 20 ميجابايت');return false;
         }
     }
+    const controller=new AbortController();
+    const panel=createUploadPanel(multiple?'جاري رفع ملفات PDF للدمج...':'جاري رفع المستند...',()=>controller.abort());
+    const progress=n=>{
+        panel.setProgress(n);
+        if(n>=100)panel.setMessage(multiple?'تم الرفع · جاري دمج الملفات...':'تم الرفع · جاري تجهيز المستند...');
+    };
+    documentUploadBusy=true;
+    try{
+        if(multiple){
+            const mergeForm=new FormData();
+            selectedFiles.forEach(file=>mergeForm.append('files',file));
+            const response=await xhrFilePost('/tools/merge-pdf',mergeForm,'blob',controller.signal,progress);
+            if(!response.ok){
+                let errorBody={};
+                try{errorBody=JSON.parse(await response.data.text());}catch(e){}
+                showToast('❌ '+(errorBody.message||(userLang==='en'?'Merge failed':'تعذر دمج الملفات')));
+                return false;
+            }
+            const downloadUrl=URL.createObjectURL(response.data);
+            const link=document.createElement('a');
+            link.href=downloadUrl;link.download='Nibras_Merged.pdf';
+            document.body.appendChild(link);link.click();link.remove();
+            setTimeout(()=>URL.revokeObjectURL(downloadUrl),30000);
+            showToast(userLang==='en'?'✅ PDF files merged and downloaded':'✅ تم دمج الملفات وتجهيزها للتنزيل');
+            return true;
+        }
+        const f=selectedFiles[0],fd=new FormData();
+        fd.append('file',f);
+        const response=await xhrFilePost('/upload_pdf',fd,'json',controller.signal,progress);
+        const data=response.data||{};
+        if(response.ok&&data.status==='ok'){
+            const badge=document.getElementById('pdfBadge');
+            const badgeName=document.getElementById('pdfBadgeName');
+            if(badge&&badgeName){badgeName.textContent='📄 '+f.name;badge.style.display='block';}
+            currentPdfName=f.name;
+            const clearItem=document.getElementById('clearPdfBtn');
+            if(clearItem)clearItem.style.display='flex';
+            showToast(userLang==='en'?'✅ File ready! Ask me about it':'✅ الملف جاهز! اسألني عنه');
+            return true;
+        }
+        showToast('❌ '+(data.message||(userLang==='en'?'Upload failed':'فشل رفع الملف')));
+        return false;
+    }catch(error){
+        if(controller.signal.aborted){
+            showToast('تم إلغاء الرفع. يمكنك اختيار ملف آخر.');
+            return 'cancelled';
+        }
+        console.error('file upload error:',error);
+        showToast(userLang==='en'?'Connection failed':'تعذر الاتصال بالسيرفر');
+        return false;
+    }finally{
+        panel.close();
+        documentUploadBusy=false;
+    }
+}
 
 let myAssistants=[];
 let currentAssistantId=null;
