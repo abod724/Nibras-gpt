@@ -500,7 +500,7 @@ register_media(app, sb, client, OPENAI_MODEL, get_user_role, save_message, ADMIN
 register_saved_files(app, sb, get_user_role, get_user_id, ADMIN_EMAIL, file_trial_available, claim_file_trial)
 
 
-def load_conversation(uid, cid):
+def load_conversation(uid, cid, include_image_urls=False):
     try:
         r = (sb.table("assistant_chats").select("id,message,response,image_path,created_at").eq("user_id", uid).eq("conv_id", cid).order("created_at").execute())
         rows = r.data or []
@@ -510,7 +510,7 @@ def load_conversation(uid, cid):
     for row in rows:
         if row.get("message") or row.get("image_path"):
             message = {"role": "user", "content": row.get("message") or "[صورة مرفقة]"}
-            if row.get("image_path"):
+            if include_image_urls and row.get("image_path"):
                 message["image_url"] = "/chat/images/" + str(row["id"])
             msgs.append(message)
         if row.get("response"): msgs.append({"role": "assistant", "content": row["response"]})
@@ -1943,6 +1943,12 @@ def delete_conversation():
         return jsonify({"status": "error", "message": "معرف المحادثة مطلوب"}), 400
     uid = get_user_id()
     try:
+        photo_rows = (sb.table("assistant_chats").select("image_path")
+                      .eq("user_id", uid).eq("conv_id", conv_id)
+                      .not_.is_("image_path", "null").execute().data or [])
+        photo_paths = [row["image_path"] for row in photo_rows if row.get("image_path")]
+        for start in range(0, len(photo_paths), 100):
+            sb.storage.from_("nibras-private-library").remove(photo_paths[start:start + 100])
         sb.table("assistant_chats").delete().eq("user_id", uid).eq("conv_id", conv_id).execute()
         email_str = session.get('user_email')
         if email_str:
@@ -2006,7 +2012,7 @@ def chat_image(image_id):
 
 @app.route('/load_conversation/<cid>')
 def load_conversation_route(cid):
-    ms = load_conversation(get_user_id(), cid)
+    ms = load_conversation(get_user_id(), cid, include_image_urls=True)
     if not ms:
         return jsonify({"messages": None}), 404
 
@@ -2114,6 +2120,16 @@ def delete_my_account():
                 break
         if not auth_user_id:
             return jsonify({"status": "error", "message": "لم يتم العثور على حساب المصادقة؛ لم تُحذف البيانات."}), 404
+        # Remove private storage objects before deleting the account metadata.
+        old_pictures = (sb.table("assistant_chats").select("image_path")
+                        .eq("user_id", uid).not_.is_("image_path", "null").execute().data or [])
+        saved_docs = (sb.table("nibras_saved_files").select("storage_path")
+                      .eq("user_id", uid).execute().data or [])
+        private_paths = [r["image_path"] for r in old_pictures if r.get("image_path")]
+        private_paths += [r["storage_path"] for r in saved_docs if r.get("storage_path")]
+        for start in range(0, len(private_paths), 100):
+            sb.storage.from_("nibras-private-library").remove(private_paths[start:start + 100])
+        sb.table("nibras_saved_files").delete().eq("user_id", uid).execute()
         sb.table("assistant_chats").delete().eq("user_id", uid).execute()
         sb.table("assistant_usage").delete().eq("user_id", uid).execute()
         sb.table("image_library").delete().eq("user_id", uid).execute()
