@@ -60,7 +60,6 @@ async function load(){
   actions.appendChild(dl);
   if(/\.(pdf|docx|txt|eml)$/i.test(f.name))
     actions.appendChild(button('استخدام',async()=>{
-      if(!confirm('فتح المستند في المحادثة؟ قد تُحتسب من حصة الملفات.'))return;
       try{await api('/library/files/'+encodeURIComponent(f.id)+'/use',{method:'POST'});
           sessionStorage.setItem('nibras-library-open',f.name);window.location.href='/';}
       catch(e){toast(e.message);}
