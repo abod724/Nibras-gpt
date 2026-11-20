@@ -660,7 +660,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
         <span id="mediaNames"></span> <button type="button" id="removeMedia" aria-label="إزالة المرفق">×</button>
         <div id="mediaHint" style="color:var(--text-secondary)"></div>
     </div>
-    <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div></div>
+    <div id="pdfBadge" style="display:none;width:100%;padding:6px 0 4px;"><div style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-hover);border:1px solid var(--border-color);border-radius:12px;font-size:12.5px;font-weight:600;color:var(--text-primary);max-width:100%;"><span id="pdfBadgeName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">📄 ملف</span><button type="button" id="pdfClearBtn" title="إزالة" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">✕</button></div><button type="button" id="pdfSaveBtn" style="display:none;margin:6px 0 0;border:1px solid var(--border-color);background:transparent;color:var(--primary-color);border-radius:10px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer">حفظ في مكتبتي</button></div>
     
     <!-- 🔴 بداية كود الإيموجي 🔴 -->
     <button class="btn-icon" id="emojiBtn" title="إيموجي" type="button" style="color:var(--primary-color);">
@@ -742,7 +742,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
         }
     }catch(e){}
 })();
-(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;let currentPdfName=null;
+(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;let currentPdfName=null,currentDocumentFile=null;
 const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
 // Restore a previously selected library document after navigating from /library.
 try{
@@ -925,6 +925,8 @@ async function clearPdfContext(){
     var item=document.getElementById('clearPdfBtn');
     if(item)item.style.display='none';
     currentPdfName=null;
+    currentDocumentFile=null;
+    const save=document.getElementById('pdfSaveBtn');if(save)save.style.display='none';
     showToast(userLang==='en'?'File cleared':'تم مسح الملف المرفق');
     document.getElementById('dropdown').classList.remove('show');
 }
@@ -1185,6 +1187,10 @@ async function loadConversation(id){
                 const s=m.role==='user'?'user':'bot';
                 ch.push({role:m.role,content:m.content});
                 addMessage(m.display_content||m.content, s, true, null, null, m.is_html, m.content);
+                if(s==='user' && m.image_url){
+                    const photo=addMessage('', 'user', true, m.image_url);
+                    photo.setAttribute('aria-label','صورة مرفقة في هذه المحادثة');
+                }
             });
             dd.classList.remove('show');
         }
@@ -1646,6 +1652,37 @@ if(pdfBtn&&pdfInput){
     }
 }
 
+
+// Saves only when the user taps the button; uploading a document for analysis
+// does not automatically put it into the 30-day personal library.
+async function saveDocumentToLibrary(file,button){
+    if(!file||!button||button.disabled)return;
+    button.disabled=true;
+    const previous=button.textContent;
+    button.textContent='جاري الحفظ...';
+    try{
+        const body=new FormData();body.append('file',file,file.name);
+        const response=await fetch('/library/files/upload',{method:'POST',body,credentials:'same-origin'});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.message||'تعذّر حفظ الملف.');
+        button.textContent='✓ محفوظ في مكتبتي';
+        button.dataset.saved='1';
+    }catch(error){
+        showToast(error.message||'تعذّر الحفظ');
+        button.disabled=false;button.textContent=previous;
+    }
+}
+function attachDocumentSaveButton(el,file){
+    if(!el||!file||!IS_REGISTERED||isIncognito)return;
+    const btn=document.createElement('button');
+    btn.type='button';btn.textContent='حفظ في مكتبتي';
+    btn.style.cssText='display:block;margin-top:8px;border:1px solid var(--border-color);border-radius:10px;padding:8px 12px;background:transparent;color:var(--primary-color);font:inherit;cursor:pointer';
+    btn.onclick=()=>saveDocumentToLibrary(file,btn);
+    el.appendChild(btn);
+}
+const pdfSaveBtn=document.getElementById('pdfSaveBtn');
+if(pdfSaveBtn)pdfSaveBtn.addEventListener('click',()=>saveDocumentToLibrary(currentDocumentFile,pdfSaveBtn));
+
 let documentUploadBusy=false;
 async function prepareDocument(selectedFiles){
     if(documentUploadBusy){showToast('عندك ملف جارٍ رفعه، ألغِه أولاً قبل رفع ملف آخر.');return false;}
@@ -1703,6 +1740,13 @@ async function prepareDocument(selectedFiles){
             const badgeName=document.getElementById('pdfBadgeName');
             if(badge&&badgeName){badgeName.textContent='📄 '+f.name;badge.style.display='block';}
             currentPdfName=f.name;
+            currentDocumentFile=f;
+            const saveButton=document.getElementById('pdfSaveBtn');
+            if(saveButton){
+                saveButton.style.display=IS_REGISTERED && !isIncognito?'inline-block':'none';
+                saveButton.disabled=false;
+                saveButton.textContent='حفظ في مكتبتي';
+            }
             const clearItem=document.getElementById('clearPdfBtn');
             if(clearItem)clearItem.style.display='flex';
             showToast(userLang==='en'?'✅ File ready! Ask me about it':'✅ الملف جاهز! اسألني عنه');
@@ -1901,6 +1945,7 @@ async function sendMessage(){
     spokenUntil=0;
     let userMsgEl=null;
     let pdfToSend = currentPdfName;
+    const originalDocumentFile=currentDocumentFile;
     if(currentPdfName){
         addMessage('📄 ملف مرفق: '+currentPdfName,'user');
         ch.push({role:'user',content:'[ملف مرفق: '+currentPdfName+']'});
@@ -1909,6 +1954,9 @@ async function sendMessage(){
         var _clearPdfItem=document.getElementById('clearPdfBtn');
         if(_clearPdfItem)_clearPdfItem.style.display='none';
         currentPdfName=null;
+        currentDocumentFile=null;
+        const savedButton=document.getElementById('pdfSaveBtn');
+        if(savedButton)savedButton.style.display='none';
     }
     if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}
     if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}
@@ -1947,6 +1995,7 @@ async function sendMessage(){
             if(displayText&&displayText.trim().length>0){
                 attachBotActions(botEl,displayText);
                 if(pdfToSend && IS_REGISTERED){
+                    if(originalDocumentFile)attachDocumentSaveButton(botEl,originalDocumentFile);
                     autoAttachWordDownload(botEl,displayText,pdfToSend);
                 }
                 ch.push({role:'assistant',content:displayText});
