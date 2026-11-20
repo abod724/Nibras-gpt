@@ -653,7 +653,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
   </button>
 </div>
 <div class="assistant-menu" id="assistantMenu"></div>
-<script src="/static/media-chat.js?v=2"></script>
+<script src="/static/media-chat.js?v=3"></script>
 <div class="input-area" id="inputArea">
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="mediaBadge" hidden style="width:100%;font-size:13px;padding:4px">
@@ -1347,6 +1347,48 @@ const hintPrefix='nibras-media-{{ media_hint_id }}-';
 const mediaBadge=document.getElementById('mediaBadge'), mediaHint=document.getElementById('mediaHint');
 let mediaFiles=[];
 
+// Shared upload indicator above the message box, with a real cancel action.
+function createUploadPanel(label,onCancel){
+    const panel=document.createElement('div');
+    panel.style.cssText='width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border-color,#ddd);background:var(--bg-hover,#f4f7fc);border-radius:12px;font-size:13px;color:var(--text-primary,#111)';
+    panel.setAttribute('role','status');
+    const heading=document.createElement('div');heading.textContent=label;heading.style.marginBottom='6px';
+    const bar=document.createElement('progress');bar.max=100;bar.style.cssText='display:block;width:100%;height:12px;accent-color:#159b7e';
+    const line=document.createElement('div');line.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:5px';
+    const pct=document.createElement('small');pct.textContent='بانتظار الرفع...';
+    const btn=document.createElement('button');btn.type='button';btn.textContent='إلغاء';
+    btn.setAttribute('aria-label','إلغاء رفع المرفق');
+    btn.style.cssText='border:1px solid #dc2626;border-radius:9px;padding:7px 12px;background:transparent;color:#dc2626;font:inherit;cursor:pointer';
+    btn.onclick=()=>{btn.disabled=true;btn.textContent='جاري الإلغاء...';heading.textContent='جاري إلغاء المهمة...';onCancel();};
+    line.append(pct,btn);panel.append(heading,bar,line);
+    document.getElementById('inputArea').prepend(panel);
+    return {setMessage(text){heading.textContent=text;},setProgress(value){
+        const n=Math.max(0,Math.min(100,Math.floor(value)));
+        bar.value=n;pct.textContent=new Intl.NumberFormat('ar-SA').format(n)+'٪';
+    },close(){panel.remove();}};
+}
+
+function xhrFilePost(url,formData,responseType,signal,onProgress){
+    return new Promise((resolve,reject)=>{
+        if(signal.aborted)return reject(mediaCanceledError());
+        const xhr=new XMLHttpRequest();
+        let lastUpdate=Date.now(),watchdog=null,done=false;
+        const stop=()=>xhr.abort();
+        const finish=(err,val)=>{if(done)return;done=true;if(watchdog)clearInterval(watchdog);
+            signal.removeEventListener('abort',stop);if(err)reject(err);else resolve(val);};
+        xhr.upload.onprogress=e=>{lastUpdate=Date.now();if(e.lengthComputable&&e.total)onProgress(e.loaded/e.total*100);};
+        xhr.upload.onload=()=>{lastUpdate=Date.now();onProgress(100);};
+        xhr.onload=()=>finish(null,{ok:xhr.status>=200&&xhr.status<300,status:xhr.status,data:xhr.response});
+        xhr.onerror=()=>finish(new Error('انقطع الاتصال أثناء الرفع.'));
+        xhr.onabort=()=>finish(signal.aborted?mediaCanceledError():new Error('توقف الرفع بعد انقطاع الاتصال.'));
+        xhr.open('POST',url);xhr.withCredentials=true;xhr.responseType=responseType;
+        signal.addEventListener('abort',stop,{once:true});
+        if(signal.aborted)return finish(mediaCanceledError());
+        watchdog=setInterval(()=>{if(Date.now()-lastUpdate>120000)xhr.abort();},5000);
+        try{xhr.send(formData);}catch(error){finish(error);}
+    });
+}
+
 function clearMediaSelection(){
     mediaFiles=[];
     mediaBadge.hidden=true;
@@ -1401,38 +1443,55 @@ async function selectMedia(files){
 
 async function dispatchMedia(){
     const files=mediaFiles, prompt=ui.value.trim();
-    // Document reading is independent from media conversion. Keep PDF merge/conversion
-    // requests on the conversion route; route ordinary document questions locally.
     const isDocument=files.length===1 && /\.(pdf|docx|txt|eml)$/i.test(files[0].name);
     const wantsConversion=/\b(convert|compress|merge|optimize)\b|حول|حوّل|اضغط|ضغط|ادمج|اجمع|صغّر|صغر/i.test(prompt);
     if(isDocument && !wantsConversion){
-        if(await prepareDocument(files)){
-            clearMediaSelection();
-            return false;
-        }
+        const ready=await prepareDocument(files);
+        if(ready===true){clearMediaSelection();return false;}
+        if(ready==='cancelled')clearMediaSelection();
         return true;
     }
-    const originalChat=cid;
-    const privateMode=isIncognito;
+    const originalChat=cid, privateMode=isIncognito;
     const jobId=crypto.randomUUID(), chatId=cid||crypto.randomUUID();
+    const control={cancelled:false,abort:new AbortController()};
+    const cancel=()=>{if(!control.cancelled){control.cancelled=true;control.abort.abort();}};
+    const setupPanel=createUploadPanel('جاري تجهيز مهمة التحويل...',cancel);
     let data={state:'ordinary'};
-    if(prompt){
-        data=await mediaJson('/media/jobs',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({id:jobId,chat_id:chatId,incognito:privateMode,message:prompt,
-                files:files.map(f=>({ext:f.name.split('.').pop().toLowerCase(),size:f.size}))})});
+    try{
+        if(prompt){
+            data=await mediaJson('/media/jobs',{method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({id:jobId,chat_id:chatId,incognito:privateMode,message:prompt,
+                    files:files.map(f=>({ext:f.name.split('.').pop().toLowerCase(),size:f.size}))})});
+        }
+    }catch(error){
+        setupPanel.close();
+        if(control.cancelled){clearPending();showToast('تم إلغاء الطلب.');return true;}
+        throw error;
     }
+    if(control.cancelled){
+        if(data.state==='upload'){
+            setupPanel.setMessage('جاري تأكيد إلغاء المهمة...');
+            const canceled=await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'}).catch(()=>null);
+            showToast(canceled?(canceled.message||'تم إلغاء المهمة.'):'أوقفت الطلب، لكن تعذّر تأكيد إلغائه في الخدمة.');
+        }else showToast('تم إلغاء الطلب.');
+        setupPanel.close();clearPending();return true;
+    }
+    setupPanel.close();
     if(data.state==='ordinary'){
         if(mediaFiles!==files)return true;
         if(files.length===1 && /\.(pdf|docx|txt|eml)$/i.test(files[0].name)){
-            if(!await prepareDocument(files))return true;
-            clearMediaSelection();return false;
+            const ready=await prepareDocument(files);
+            if(ready===true){clearMediaSelection();return false;}
+            if(ready==='cancelled')clearMediaSelection();
+            return true;
         }
         if(files.length===1 && pid){clearMediaSelection();return false;}
         showToast('اكتب المطلوب من المرفق، مثل «اضغطه» أو «اكتب كلام المقطع».');
         return true;
     }
     if(cid!==originalChat || mediaFiles!==files){
-        await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'});return true;
+        await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'}).catch(()=>null);
+        return true;
     }
     cid=chatId;
     const label=files.map(f=>f.name).join('، ');
@@ -1442,8 +1501,9 @@ async function dispatchMedia(){
     const resultEl=addMessage('', 'bot', true);
     clearPending();ui.value='';ui.style.height='auto';
     try{
-        const result=await trackMediaTransfer(resultEl,jobId,data.forms,files);
-        if(result.state!=='finished'){resultEl.textContent=result.message;return true;}
+        const result=await trackMediaTransfer(resultEl,jobId,data.forms,files,
+            {signal:control.abort.signal,onCancel:cancel});
+        if(result.state!=='finished'){resultEl.textContent=result.message||'تعذّر التحويل.';return true;}
         const link=document.createElement('a');
         link.href=result.url;link.target='_blank';link.rel='noopener noreferrer';
         link.textContent='تحميل '+result.name;
@@ -1452,7 +1512,21 @@ async function dispatchMedia(){
             ch.push({role:'assistant',content:'تم تجهيز الملف: '+result.name});
             if(!privateMode)loadHistory();
         }
-    }catch(error){resultEl.textContent=error.message;}
+    }catch(error){
+        if(control.cancelled){
+            resultEl.textContent='جاري تأكيد الإلغاء...';
+            const canceled=await mediaJson('/media/jobs/'+jobId+'/cancel',{method:'POST'}).catch(()=>null);
+            if(canceled&&canceled.state==='finished'&&canceled.url){
+                const link=document.createElement('a');link.href=canceled.url;link.target='_blank';
+                link.rel='noopener noreferrer';link.textContent='تحميل '+canceled.name;
+                resultEl.textContent='اكتمل التحويل قبل تأكيد الإلغاء. ';resultEl.appendChild(link);
+            }else{
+                resultEl.textContent=canceled
+                    ?(canceled.message||'تم إلغاء المهمة. يمكنك رفع ملف جديد.')
+                    :'توقف الرفع من جهازك، لكن تعذّر تأكيد إلغاء المهمة لدى الخدمة. حاول مجددًا بعد قليل.';
+            }
+        }else resultEl.textContent=error.message;
+    }
     return true;
 }
 
