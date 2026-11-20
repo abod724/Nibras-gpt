@@ -455,7 +455,7 @@ def get_user_conversations(uid):
         if not seen[cid]["title"]: seen[cid]["title"] = "محادثة"
     return list(seen.values())
 
-def save_message(uid, msg, resp, cid=None, image_data=None):
+def save_message(uid, msg, resp, cid=None, image_data=None, word_attachment=False, word_source=None):
     if not cid: cid = secrets.token_hex(5)
     image_path = None
     try:
@@ -495,6 +495,9 @@ def save_message(uid, msg, resp, cid=None, image_data=None):
         chat_row = {"user_id": uid, "conv_id": cid, "message": msg, "response": resp, "title": title}
         if image_path:
             chat_row["image_path"] = image_path
+        if word_attachment:
+            chat_row["word_attachment"] = True
+            chat_row["word_source"] = (str(word_source or "ملخص المستند")[:180])
         sb.table("assistant_chats").insert(chat_row).execute()
     except Exception as e:
         print("save_message:", e)
@@ -509,7 +512,7 @@ register_saved_files(app, sb, get_user_role, get_user_id, ADMIN_EMAIL, file_tria
 
 def load_conversation(uid, cid, include_image_urls=False):
     try:
-        r = (sb.table("assistant_chats").select("id,message,response,image_path,created_at").eq("user_id", uid).eq("conv_id", cid).order("created_at").execute())
+        r = (sb.table("assistant_chats").select("id,message,response,image_path,word_attachment,word_source,created_at").eq("user_id", uid).eq("conv_id", cid).order("created_at").execute())
         rows = r.data or []
     except Exception as e: return None
     if not rows: return None
@@ -520,7 +523,12 @@ def load_conversation(uid, cid, include_image_urls=False):
             if include_image_urls and row.get("image_path"):
                 message["image_url"] = "/chat/images/" + str(row["id"])
             msgs.append(message)
-        if row.get("response"): msgs.append({"role": "assistant", "content": row["response"]})
+        if row.get("response"):
+            reply = {"role": "assistant", "content": row["response"]}
+            if include_image_urls and row.get("word_attachment"):
+                reply["word_attachment"] = True
+                reply["word_source"] = row.get("word_source") or "ملخص المستند"
+            msgs.append(reply)
     return msgs
 
 def load_conversation_public(cid):
@@ -3213,15 +3221,23 @@ def chat():
                         token = chunk.choices[0].delta.content
                         full_reply += token
                         yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
-                cleaned = '\n\n'.join([
-                    ' '.join(l.strip() for l in block.split('\n') if l.strip())
-                    for block in full_reply.split('\n\n') if block.strip()
-                ]) or ("ما قدرت أجيب رد." if user_lang == 'ar' else "I couldn't generate a response.")
+                # Keep the original Word document structure, including tables
+                # and Markdown line breaks, for downloads after reopening a chat.
+                if is_registered and d.get("word_attachment") is True and pdf_data:
+                    cleaned = full_reply.strip()
+                else:
+                    cleaned = '\n\n'.join([
+                        ' '.join(l.strip() for l in block.split('\n') if l.strip())
+                        for block in full_reply.split('\n\n') if block.strip()
+                    ])
+                cleaned = cleaned or ("ما قدرت أجيب رد." if user_lang == 'ar' else "I couldn't generate a response.")
                 nid = cid
                 
                 if is_registered and not incognito:
                     nid = save_message(uid, um or "[صورة مرفقة]", cleaned, cid,
-                                       image_data=img_data if has_image and can_image else None)
+                                       image_data=img_data if has_image and can_image else None,
+                                       word_attachment=bool(d.get("word_attachment") is True and pdf_data),
+                                       word_source=(pdf_data or {}).get("filename"))
                 else:
                     if not nid:
                         nid = "incognito_conv_" + secrets.token_hex(5) if incognito else "guest_conv_" + secrets.token_hex(5)
