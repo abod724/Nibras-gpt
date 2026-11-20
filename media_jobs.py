@@ -39,6 +39,8 @@ LIMIT_MESSAGES = {
 
 def operations(exts):
     if len(exts) > 1:
+        if all(e in VIDEOS for e in exts):
+            return ["video_mp4"]
         return ["merge_pdf"] if all(e in IMAGES | DOCUMENTS for e in exts) else []
     ext = exts[0]
     if ext in IMAGES:
@@ -56,6 +58,12 @@ def basic_intent(prompt, allowed):
     normalized = re.sub(r"[ً-ْ؟?!.,،]", "", normalized).strip()
     if normalized in {"لخصه", "لخص لي الملف", "لخص لي المستند", "وش في الصورة", "اشرح الصورة", "وش هذا", "وش هذي"}:
         return "ordinary"
+    # Recognize natural Arabic requests such as "ابي تحوله MP4" without
+    # treating questions *about* the file's format as conversion orders.
+    if ("video_mp4" in allowed and
+            re.search(r"\bmp4\b|ام بي فور|امبي فور|mpeg ?4", normalized) and
+            re.search(r"حول|تحويل|خله|خلي|صيغة|صيغه", normalized)):
+        return "video_mp4"
     phrases = {
         "image_jpg": ("حولها jpg", "حولها الى jpg", "خلها jpg", "حولها جي بي جي"),
         "image_png": ("حولها png", "خلها png"),
@@ -75,6 +83,23 @@ def tasks_for(action, exts):
     names = [f"source-{n}" for n in range(len(exts))]
     tasks = {name: {"operation": "import/upload"} for name in names}
     ext = exts[0]
+    if action == "video_mp4" and len(exts) > 1:
+        # CloudConvert converts each video separately, then exports a ZIP
+        # containing the resulting MP4s. Do not concatenate unrelated clips.
+        outputs = []
+        for index, source in enumerate(names):
+            process_name = f"process-{index}"
+            tasks[process_name] = {
+                "operation": "convert", "input": source,
+                "output_format": "mp4", "video_codec": "x264",
+                "filename": f"video-{index + 1}.mp4",
+            }
+            outputs.append(process_name)
+        tasks["download"] = {
+            "operation": "export/url", "input": outputs,
+            "archive_multiple_files": True,
+        }
+        return tasks
     specs = {
         "image_jpg": {"operation": "convert", "output_format": "jpg"},
         "image_png": {"operation": "convert", "output_format": "png"},
@@ -149,9 +174,13 @@ def register_media(app, sb, client, model, role_for, save_message, admin_email, 
                 result["message"] = "التفريغ الصوتي يحتاج تفعيل AI في حساب CloudConvert. تجربتك محفوظة."
             return result
         if remote["status"] != "finished":
-            process = next((t for t in remote["tasks"] if t["name"] == "process"), {})
-            if age > 7200 and process.get("status") == "waiting":
-                provider("POST", "/tasks/" + process["id"] + "/cancel")
+            processing = [t for t in remote["tasks"] if t["name"].startswith("process")]
+            process = next((t for t in processing if t.get("status") == "processing"), None)
+            process = process or next((t for t in processing if t.get("status") != "finished"), None) or {}
+            if age > 7200:
+                for task in processing:
+                    if task.get("status") == "waiting" and task.get("id"):
+                        provider("POST", "/tasks/" + task["id"] + "/cancel")
             if any(t.get("status") != "finished" for t in remote["tasks"] if t["name"].startswith("source-")):
                 phase = "receiving"
             else:
@@ -230,6 +259,12 @@ def register_media(app, sb, client, model, role_for, save_message, admin_email, 
             if f["size"] > MEDIA_MAX_BYTES[category]:
                 maximum = MEDIA_MAX_BYTES[category] // (1024 * 1024)
                 return jsonify(message=f"حجم {category} يتجاوز الحد المسموح ({maximum} ميجابايت)."), 413
+        if len(exts) > 1 and all(ext in VIDEOS for ext in exts):
+            # Bound CloudConvert credit usage for batch transcoding.
+            if len(exts) > 2:
+                return jsonify(message="اختر مقطعين فيديو كحد أقصى في كل تحويل."), 400
+            if sum(f["size"] for f in files) > 200 * 1024 * 1024:
+                return jsonify(message="إجمالي المقطعين يتجاوز 200 ميجابايت."), 413
         prompt = str(d.get("message", "")).strip()[:2000]
         allowed = operations(exts)
         if not prompt:
