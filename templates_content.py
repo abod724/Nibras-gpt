@@ -679,10 +679,10 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 
     <button class="btn-icon mic-btn" id="micBtn" title="صوت"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button>
     <button class="plus-btn" id="plusBtn" title="إضافة"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="إرفاق صورة أو فيديو أو صوت أو مستند"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button><button class="option-btn" id="pdfBtn" title="ملف PDF أو Word"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></button></div>
+    <div class="plus-options" id="plusOptions"><button class="option-btn" id="cameraBtn" title="كاميرا"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="option-btn" id="galleryBtn" title="إرفاق ملف أو صورة أو فيديو أو صوت"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button></div>
     <textarea id="userInput" placeholder="اكتب رسالتك..." autofocus rows="1"></textarea>
     <button class="send" id="sendBtn" title="إرسال"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-</div><input type="file" id="fileInput" accept="image/*,video/*,audio/*,.pdf,.docx,.txt,.eml,.heic,.heif,.mkv,.mov,.m4v,.avi,.webm,.mp4,.mp3,.wav" multiple style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/><input type="file" id="pdfInput" accept=".pdf,.docx,.txt,.eml,image/*,video/*,audio/*,.heic,.heif,.mkv,.mov,.mp4" multiple style="display:none"/></div>
+</div><input type="file" id="fileInput" accept="image/*,video/*,audio/*,.pdf,.docx,.txt,.eml,.heic,.heif,.mkv,.mov,.m4v,.avi,.webm,.mp4,.mp3,.wav" multiple style="display:none"/><input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none"/></div>
 
 <div class="share-modal" id="shareModal">
     <div class="box">
@@ -1688,23 +1688,11 @@ ci.addEventListener('change',function(){
     if(MEDIA_ENABLED){selectMedia(files);return;}
     compressImage(files[0],800,function(data){pid=data;showImagePreview(data);});
 });
-const pdfBtn=document.getElementById('pdfBtn'),pdfInput=document.getElementById('pdfInput');
-if(pdfBtn&&pdfInput){
-    pdfBtn.addEventListener('click',function(){pdfInput.click();po.classList.remove('show');});
-    pdfInput.addEventListener('change',async function(e){
-        if(!this.files||this.files.length===0)return;
-        var selectedFiles=Array.from(this.files);
-        pdfInput.value='';
-
-        if(MEDIA_ENABLED){selectMedia(selectedFiles);return;}
-        await prepareDocument(selectedFiles);
+const pdfClearBtn=document.getElementById('pdfClearBtn');
+if(pdfClearBtn){
+    pdfClearBtn.addEventListener('click',async function(){
+        await clearPdfContext();
     });
-    var pdfClearBtn=document.getElementById('pdfClearBtn');
-    if(pdfClearBtn){
-        pdfClearBtn.addEventListener('click',async function(){
-            await clearPdfContext();
-        });
-    }
 }
 
 
