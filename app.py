@@ -40,6 +40,8 @@ from templates_content import (
 # استدعاء ملفات المكتبة والذاكرة (تأكد من وجودها في نفس المجلد)
 from library import library_bp, view_shared_page
 from media_jobs import register_media
+from saved_files import register_saved_files
+from saved_library_page import SAVED_LIBRARY_HTML
 from memory_page import MEMORY_CSS, MEMORY_HTML, MEMORY_JS
 
 app = Flask(__name__, static_folder='static')
@@ -471,6 +473,7 @@ def save_message(uid, msg, resp, cid=None):
     return cid
 
 register_media(app, sb, client, OPENAI_MODEL, get_user_role, save_message, ADMIN_EMAIL, limiter)
+register_saved_files(app, sb, get_user_role, get_user_id, ADMIN_EMAIL, file_trial_available, claim_file_trial)
 
 
 def load_conversation(uid, cid):
@@ -1235,7 +1238,7 @@ def index():
 def library_page():
     if not session.get('user_email') and not session.get('is_admin'):
         return redirect(url_for('login'))
-    return render_template_string(LIBRARY_HTML)
+    return render_template_string(SAVED_LIBRARY_HTML)
 
 @app.route('/library/images')
 def library_images():
@@ -1957,8 +1960,14 @@ def load_conversation_route(cid):
 
     for m in ms:
         if m['role'] == 'assistant':
-            m['display_content'] = str(format_nibras_response(m['content']))
-            m['is_html'] = True
+            # Conversion links are already Markdown, not generated HTML. Preserve
+            # their clickable href when old chat messages are loaded again.
+            if re.search(r"\[تحميل الملف المحوّل\]\(https://", m['content']):
+                m['display_content'] = m['content']
+                m['is_html'] = False
+            else:
+                m['display_content'] = str(format_nibras_response(m['content']))
+                m['is_html'] = True
         else:
             m['display_content'] = m['content']
             m['is_html'] = False
