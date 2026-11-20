@@ -2031,13 +2031,29 @@ def load_conversation_route(cid):
     if not ms:
         return jsonify({"messages": None}), 404
 
+    # Match previously completed conversions to this account's server-verified
+    # jobs. A user-visible download URL is never trusted as proof of ownership.
+    account = (ADMIN_EMAIL if session.get('is_admin') else
+               session.get('user_email') or '').strip().lower()
     for m in ms:
         if m['role'] == 'assistant':
-            # Conversion links are already Markdown, not generated HTML. Preserve
-            # their clickable href when old chat messages are loaded again.
-            if re.search(r"\[تحميل الملف المحوّل\]\(https://", m['content']):
+            # Conversion links are already Markdown. Preserve their link and
+            # expose a save action that POSTs the verified job ID on demand.
+            match = re.search(r"\[تحميل الملف المحوّل\]\((https://[^)]+)\)", m['content'])
+            if match:
                 m['display_content'] = m['content']
                 m['is_html'] = False
+                if account:
+                    try:
+                        jobs = (sb.table("nibras_media_jobs")
+                                .select("id").eq("account", account)
+                                .eq("state", "finished")
+                                .eq("result_url", match.group(1))
+                                .limit(1).execute().data or [])
+                        if jobs:
+                            m['media_job_id'] = jobs[0]['id']
+                    except Exception as e:
+                        app.logger.warning("restored conversion save: %s", type(e).__name__)
             else:
                 m['display_content'] = str(format_nibras_response(m['content']))
                 m['is_html'] = True
