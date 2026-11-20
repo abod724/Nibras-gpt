@@ -43,7 +43,7 @@ from media_jobs import register_media
 from memory_page import MEMORY_CSS, MEMORY_HTML, MEMORY_JS
 
 app = Flask(__name__, static_folder='static')
-app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 22 * 1024 * 1024
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY or len(SECRET_KEY) < 32:
     raise RuntimeError("يجب ضبط SECRET_KEY كمتغير بيئة ثابت بطول 32 حرفًا على الأقل")
@@ -1307,6 +1307,13 @@ def upload_pdf():
         file = request.files['file']
         if file.filename == '':
             return jsonify({"status": "error", "message": "اسم الملف فارغ"}), 400
+
+        # Guard before parsing a potentially large document; files use the Flask upload path.
+        file.seek(0, 2)
+        document_size = file.tell()
+        file.seek(0)
+        if document_size > 20 * 1024 * 1024:
+            return jsonify({"status": "error", "message": "حجم المستند يتجاوز 20 ميجابايت."}), 413
 
         ext = file.filename.lower().split('.')[-1]
         if ext not in ['pdf', 'docx', 'eml', 'txt']:
