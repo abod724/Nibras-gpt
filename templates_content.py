@@ -494,20 +494,16 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 .emoji-content span { cursor: pointer; padding: 2px; border-radius: 6px; transition: background 0.15s; display: inline-block; }
 .emoji-content span:hover { background: var(--bg-hover); transform: scale(1.1); }
 
-/* Nibras GP native install invitation */
-.nibras-install-overlay{position:fixed;inset:0;z-index:1000100;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(6,17,31,.54);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
-.nibras-install-overlay.show{display:flex;animation:nibrasInstallFade .22s ease both}
-.nibras-install-card{position:relative;width:100%;max-width:360px;padding:28px 24px 23px;border-radius:26px;background:var(--bg-app);color:var(--text-primary);box-shadow:0 24px 70px rgba(0,0,0,.22);border:1px solid var(--border-color);text-align:center;animation:nibrasInstallRise .26s cubic-bezier(.22,1,.36,1) both}
-.nibras-install-close{position:absolute;top:12px;left:12px;width:34px;height:34px;border:0;border-radius:50%;background:var(--bg-hover);color:var(--text-secondary);font-size:23px;line-height:1;cursor:pointer}
-.nibras-install-logo{width:76px;height:76px;margin:8px auto 16px;display:block;border-radius:19px;box-shadow:0 8px 22px rgba(0,0,0,.12);object-fit:cover}
-.nibras-install-title{font-size:21px;font-weight:800;line-height:1.45;margin:0 0 8px;color:var(--text-primary)}
-.nibras-install-desc{font-size:14px;line-height:1.9;color:var(--text-secondary);margin:0 0 22px}
-.nibras-install-action{width:100%;min-height:50px;display:flex;justify-content:center;align-items:center;gap:10px;border:0;border-radius:15px;background:var(--primary-color);color:#fff;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;transition:filter .15s,transform .15s}
-.nibras-install-action:active{transform:scale(.985)}
-.nibras-install-action svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.nibras-install-later{display:block;margin:13px auto 0;padding:8px 18px;border:0;background:transparent;color:var(--text-secondary);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer}
+/* Compact, nonblocking PWA install banner */
+.nibras-install-overlay{position:fixed;top:82px;left:0;right:0;z-index:1000100;display:none;justify-content:center;padding:0 12px;pointer-events:none}
+.nibras-install-overlay.show{display:flex;animation:nibrasInstallFade .2s ease both}
+.nibras-install-card{display:flex;align-items:center;gap:10px;width:100%;max-width:410px;padding:12px 12px;background:var(--bg-app);color:var(--text-primary);border:1px solid var(--border-color);border-radius:18px;box-shadow:0 12px 38px rgba(0,0,0,.17);pointer-events:auto;animation:nibrasInstallRise .24s ease both}
+.nibras-install-logo{width:42px;height:42px;border-radius:11px;object-fit:cover;flex-shrink:0}
+.nibras-install-title{flex:1;min-width:0;font-size:14px;font-weight:750;color:var(--text-primary);white-space:nowrap}
+.nibras-install-action{flex-shrink:0;background:var(--primary-color);color:#fff;border:0;border-radius:11px;min-height:38px;padding:0 16px;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.nibras-install-close{flex-shrink:0;width:28px;height:32px;border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:23px;cursor:pointer;line-height:1}
 @keyframes nibrasInstallFade{from{opacity:0}to{opacity:1}}
-@keyframes nibrasInstallRise{from{transform:translateY(15px) scale(.98)}to{transform:translateY(0) scale(1)}}
+@keyframes nibrasInstallRise{from{transform:translateY(-8px)}to{transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.nibras-install-overlay.show,.nibras-install-card{animation:none}}
 {{ memory_css|safe }}
 </style></head><body>
@@ -558,7 +554,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 
 <div class="dropdown" id="dropdown">
     <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
-    <button class="item" id="installNibrasBtn" type="button" style="display:none" onclick="window.installNibrasApp()" aria-label="تثبيت تطبيق نبراس GP">
+    <button class="item" id="installNibrasBtn" type="button" style="display:none" onclick="window.showNibrasInstall()" aria-label="تثبيت تطبيق نبراس GP">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <span>تثبيت نبراس GP</span>
     </button>
@@ -612,18 +608,13 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 </div>
 
 
-<!-- Show only when the browser offers a genuine native installation dialog. -->
-<div class="nibras-install-overlay" id="nibrasInstallOverlay" aria-hidden="true" onclick="if(event.target===this)window.dismissNibrasInstall()">
-    <div class="nibras-install-card" role="dialog" aria-modal="true" aria-labelledby="nibrasInstallTitle" aria-describedby="nibrasInstallDescription">
+<!-- Compact invitation, shown only when native installation is available. -->
+<div class="nibras-install-overlay" id="nibrasInstallOverlay" aria-hidden="true">
+    <div class="nibras-install-card" role="region" aria-label="تثبيت نبراس GP">
+        <img class="nibras-install-logo" src="/static/icon-192.png" alt="" width="42" height="42">
+        <span class="nibras-install-title">ثبّت نبراس GP</span>
+        <button class="nibras-install-action" type="button" onclick="window.installNibrasApp()">تثبيت</button>
         <button class="nibras-install-close" type="button" aria-label="إغلاق" onclick="window.dismissNibrasInstall()">×</button>
-        <img class="nibras-install-logo" src="/static/icon-192.png" alt="نبراس GP" width="76" height="76">
-        <h2 class="nibras-install-title" id="nibrasInstallTitle">خلّ نبراس GP معك دائمًا</h2>
-        <p class="nibras-install-desc" id="nibrasInstallDescription">ثبّت نبراس على جوالك وافتحه بضغطة واحدة، مثل أي تطبيق.</p>
-        <button class="nibras-install-action" type="button" onclick="window.installNibrasApp()">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-            تثبيت الآن
-        </button>
-        <button class="nibras-install-later" type="button" onclick="window.dismissNibrasInstall()">ليس الآن</button>
     </div>
 </div>
 
@@ -2276,7 +2267,7 @@ setTimeout(function(){
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 {{ memory_js|safe }}
 
-// Install invitation appears only when native browser installation is actually available.
+// Minimal install banner that stays visible until the visitor chooses an action.
 (function initNibrasInstall(){
     const menuButton = document.getElementById('installNibrasBtn');
     const overlay = document.getElementById('nibrasInstallOverlay');
@@ -2284,66 +2275,60 @@ setTimeout(function(){
     let deferredPrompt = null;
     let installed = false;
     let invitationTimer = null;
-    const dismissKey = 'nibras_install_dismissed_at_v1';
-    const seenKey = 'nibras_install_offered_this_session_v1';
-    const dismissForMs = 14 * 24 * 60 * 60 * 1000;
+    let offeredThisPage = false;
+    const closedKey = 'nibras_install_closed_this_session_v2';
     const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
     const hasInstallOffer = () => !!deferredPrompt && !installed && !isStandalone();
-    const updateMenuButton = () => {
+
+    const updateMenu = () => {
         menuButton.style.display = hasInstallOffer() ? 'flex' : 'none';
     };
-    const hideInvitation = () => {
+    const hideBanner = () => {
         overlay.classList.remove('show');
         overlay.setAttribute('aria-hidden', 'true');
     };
-    const markDismissed = () => {
-        try { localStorage.setItem(dismissKey, String(Date.now())); } catch (_) {}
-        try { sessionStorage.setItem(seenKey, '1'); } catch (_) {}
+    const showBanner = () => {
+        if (!hasInstallOffer()) return;
+        overlay.classList.add('show');
+        overlay.setAttribute('aria-hidden', 'false');
     };
-    const canInvite = () => {
-        if (!hasInstallOffer()) return false;
-        try {
-            if (sessionStorage.getItem(seenKey) === '1') return false;
-            const at = Number(localStorage.getItem(dismissKey) || '0');
-            if (at && Date.now() - at < dismissForMs) return false;
-        } catch (_) {}
-        return true;
-    };
-    const scheduleInvitation = () => {
+    // The main-menu item reopens the banner even if it was dismissed.
+    window.showNibrasInstall = function(){
+        document.getElementById('dropdown')?.classList.remove('show');
         clearTimeout(invitationTimer);
-        if (!canInvite()) return;
-        invitationTimer = setTimeout(() => {
-            if (!canInvite() || document.visibilityState !== 'visible') return;
-            const settings = document.getElementById('settingsModal');
-            if (settings && settings.classList.contains('show')) return;
-            document.getElementById('dropdown')?.classList.remove('show');
-            overlay.classList.add('show');
-            overlay.setAttribute('aria-hidden', 'false');
-            try { sessionStorage.setItem(seenKey, '1'); } catch (_) {}
-        }, 2500);
+        showBanner();
     };
-
     window.dismissNibrasInstall = function(){
         clearTimeout(invitationTimer);
-        markDismissed();
-        hideInvitation();
+        hideBanner();
+        try { sessionStorage.setItem(closedKey, '1'); } catch (_) {}
+    };
+    const scheduleBanner = () => {
+        clearTimeout(invitationTimer);
+        if (!hasInstallOffer() || offeredThisPage) return;
+        try { if (sessionStorage.getItem(closedKey) === '1') return; } catch (_) {}
+        invitationTimer = setTimeout(() => {
+            if (!hasInstallOffer() || document.visibilityState !== 'visible') return;
+            const settings = document.getElementById('settingsModal');
+            if (settings?.classList.contains('show')) return;
+            offeredThisPage = true;
+            showBanner();
+        }, 1100);
     };
 
     window.installNibrasApp = async function(){
-        if (!hasInstallOffer()) { updateMenuButton(); hideInvitation(); return; }
+        if (!hasInstallOffer()) { updateMenu(); hideBanner(); return; }
         const event = deferredPrompt;
         deferredPrompt = null;
         clearTimeout(invitationTimer);
-        hideInvitation();
+        hideBanner();
         document.getElementById('dropdown')?.classList.remove('show');
-        updateMenuButton();
+        updateMenu();
         try {
-            // Called synchronously as part of the button's user gesture.
+            // Start the native browser install dialog directly from the tap.
             await event.prompt();
-            const choice = await event.userChoice;
-            if (!choice || choice.outcome !== 'accepted') markDismissed();
+            await event.userChoice;
         } catch (error) {
-            markDismissed();
             console.warn('Nibras native install prompt:', error);
         }
     };
@@ -2352,20 +2337,17 @@ setTimeout(function(){
         if (isStandalone()) return;
         event.preventDefault();
         deferredPrompt = event;
-        updateMenuButton();
-        scheduleInvitation();
+        updateMenu();
+        scheduleBanner();
     });
     window.addEventListener('appinstalled', () => {
         installed = true;
         deferredPrompt = null;
         clearTimeout(invitationTimer);
-        hideInvitation();
-        updateMenuButton();
+        hideBanner();
+        updateMenu();
     });
-    window.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && overlay.classList.contains('show')) window.dismissNibrasInstall();
-    });
-    updateMenuButton();
+    updateMenu();
 
     if ('serviceWorker' in navigator) {
         const registerWorker = () => {
@@ -2375,6 +2357,6 @@ setTimeout(function(){
         if (document.readyState === 'complete') registerWorker();
         else window.addEventListener('load', registerWorker, {once: true});
     }
-})();
+})();;
 })();
 </script></body></html>"""
