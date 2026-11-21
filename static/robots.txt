@@ -1,2 +1,3 @@
 User-agent: *
 Allow: /
+Sitemap: https://nibras-al.onrender.com/sitemap.xml

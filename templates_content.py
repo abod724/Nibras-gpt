@@ -493,7 +493,6 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 .emoji-content::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 6px; }
 .emoji-content span { cursor: pointer; padding: 2px; border-radius: 6px; transition: background 0.15s; display: inline-block; }
 .emoji-content span:hover { background: var(--bg-hover); transform: scale(1.1); }
-
 /* Compact, nonblocking PWA install banner */
 .nibras-install-overlay{position:fixed;top:82px;left:0;right:0;z-index:1000100;display:none;justify-content:center;padding:0 12px;pointer-events:none}
 .nibras-install-overlay.show{display:flex;animation:nibrasInstallFade .2s ease both}
@@ -554,6 +553,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 
 <div class="dropdown" id="dropdown">
     <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
+    
     <button class="item" id="installNibrasBtn" type="button" style="display:none" onclick="window.showNibrasInstall()" aria-label="تثبيت تطبيق نبراس GP">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <span>تثبيت نبراس GP</span>
@@ -606,7 +606,6 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
         </a>
     {% endif %}
 </div>
-
 
 <!-- Compact invitation, shown only when native installation is available. -->
 <div class="nibras-install-overlay" id="nibrasInstallOverlay" aria-hidden="true">
@@ -774,7 +773,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
         }
     }catch(e){}
 })();
-(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=IS_REGISTERED ? {{ saved_personality|tojson }} : (localStorage.getItem('nibras-personality')||'friendly');let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;let currentPdfName=null,currentDocumentFile=null;
+(function(){const IS_REGISTERED={{ 'true' if is_registered else 'false' }};const IS_ADMIN={{ 'true' if is_admin else 'false' }};const SERVER_LANG='{{ user_lang }}';let userLang=SERVER_LANG||localStorage.getItem('nibras-lang')||'ar';try{localStorage.setItem('nibras-lang',userLang);}catch(e){}let userPersonality=localStorage.getItem('nibras-personality')||'friendly';let userFontSize=localStorage.getItem('nibras-font-size')||'medium';let voiceSpeed=parseFloat(localStorage.getItem('nibras-voice-speed'))||1;let ch=[],pid=null,iw=!1,cid=null,voiceOn=false,stickBottom=true,isIncognito=false;let currentPdfName=null,currentDocumentFile=null;
 const cb=document.getElementById('chat'),ui=document.getElementById('userInput'),sb=document.getElementById('sendBtn'),mb=document.getElementById('micBtn'),fi=document.getElementById('fileInput'),gi=document.getElementById('galleryInput'),ci=document.getElementById('cameraInput'),mt=document.getElementById('menuToggle'),dd=document.getElementById('dropdown'),pb=document.getElementById('plusBtn'),po=document.getElementById('plusOptions'),cab=document.getElementById('cameraBtn'),gb=document.getElementById('galleryBtn'),fb=document.getElementById('filesBtn'),ipc=document.getElementById('imagePreviewContainer'),ip=document.getElementById('imagePreview'),rib=document.getElementById('removeImageBtn'),hl=document.getElementById('historyList'),pl=document.getElementById('pinnedList'),sm=document.getElementById('shareModal'),vt=document.getElementById('voiceToggle');
 // Restore a previously selected library document after navigating from /library.
 try{
@@ -1124,27 +1123,7 @@ function markVoiceSelections(){
     document.querySelectorAll('[data-vl]').forEach(function(el){el.classList.toggle('selected',parseInt(el.dataset.vl)===l);});
 }
 function selectLanguage(lang){userLang=lang;try{localStorage.setItem('nibras-lang',userLang);}catch(e){}applyLang();fetch('/update_language',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lang:userLang})}).catch(()=>{});document.querySelectorAll('.lang-card').forEach(c=>{c.classList.toggle('selected',c.dataset.lang===userLang);});const lbl=document.getElementById('currentLangLabel');if(lbl)lbl.textContent=userLang==='en'?'English':'العربية';}
-let personalitySavePending=false;
-async function selectPersonality(p,name){
-    if(personalitySavePending){showToast('جاري حفظ الشخصية');return;}
-    if(p===userPersonality){return;}
-    personalitySavePending=true;
-    try{
-        const response=await fetch('/update_personality',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({personality:p})});
-        const result=await response.json();
-        if(!response.ok||result.status!=='ok'||result.personality!==p)throw new Error(result.message||'تعذر حفظ الشخصية');
-        userPersonality=p;
-        if(!IS_REGISTERED){try{localStorage.setItem('nibras-personality',p);}catch(e){}}
-        document.querySelectorAll('.personality-row').forEach(c=>{c.classList.toggle('selected',c.dataset.p===p);});
-        const lbl=document.getElementById('currentPersonalityLabel');
-        if(lbl)lbl.textContent=name;
-        showToast(IS_REGISTERED?'تم حفظ الشخصية':'تم اختيار الشخصية');
-    }catch(e){
-        showToast(e.message||'تعذر الاتصال بالسيرفر');
-    }finally{
-        personalitySavePending=false;
-    }
-}
+function selectPersonality(p,name){userPersonality=p;try{localStorage.setItem('nibras-personality',p);}catch(e){}document.querySelectorAll('.personality-row').forEach(c=>{c.classList.toggle('selected',c.dataset.p===p);});const lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=name;fetch('/update_personality',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({personality:p})}).catch(()=>{});}
 function selectFontSize(size,name){userFontSize=size;try{localStorage.setItem('nibras-font-size',size);}catch(e){}applyFontSize(size);document.querySelectorAll('.fontsize-row').forEach(c=>{c.classList.toggle('selected',c.dataset.fs===size);});}
 function selectTheme(t){if(t==='system'){const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;setTheme(prefersDark?'dark':'light');}else{setTheme(t);}localStorage.setItem('nibras-theme-mode',t);markSelectedTheme(t);}
 function markSelectedTheme(t){document.querySelectorAll('.option-row').forEach(el=>{if(el.dataset.theme===t)el.classList.add('selected');else el.classList.remove('selected');});}
@@ -2286,7 +2265,6 @@ setTimeout(function(){
 
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 {{ memory_js|safe }}
-
 // Minimal install banner that stays visible until the visitor chooses an action.
 (function initNibrasInstall(){
     const menuButton = document.getElementById('installNibrasBtn');
@@ -2377,6 +2355,6 @@ setTimeout(function(){
         if (document.readyState === 'complete') registerWorker();
         else window.addEventListener('load', registerWorker, {once: true});
     }
-})();;
+})();
 })();
 </script></body></html>"""
