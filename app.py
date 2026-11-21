@@ -1140,13 +1140,9 @@ def index():
     user_lang = ''
     if email_str and not session.get('is_admin'):
         p = get_user_profile(email_str)
-        if p:
-            user_name = p.get("display_name") or email_str.split("@")[0]
-        else:
-            user_name = email_str.split("@")[0]
         mem = get_user_memory(email_str)
-        if mem.get('name'):
-            user_name = mem['name']
+        # اسم الحساب المسجل له الأولوية؛ لا تجعل اسماً قديماً في الذاكرة يطغى عليه.
+        user_name = ((p or {}).get("display_name") or mem.get("name") or email_str.split("@")[0])
         lang_from_mem = mem.get('lang')
         if lang_from_mem in ('ar', 'en'):
             user_lang = lang_from_mem
@@ -2834,8 +2830,11 @@ def chat():
             if _parts:
                 manual_context = "\n\n**معلومات المستخدم (يدوية):**\n" + "\n".join(_parts) + "\n"
         memory_context = ""
-        if user_memory.get('name'):
-            memory_context = f"\n\n**معلومات المستخدم:**\nاسم المستخدم: {user_memory['name']}"
+        if user_email and not incognito:
+            account_profile = get_user_profile(user_email) or {}
+            account_name = (account_profile.get("display_name") or user_memory.get("name") or "").strip()
+            if account_name:
+                memory_context = f"\n\n**معلومات المستخدم الحالي:**\nاسم الحساب المسجل: {account_name}. استخدمه لفهم الهوية، ولا تجعل النداء به افتتاحية ثابتة."
         _chat_timing("memory_and_profile")
         
         if is_registered:
@@ -2994,8 +2993,8 @@ def chat():
 
         _chat_timing("knowledge_and_file_context")
 
-        msgs = [{"role": "system", "content": 
-            personality_inst + "\n\n" + SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + pdf_context + lang_inst + assistant_persona_extra
+        msgs = [{"role": "system", "content":
+            SP + admin_context + memory_context + manual_context + profile_context + approved_knowledge_context + pdf_context + lang_inst + assistant_persona_extra + "\n\n**أسلوب الرد المختار لهذه المحادثة:**\n" + personality_inst
         }] + server_hist[-40:]
 
         # عند طلب نسخة للطباعة، نوجّه نفس استدعاء المحادثة لإخراج الوثيقة فقط.
