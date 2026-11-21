@@ -542,6 +542,10 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 
 <div class="dropdown" id="dropdown">
     <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
+    <button class="item" id="installNibrasBtn" type="button" onclick="window.installNibrasApp()" aria-label="تثبيت تطبيق نبراس GP">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <span>تثبيت نبراس GP</span>
+    </button>
     
     <!-- INCognito Button -->
     <button class="item" id="incognitoToggle" onclick="toggleIncognito()">
@@ -2239,5 +2243,58 @@ setTimeout(function(){
 
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 {{ memory_js|safe }}
+
+// PWA install button: use the browser's native prompt when available.
+// Otherwise explain the manual steps; never pretend installation succeeded.
+(function initNibrasInstall(){
+    const button = document.getElementById('installNibrasBtn');
+    if (!button) return;
+    let pendingInstallPrompt = null;
+    const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const syncButton = () => { button.style.display = isStandalone() ? 'none' : 'flex'; };
+    syncButton();
+
+    window.addEventListener('beforeinstallprompt', event => {
+        event.preventDefault();
+        pendingInstallPrompt = event;
+        syncButton();
+    });
+    window.addEventListener('appinstalled', () => {
+        pendingInstallPrompt = null;
+        button.style.display = 'none';
+    });
+
+    window.installNibrasApp = async function(){
+        document.getElementById('dropdown')?.classList.remove('show');
+        if (isStandalone()) { syncButton(); return; }
+        if (pendingInstallPrompt) {
+            const event = pendingInstallPrompt;
+            pendingInstallPrompt = null;
+            try {
+                await event.prompt();
+                await event.userChoice;
+            } catch (error) {
+                console.warn('Nibras install prompt:', error);
+            }
+            return;
+        }
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isAndroid = /Android/i.test(ua);
+        const message = isIOS
+            ? 'لتثبيت نبراس GP: افتح الرابط في Safari، ثم اضغط زر المشاركة واختر «إضافة إلى الشاشة الرئيسية».'
+            : isAndroid
+                ? 'لتثبيت نبراس GP: افتح قائمة المتصفح (⋮) ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».'
+                : 'لتثبيت نبراس GP: افتح قائمة المتصفح واختر «تثبيت التطبيق» إن كان الخيار متاحًا.';
+        window.alert(message);
+    };
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js', {scope:'/'})
+                .catch(error => console.warn('Nibras service worker:', error));
+        });
+    }
+})();
 })();
 </script></body></html>"""
