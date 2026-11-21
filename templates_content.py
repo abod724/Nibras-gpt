@@ -558,7 +558,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 
 <div class="dropdown" id="dropdown">
     <button class="item" data-action="new"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>محادثة جديدة</button>
-    <button class="item" id="installNibrasBtn" type="button" onclick="window.installNibrasApp()" aria-label="تثبيت تطبيق نبراس GP">
+    <button class="item" id="installNibrasBtn" type="button" style="display:none" onclick="window.installNibrasApp()" aria-label="تثبيت تطبيق نبراس GP">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <span>تثبيت نبراس GP</span>
     </button>
