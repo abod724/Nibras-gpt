@@ -2244,57 +2244,51 @@ setTimeout(function(){
 (function initPersonality(){var map={friendly:'ودود',concise:'مختصر',detailed:'مفصّل',formal:'رسمي',teacher:'معلّم',playful:'فرفوش'};var lbl=document.getElementById('currentPersonalityLabel');if(lbl)lbl.textContent=map[userPersonality]||'ودود';})();
 {{ memory_js|safe }}
 
-// PWA install button: use the browser's native prompt when available.
-// Otherwise explain the manual steps; never pretend installation succeeded.
+// Offer a one-tap install only when the browser provides a real native prompt.
+// Never show fake installation confirmations or manual instruction popups.
 (function initNibrasInstall(){
     const button = document.getElementById('installNibrasBtn');
     if (!button) return;
-    let pendingInstallPrompt = null;
-    const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    const syncButton = () => { button.style.display = isStandalone() ? 'none' : 'flex'; };
-    syncButton();
+    let installEvent = null;
+    const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const updateButton = () => {
+        button.style.display = installEvent && !isStandalone() ? 'flex' : 'none';
+    };
+    updateButton();
 
     window.addEventListener('beforeinstallprompt', event => {
         event.preventDefault();
-        pendingInstallPrompt = event;
-        syncButton();
+        installEvent = event;
+        updateButton();
     });
     window.addEventListener('appinstalled', () => {
-        pendingInstallPrompt = null;
-        button.style.display = 'none';
+        installEvent = null;
+        updateButton();
     });
 
     window.installNibrasApp = async function(){
+        if (!installEvent || isStandalone()) { updateButton(); return; }
+        const event = installEvent;
+        installEvent = null;
+        updateButton();
         document.getElementById('dropdown')?.classList.remove('show');
-        if (isStandalone()) { syncButton(); return; }
-        if (pendingInstallPrompt) {
-            const event = pendingInstallPrompt;
-            pendingInstallPrompt = null;
-            try {
-                await event.prompt();
-                await event.userChoice;
-            } catch (error) {
-                console.warn('Nibras install prompt:', error);
-            }
-            return;
+        try {
+            // prompt() must start in the direct user-gesture handler.
+            await event.prompt();
+            await event.userChoice;
+        } catch (error) {
+            console.warn('Nibras native install prompt:', error);
         }
-        const ua = navigator.userAgent || '';
-        const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        const isAndroid = /Android/i.test(ua);
-        const message = isIOS
-            ? 'لتثبيت نبراس GP: افتح الرابط في Safari، ثم اضغط زر المشاركة واختر «إضافة إلى الشاشة الرئيسية».'
-            : isAndroid
-                ? 'لتثبيت نبراس GP: افتح قائمة المتصفح (⋮) ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».'
-                : 'لتثبيت نبراس GP: افتح قائمة المتصفح واختر «تثبيت التطبيق» إن كان الخيار متاحًا.';
-        window.alert(message);
     };
 
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/service-worker.js', {scope:'/'})
+        const registerWorker = () => {
+            navigator.serviceWorker.register('/service-worker.js', {scope: '/'})
                 .catch(error => console.warn('Nibras service worker:', error));
-        });
+        };
+        if (document.readyState === 'complete') registerWorker();
+        else window.addEventListener('load', registerWorker, {once: true});
     }
-})();
+})();;
 })();
 </script></body></html>"""
