@@ -1152,13 +1152,21 @@ def index():
             user_lang = lang_from_mem
     elif session.get('is_admin'):
         user_name = "أدمن"
-    
+
+    # الحسابات المسجلة تقرأ الشخصية من الحساب، وليس من جهاز المستخدم.
+    saved_personality = 'friendly'
+    if email_str:
+        saved_personality = (get_user_memory(email_str) or {}).get('personality', 'friendly')
+    if saved_personality not in PERSONALITY_INSTRUCTIONS:
+        saved_personality = 'friendly'
+
     return render_template_string(
         HT,
         user_name=user_name,
         is_registered=is_registered,
         is_admin=is_admin,
         user_lang=user_lang,
+        saved_personality=saved_personality,
         media_enabled=bool(os.getenv("CLOUDCONVERT_API_KEY")),
         media_hint_id=hashlib.sha256((email_str or "admin").lower().encode()).hexdigest()[:20] if is_registered else "",
         memory_css=MEMORY_CSS,
@@ -2109,15 +2117,31 @@ def update_personality():
     p = d.get('personality')
     if p not in PERSONALITY_INSTRUCTIONS:
         return jsonify({"status": "error", "message": "شخصية غير صالحة"}), 400
+
     email_str = session.get('user_email')
-    if email_str:
-        try:
-            mem = get_user_memory(email_str) or {}
-            mem['personality'] = p
-            save_user_memory(email_str, mem)
-        except Exception as e:
-            print("update_personality:", e)
-    return jsonify({"status": "ok"})
+    if not email_str:
+        # الزائر يحفظ اختياره في المتصفح فقط.
+        return jsonify({"status": "ok", "personality": p, "persisted": False})
+
+    try:
+        email_key = email_str.lower().strip()
+        rows = sb.table("profiles").select("memory").eq("email", email_key).limit(1).execute()
+        if not rows or not rows.data:
+            return jsonify({"status": "error", "message": "تعذر العثور على إعدادات الحساب"}), 404
+        mem = rows.data[0].get("memory") or {}
+        if not isinstance(mem, dict):
+            mem = {}
+        mem["personality"] = p
+        sb.table("profiles").update({"memory": mem}).eq("email", email_key).execute()
+        # لا نُبلغ الواجهة بالنجاح إلا بعد قراءة القيمة المحفوظة فعليًا.
+        verified = sb.table("profiles").select("memory").eq("email", email_key).limit(1).execute()
+        if not verified or not verified.data or (verified.data[0].get("memory") or {}).get("personality") != p:
+            return jsonify({"status": "error", "message": "لم يتأكد حفظ الشخصية، حاول مرة أخرى"}), 503
+    except Exception as e:
+        print("update_personality:", type(e).__name__, str(e))
+        return jsonify({"status": "error", "message": "تعذر حفظ الشخصية، حاول مرة أخرى"}), 503
+
+    return jsonify({"status": "ok", "personality": p, "persisted": True})
 
 @app.route('/change_password', methods=['POST'])
 def change_password():
