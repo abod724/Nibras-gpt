@@ -507,7 +507,7 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 @media(prefers-reduced-motion:reduce){.nibras-install-overlay.show,.nibras-install-card{animation:none}}
 {{ memory_css|safe }}
 
-.nibras-result-card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--border-color,#bfcac7);border-radius:16px;padding:14px;margin:12px 0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;background:rgba(16,185,129,.035);font-size:15px;line-height:1.6;box-shadow:0 2px 7px rgba(0,0,0,.05)}.nibras-result-card img{width:92px;height:92px;object-fit:cover;border-radius:10px;flex-shrink:0}.nibras-result-body{flex:1;min-width:0}.nibras-result-title{font-weight:700;font-size:16px;margin-bottom:6px}.nibras-result-price{font-weight:700;color:var(--primary-color,#079b70);font-size:17px;margin:8px 0}.nibras-result-meta{font-size:14px;opacity:.85;margin-top:4px}.nibras-result-link{display:block;text-align:center;margin-top:12px;padding:8px;border:1px solid var(--primary-color,#079b70);border-radius:10px;color:var(--primary-color,#079b70)!important;font-weight:600;text-decoration:none!important}
+.nibras-result-card{display:flex;gap:12px;align-items:flex-start;padding:16px 0;margin:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;font-size:15px;line-height:1.55;border-bottom:1px solid var(--border-color)}.nibras-result-card:last-of-type{border-bottom:0}.nibras-result-card img{width:clamp(84px,29%,122px);aspect-ratio:4/3;height:auto;object-fit:cover;border-radius:12px;flex-shrink:0;margin:0}.nibras-result-body{flex:1;min-width:0}.nibras-result-title{font-weight:700;font-size:16px;margin-bottom:5px}.nibras-result-price{font-weight:700;color:var(--primary-color);font-size:16px;margin:5px 0}.nibras-result-meta{font-size:14px;opacity:.85;margin-top:3px;white-space:pre-line}.nibras-result-link{display:inline-block;margin-top:7px;color:var(--primary-color)!important;font-weight:600;text-decoration:underline!important}
 </style></head><body>
 <div class="app">
 
@@ -1470,8 +1470,10 @@ function hideResultMarkup(raw){
     let s=String(raw||'').replace(/\[NIBRAS_CARD\][\s\S]*?\[\/NIBRAS_CARD\]/g,'');
     const open=s.indexOf('[NIBRAS_CARD]');
     if(open!==-1)s=s.slice(0,open);
-    const tail=s.match(/\[(?:N(?:I(?:B(?:R(?:A(?:S(?:_(?:C(?:A(?:R(?:D)?)?)?)?)?)?)?)?)?)?)?$/);
-    if(tail)s=s.slice(0,tail.index);
+    const marker='[NIBRAS_CARD]';
+    for(let n=marker.length-1;n>=2;n--){
+        if(s.endsWith(marker.slice(0,n)))return s.slice(0,-n);
+    }
     return s;
 }
 function renderResultCards(el, raw){
@@ -1481,7 +1483,7 @@ function renderResultCards(el, raw){
     while((match=pattern.exec(String(raw))) && cards.length<8){
         try{
             const item=JSON.parse(match[1]);
-            if(!item || typeof item.title!=='string' || typeof item.url!=='string')continue;
+            if(!item || typeof item.title!=='string' || !item.title.trim() || typeof item.url!=='string')continue;
             const url=new URL(item.url);
             if(!['https:','http:'].includes(url.protocol)||url.username||url.password)continue;
             cards.push({item,url});
@@ -1489,7 +1491,7 @@ function renderResultCards(el, raw){
     }
     if(!String(raw).includes('[NIBRAS_CARD]'))return;
     const plain=hideResultMarkup(raw).trim();
-    el.innerHTML=formatBotText(plain || (userLang==='en'?'No complete offers returned.':'لم تكتمل بيانات العروض.'));
+    el.innerHTML=formatBotText(plain || (cards.length?'':(userLang==='en'?'No complete offers returned.':'لم تكتمل بيانات العروض.')));
     for(const {item,url} of cards){
         const card=document.createElement('div');card.className='nibras-result-card';
         if(typeof item.image==='string' && item.image){
