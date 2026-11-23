@@ -1,7 +1,6 @@
 # templates_content.py
 
 SHARED_VIEW_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:flex-start;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px;margin-top:20px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px;font-weight:600}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word;white-space:pre-wrap}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}.error{background:#ffe8e8;color:#c33;padding:20px;border-radius:14px;text-align:center;font-weight:600}
-.nibras-result-card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--border-color,#ddd);border-radius:16px;padding:12px;margin:10px 0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}.nibras-result-card img{width:92px;height:92px;object-fit:cover;border-radius:10px;flex-shrink:0}.nibras-result-body{flex:1;min-width:0}.nibras-result-title{font-weight:700}.nibras-result-price{font-weight:700;color:var(--primary-color);margin-top:5px}.nibras-result-meta{font-size:.88em;opacity:.8}.nibras-result-link{display:inline-block;margin-top:8px;color:var(--primary-color);font-weight:600;text-decoration:underline}
 </style></head><body><div class="container"><div class="header"><h1>محادثة نبراس</h1><a href="/">الرئيسية</a></div><div id="content"><div class="error">جاري التحميل...</div></div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div><script>
 (function(){
     var container=document.getElementById('content');
@@ -507,6 +506,8 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 @keyframes nibrasInstallRise{from{transform:translateY(-8px)}to{transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.nibras-install-overlay.show,.nibras-install-card{animation:none}}
 {{ memory_css|safe }}
+
+.nibras-result-card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--border-color,#bfcac7);border-radius:16px;padding:14px;margin:12px 0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;background:rgba(16,185,129,.035);font-size:15px;line-height:1.6;box-shadow:0 2px 7px rgba(0,0,0,.05)}.nibras-result-card img{width:92px;height:92px;object-fit:cover;border-radius:10px;flex-shrink:0}.nibras-result-body{flex:1;min-width:0}.nibras-result-title{font-weight:700;font-size:16px;margin-bottom:6px}.nibras-result-price{font-weight:700;color:var(--primary-color,#079b70);font-size:17px;margin:8px 0}.nibras-result-meta{font-size:14px;opacity:.85;margin-top:4px}.nibras-result-link{display:block;text-align:center;margin-top:12px;padding:8px;border:1px solid var(--primary-color,#079b70);border-radius:10px;color:var(--primary-color,#079b70)!important;font-weight:600;text-decoration:none!important}
 </style></head><body>
 <div class="app">
 
@@ -1465,6 +1466,14 @@ function restoreWordDownload(messageEl,reportText,sourceName){
 }
 
 
+function hideResultMarkup(raw){
+    let s=String(raw||'').replace(/\[NIBRAS_CARD\][\s\S]*?\[\/NIBRAS_CARD\]/g,'');
+    const open=s.indexOf('[NIBRAS_CARD]');
+    if(open!==-1)s=s.slice(0,open);
+    const tail=s.match(/\[(?:N(?:I(?:B(?:R(?:A(?:S(?:_(?:C(?:A(?:R(?:D)?)?)?)?)?)?)?)?)?)?)?$/);
+    if(tail)s=s.slice(0,tail.index);
+    return s;
+}
 function renderResultCards(el, raw){
     if(!el || !raw || el.querySelector('.nibras-result-card'))return;
     const pattern=/\[NIBRAS_CARD\]([\s\S]*?)\[\/NIBRAS_CARD\]/g;
@@ -1478,9 +1487,9 @@ function renderResultCards(el, raw){
             cards.push({item,url});
         }catch(e){}
     }
-    if(!cards.length)return;
-    const plain=String(raw).replace(/\[NIBRAS_CARD\][\s\S]*?\[\/NIBRAS_CARD\]/g,'').trim();
-    el.innerHTML=formatBotText(plain);
+    if(!String(raw).includes('[NIBRAS_CARD]'))return;
+    const plain=hideResultMarkup(raw).trim();
+    el.innerHTML=formatBotText(plain || (userLang==='en'?'No complete offers returned.':'لم تكتمل بيانات العروض.'));
     for(const {item,url} of cards){
         const card=document.createElement('div');card.className='nibras-result-card';
         if(typeof item.image==='string' && item.image){
@@ -2112,9 +2121,9 @@ async function sendMessage(){
             const chunk = bufferText.length > 40 ? 3 : bufferText.length > 20 ? 2 : 1;
             displayText+=bufferText.slice(0,chunk);
             bufferText=bufferText.slice(chunk);
-            botEl.innerHTML=formatStreamingBotText(displayText);
+            botEl.innerHTML=formatStreamingBotText(hideResultMarkup(displayText));
             if(voiceOn){
-                extractNewSentences(displayText).forEach(function(s){
+                extractNewSentences(hideResultMarkup(displayText)).forEach(function(s){
                     enqueueSentenceAudio(s);
                 });
             }
@@ -2134,7 +2143,7 @@ async function sendMessage(){
             }
             iw=false;
             if(voiceOn){
-                const remaining=displayText.slice(spokenUntil).trim();
+                const remaining=hideResultMarkup(displayText).slice(spokenUntil).trim();
                 if(remaining.length>0){
                     enqueueSentenceAudio(remaining);
                     spokenUntil=displayText.length;
