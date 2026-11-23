@@ -77,7 +77,7 @@ def create_partner_links(urls, sub_id=None):
     output = []
     for original, item in zip(validated, returned):
         partner_url = item.get("partner_url") if isinstance(item, dict) else None
-        if item.get("code") == "success" and isinstance(partner_url, str):
+        if isinstance(item, dict) and item.get("code") == "success" and isinstance(partner_url, str):
             try:
                 _validate_url(partner_url)
                 output.append({"original_url": original, "url": partner_url, "affiliate": True})
