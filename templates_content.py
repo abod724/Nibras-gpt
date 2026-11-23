@@ -1,6 +1,8 @@
 # templates_content.py
 
-SHARED_VIEW_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:flex-start;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px;margin-top:20px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px;font-weight:600}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word;white-space:pre-wrap}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}.error{background:#ffe8e8;color:#c33;padding:20px;border-radius:14px;text-align:center;font-weight:600}</style></head><body><div class="container"><div class="header"><h1>محادثة نبراس</h1><a href="/">الرئيسية</a></div><div id="content"><div class="error">جاري التحميل...</div></div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div><script>
+SHARED_VIEW_HTML = """<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>محادثة نبراس</title><style>*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{background:#f4f7fc;display:flex;justify-content:center;align-items:flex-start;min-height:100dvh;padding:20px}.container{max-width:700px;width:100%;background:#fff;border-radius:24px;box-shadow:0 10px 40px rgba(0,0,0,0.08);padding:30px 25px;margin-top:20px}.header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eaeef2;padding-bottom:15px;margin-bottom:25px}.header h1{font-size:22px;color:#1a2b3c}.header a{color:#4a6a8a;text-decoration:none;font-size:15px;font-weight:600}.msg{display:flex;margin-bottom:18px;gap:10px}.msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;font-size:14px}.msg.user .avatar{background:#eaeef2;color:#1a2b3c}.msg.bot .avatar{background:#4a6a8a;color:#fff}.msg .content{background:#f5f7fa;padding:12px 18px;border-radius:16px;border-top-right-radius:4px;max-width:85%;line-height:1.8;color:#111;word-wrap:break-word;white-space:pre-wrap}.msg.user .content{background:#eaeef2}.footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #eaeef2;color:#8b949e;font-size:14px}.footer a{color:#4a6a8a;text-decoration:none;font-weight:700}.error{background:#ffe8e8;color:#c33;padding:20px;border-radius:14px;text-align:center;font-weight:600}
+.nibras-result-card{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--border-color,#ddd);border-radius:16px;padding:12px;margin:10px 0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}.nibras-result-card img{width:92px;height:92px;object-fit:cover;border-radius:10px;flex-shrink:0}.nibras-result-body{flex:1;min-width:0}.nibras-result-title{font-weight:700}.nibras-result-price{font-weight:700;color:var(--primary-color);margin-top:5px}.nibras-result-meta{font-size:.88em;opacity:.8}.nibras-result-link{display:inline-block;margin-top:8px;color:var(--primary-color);font-weight:600;text-decoration:underline}
+</style></head><body><div class="container"><div class="header"><h1>محادثة نبراس</h1><a href="/">الرئيسية</a></div><div id="content"><div class="error">جاري التحميل...</div></div><div class="footer">تمت المشاركة من <a href="/">نبراس</a></div></div><script>
 (function(){
     var container=document.getElementById('content');
     var SVG_USER='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
@@ -1462,7 +1464,43 @@ function restoreWordDownload(messageEl,reportText,sourceName){
     };
 }
 
-function addMessage(t,s,isSys,img,imageUrl,isHtml,rawText){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el}let content=isHtml?formatSavedBotHtml(t):formatBotText(t);if(isHtml&&rawText&&/```/.test(rawText)&&!content.includes('class="code-block"')){content=formatBotText(rawText);}if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}el.innerHTML=content;if(isHtml){el.classList.add('nibras-response');}if(s==='bot'&&!isSys){attachBotActions(el,rawText||t);}cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el;}
+
+function renderResultCards(el, raw){
+    if(!el || !raw || el.querySelector('.nibras-result-card'))return;
+    const pattern=/\[NIBRAS_CARD\]([\s\S]*?)\[\/NIBRAS_CARD\]/g;
+    const cards=[];let match;
+    while((match=pattern.exec(String(raw))) && cards.length<8){
+        try{
+            const item=JSON.parse(match[1]);
+            if(!item || typeof item.title!=='string' || typeof item.url!=='string')continue;
+            const url=new URL(item.url);
+            if(!['https:','http:'].includes(url.protocol)||url.username||url.password)continue;
+            cards.push({item,url});
+        }catch(e){}
+    }
+    if(!cards.length)return;
+    const plain=String(raw).replace(/\[NIBRAS_CARD\][\s\S]*?\[\/NIBRAS_CARD\]/g,'').trim();
+    el.innerHTML=formatBotText(plain);
+    for(const {item,url} of cards){
+        const card=document.createElement('div');card.className='nibras-result-card';
+        if(typeof item.image==='string' && item.image){
+            try{
+                const src=new URL(item.image);
+                if(src.protocol==='https:'&&!src.username&&!src.password){
+                    const img=document.createElement('img');img.src=src.href;img.loading='lazy';img.referrerPolicy='no-referrer';img.alt='';img.onerror=()=>img.remove();card.appendChild(img);
+                }
+            }catch(e){}
+        }
+        const body=document.createElement('div');body.className='nibras-result-body';
+        for(const [key,cls] of [['title','nibras-result-title'],['details','nibras-result-meta'],['price','nibras-result-price'],['rating','nibras-result-meta'],['source','nibras-result-meta']]){
+            if(typeof item[key]!=='string'||!item[key].trim())continue;
+            const field=document.createElement('div');field.className=cls;field.textContent=item[key].slice(0,500);body.appendChild(field);
+        }
+        const link=document.createElement('a');link.className='nibras-result-link';link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';link.textContent=userLang==='en'?'Open source':'فتح العرض / المصدر';body.appendChild(link);card.appendChild(body);el.appendChild(card);
+    }
+}
+
+function addMessage(t,s,isSys,img,imageUrl,isHtml,rawText){s=s||'bot';isSys=isSys||false;const el=document.createElement('div');el.className='msg '+s;if(img){el.innerHTML='<img src="'+escapeHtml(img)+'" class="image-upload" />';cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el}let content=isHtml?formatSavedBotHtml(t):formatBotText(t);if(isHtml&&rawText&&/```/.test(rawText)&&!content.includes('class="code-block"')){content=formatBotText(rawText);}if(imageUrl){const safeUrl=escapeHtml(imageUrl);content+='<br><img src="'+safeUrl+'" class="generated-image" />';}el.innerHTML=content;if(s==='bot')renderResultCards(el,rawText||t);if(isHtml){el.classList.add('nibras-response');}if(s==='bot'&&!isSys){attachBotActions(el,rawText||t);}cb.appendChild(el);if(stickBottom)cb.scrollTop=cb.scrollHeight;return el;}
 
 const MEDIA_ENABLED={{ 'true' if media_enabled else 'false' }};
 const hintPrefix='nibras-media-{{ media_hint_id }}-';
@@ -2085,6 +2123,7 @@ async function sendMessage(){
             clearInterval(typingTimer);
             typingTimer=null;
             botEl.innerHTML=formatBotText(displayText);
+            renderResultCards(botEl,displayText);
             if(displayText&&displayText.trim().length>0){
                 attachBotActions(botEl,displayText);
                 if(pdfToSend && IS_REGISTERED){
