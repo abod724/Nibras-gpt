@@ -1476,8 +1476,8 @@ function hideResultMarkup(raw){
     }
     return s;
 }
-function renderResultCards(el, raw){
-    if(!el || !raw || el.querySelector('.nibras-result-card'))return;
+function renderResultCards(el, raw, streaming=false){
+    if(!el || !raw)return;
     const pattern=/\[NIBRAS_CARD\]([\s\S]*?)\[\/NIBRAS_CARD\]/g;
     const cards=[];let match;
     while((match=pattern.exec(String(raw))) && cards.length<8){
@@ -1490,9 +1490,21 @@ function renderResultCards(el, raw){
         }catch(e){}
     }
     if(!String(raw).includes('[NIBRAS_CARD]'))return;
-    const plain=hideResultMarkup(raw).trim();
-    el.innerHTML=formatBotText(plain || (cards.length?'':(userLang==='en'?'No complete offers returned.':'لم تكتمل بيانات العروض.')));
-    for(const {item,url} of cards){
+    let plain=hideResultMarkup(raw).trim();
+    for(const {item} of cards){
+        if(typeof item.image==='string' && item.image){
+            const imageUrl=item.image.trim();
+            plain=plain.replace(/!?\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,(whole,label,link)=>link===imageUrl?'':whole);
+            plain=plain.split(imageUrl).join('');
+        }
+    }
+    let intro=el.querySelector('.nibras-result-intro');
+    if(!intro){el.innerHTML='';intro=document.createElement('div');intro.className='nibras-result-intro';el.appendChild(intro);}
+    const introHtml=formatBotText(plain || (cards.length||streaming?'':(userLang==='en'?'No complete offers returned.':'لم تكتمل بيانات العروض.')));
+    if(intro.innerHTML!==introHtml)intro.innerHTML=introHtml;
+    intro.hidden=!introHtml;
+    const existing=el.querySelectorAll('.nibras-result-card').length;
+    for(const {item,url} of cards.slice(existing)){
         const card=document.createElement('div');card.className='nibras-result-card';
         if(typeof item.image==='string' && item.image){
             try{
@@ -2120,10 +2132,12 @@ async function sendMessage(){
     function tick(){
         if(isFormatted)return;
         if(bufferText.length>0){
-            const chunk = bufferText.length > 40 ? 3 : bufferText.length > 20 ? 2 : 1;
+            const inCard=displayText.lastIndexOf('[NIBRAS_CARD]')>displayText.lastIndexOf('[/NIBRAS_CARD]');
+            const chunk = inCard ? Math.min(bufferText.length,256) : bufferText.length > 40 ? 3 : bufferText.length > 20 ? 2 : 1;
             displayText+=bufferText.slice(0,chunk);
             bufferText=bufferText.slice(chunk);
-            botEl.innerHTML=formatStreamingBotText(hideResultMarkup(displayText));
+            if(displayText.includes('[NIBRAS_CARD]'))renderResultCards(botEl,displayText,true);
+            else botEl.innerHTML=formatStreamingBotText(hideResultMarkup(displayText));
             if(voiceOn){
                 extractNewSentences(hideResultMarkup(displayText)).forEach(function(s){
                     enqueueSentenceAudio(s);
@@ -2133,8 +2147,8 @@ async function sendMessage(){
         if(bufferText.length===0&&streamDone){
             clearInterval(typingTimer);
             typingTimer=null;
-            botEl.innerHTML=formatBotText(displayText);
-            renderResultCards(botEl,displayText);
+            if(displayText.includes('[NIBRAS_CARD]'))renderResultCards(botEl,displayText);
+            else botEl.innerHTML=formatBotText(displayText);
             if(displayText&&displayText.trim().length>0){
                 attachBotActions(botEl,displayText);
                 if(pdfToSend && IS_REGISTERED){
