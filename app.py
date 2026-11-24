@@ -1273,6 +1273,8 @@ def index():
         user_name=user_name,
         is_registered=is_registered,
         is_admin=is_admin,
+        model_task_enabled=bool(OPENAI_TASK_MODEL),
+        model_advanced_enabled=bool(OPENAI_ADVANCED_MODEL),
         user_lang=user_lang,
         media_enabled=bool(os.getenv("CLOUDCONVERT_API_KEY")),
         media_hint_id=hashlib.sha256((email_str or "admin").lower().encode()).hexdigest()[:20] if is_registered else "",
@@ -2840,6 +2842,16 @@ def chat():
         user_email = session.get('user_email', '')
         user_role = get_user_role(user_email) if user_email else 'guest'
         is_registered = is_admin or (bool(user_email) and user_role in ('user', 'admin'))
+        selected_model = OPENAI_MODEL
+        admin_model_access = is_admin or bool(user_email and user_email.lower() == ADMIN_EMAIL.lower())
+        if admin_model_access:
+            requested_model = d.get("model_choice", "default")
+            if not isinstance(requested_model, str) or requested_model not in ("default", "task", "advanced"):
+                return jsonify({"message": "اختيار النموذج غير صالح"}), 400
+            if requested_model != "default":
+                selected_model = OPENAI_TASK_MODEL if requested_model == "task" else OPENAI_ADVANCED_MODEL
+                if not selected_model:
+                    return jsonify({"message": "النموذج غير مهيأ"}), 400
         uid = get_user_id()
         lang_from_payload = d.get("lang")
         if lang_from_payload in ('ar', 'en'):
@@ -3183,7 +3195,7 @@ def chat():
             _search_succeeded = False
             try:
                 sr = client.responses.create(
-                    model=OPENAI_MODEL,
+                    model=selected_model,
                     instructions="أنت محرك بحث. ارجع النتائج كما هي مع الروابط والمصادر والتواريخ.",
                     input=f"ابحث عن أحدث المعلومات مع مصادرها وتواريخها: {search_query}",
                     tools=[{"type": "web_search"}],
@@ -3225,12 +3237,15 @@ def chat():
                 _model_started_at = time.perf_counter()
                 _first_token_logged = False
                 stream = client.chat.completions.create(
-                    model=OPENAI_MODEL,
+                    model=selected_model,
                     messages=msgs,
                     max_completion_tokens=1000,
                     stream=True
                 )
+                actual_model = None
                 for chunk in stream:
+                    if getattr(chunk, 'model', None):
+                        actual_model = chunk.model
                     if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                         if not _first_token_logged:
                             _first_token_logged = True
@@ -3265,7 +3280,10 @@ def chat():
                 inc_usage(uid, "chat_count")
                 if has_image and is_registered and can_image:
                     inc_usage(uid, "image_count")
-                yield f"data: {json.dumps({'done': True, 'conv_id': nid})}\n\n"
+                done_payload = {'done': True, 'conv_id': nid}
+                if admin_model_access and actual_model:
+                    done_payload['model_used'] = actual_model
+                yield f"data: {json.dumps(done_payload)}\n\n"
 
                 if is_registered and not has_image and um and not incognito:
                     auto_learn_knowledge_async(um, cleaned)
