@@ -69,6 +69,10 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL")
 if not OPENAI_MODEL:
     raise Exception("OPENAI_MODEL غير موجود!")
 
+# Optional admin-only model configuration; existing model remains the default.
+OPENAI_TASK_MODEL = (os.environ.get("OPENAI_TASK_MODEL") or "").strip() or None
+OPENAI_ADVANCED_MODEL = (os.environ.get("OPENAI_ADVANCED_MODEL") or "").strip() or None
+
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
