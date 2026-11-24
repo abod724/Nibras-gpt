@@ -681,15 +681,6 @@ html[data-theme="neon"] ::-webkit-scrollbar-thumb:hover { background: rgba(var(-
 <div class="assistant-menu" id="assistantMenu"></div>
 <script src="/static/media-chat.js?v=5"></script>
 <div class="input-area" id="inputArea">
-    {% if is_admin %}
-    <div id="adminModelRow" style="width:100%;display:flex;justify-content:flex-start;padding:0 4px;">
-        <select id="adminModelSelect" aria-label="اختيار النموذج" style="font:inherit;font-size:12px;font-weight:600;color:var(--text-primary);background:var(--bg-input);border:1px solid var(--border-color);border-radius:14px;padding:5px 8px;max-width:100%;cursor:pointer;">
-            <option value="default">Luna</option>
-            {% if model_task_enabled %}<option value="task">Terra 6.1</option>{% endif %}
-            {% if model_advanced_enabled %}<option value="advanced">Sol 6.2</option>{% endif %}
-        </select>
-    </div>
-    {% endif %}
     <div id="imagePreviewContainer"><div class="image-preview-wrapper"><img id="imagePreview" src="" alt=""/><button class="remove-img-btn" id="removeImageBtn" title="إزالة" aria-label="إزالة الصورة"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
     <div id="mediaBadge" hidden style="width:100%;font-size:13px;padding:4px">
         <span id="mediaNames"></span> <button type="button" id="removeMedia" aria-label="إزالة المرفق">×</button>
@@ -1242,7 +1233,7 @@ async function loadConversation(id){
     }catch(e){}
 }
 
-document.querySelector('[data-action="new"]').addEventListener('click',function(){stopAllAudio();clearPending();cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.classList.remove('show');ui.value='';syncAdminModelRow()});
+document.querySelector('[data-action="new"]').addEventListener('click',function(){stopAllAudio();clearPending();cb.innerHTML='';ch=[];cid=null;dd.classList.remove('show');pid=null;ipc.classList.remove('show');ui.value=''});
 
 document.querySelector('[data-action="share"]').addEventListener('click',function(e){e.stopPropagation();dd.classList.remove('show');const msgs=ch.slice(-20).map(function(m){return{r:m.role==='user'?'u':'b',c:String(m.content||'').slice(0,500)};}).filter(function(m){return m.c;});if(!msgs||msgs.length===0){showToast(userLang==='en'?'No conversation to share':'لا توجد محادثة لمشاركتها');return;}const text=userLang==='en'?'Check out my conversation with Nibras':'شوف محادثتي مع نبراس';if(IS_REGISTERED&&cid&&!String(cid).startsWith('guest_conv_')){const dbUrl=window.location.origin+'/share/'+cid;document.getElementById('shareWhatsapp').href='https://wa.me/?text='+encodeURIComponent(text+'\n'+dbUrl);document.getElementById('shareFacebook').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(dbUrl);document.getElementById('shareTwitter').href='https://twitter.com/intent/tweet?url='+encodeURIComponent(dbUrl)+'&text='+encodeURIComponent(text);document.getElementById('shareSnapchat').onclick=function(){navigator.clipboard.writeText(dbUrl).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});};sm.classList.add('show');}else{let url='';try{const json=JSON.stringify(msgs);const encoded=btoa(unescape(encodeURIComponent(json)));url=window.location.origin+'/share/view#d='+encodeURIComponent(encoded);}catch(err){showToast(userLang==='en'?'Failed to prepare link':'تعذر تجهيز الرابط');return;}if(url.length>60000){showToast(userLang==='en'?'Conversation too long to share':'المحادثة طويلة جداً للمشاركة');return;}if(navigator.share){navigator.share({title:userLang==='en'?'Nibras Conversation':'محادثة نبراس',text:text,url:url}).catch(function(){});}else{navigator.clipboard.writeText(url).then(function(){showToast(userLang==='en'?'Link copied':'تم نسخ الرابط');}).catch(function(){showToast(userLang==='en'?'Copy failed':'فشل النسخ');});}}});
 
@@ -1671,7 +1662,7 @@ async function dispatchMedia(){
     userEl.textContent=label+' — '+prompt;
     ch.push({role:'user',content:prompt});
     const resultEl=addMessage('', 'bot', true);
-    clearPending();ui.value='';ui.style.height='auto';syncAdminModelRow();
+    clearPending();ui.value='';ui.style.height='auto';
     try{
         const result=await trackMediaTransfer(resultEl,jobId,data.forms,files,
             {signal:control.abort.signal,onCancel:cancel});
@@ -1710,10 +1701,6 @@ function showImagePreview(d){ip.src=d;ipc.classList.add('show');}
 function clearPending(){clearMediaSelection();pid=null;ipc.classList.remove('show');ip.src='';}
 rib.addEventListener('click',clearPending);
 ui.addEventListener('input',function(){this.style.height='auto';const maxH=150;this.style.height=Math.min(this.scrollHeight,maxH)+'px';this.style.overflowY=this.scrollHeight>maxH?'auto':'hidden';const ums=cb.querySelectorAll('.msg.user');if(ums.length)scrollMsgToTop(ums[ums.length-1]);});
-const adminModelSelect=document.getElementById('adminModelSelect');
-const adminModelRow=document.getElementById('adminModelRow');
-function syncAdminModelRow(){if(adminModelRow)adminModelRow.style.display=ui.value.length?'none':'flex';}
-if(adminModelRow){ui.addEventListener('input',syncAdminModelRow);syncAdminModelRow();}
 let poOpen=false;
 pb.addEventListener('click',function(){poOpen=!poOpen;po.classList.toggle('show',poOpen);this.classList.toggle('rotate',poOpen)});
 document.addEventListener('click',function(e){if(!pb.contains(e.target)&&!po.contains(e.target)){po.classList.remove('show');poOpen=false;pb.classList.remove('rotate')}});
@@ -2066,8 +2053,7 @@ async function sendMessage(){
     }
     if(msgText){userMsgEl=addMessage(msgText,'user');ch.push({role:'user',content:msgText});}
     if(img){userMsgEl=addMessage(userLang==='en'?'Image attached':'صورة مرفقة','user',false,img);ch.push({role:'user',content:userLang==='en'?'[Image attached]':'[صورة مرفقة]'});clearPending()}
-    const modelChoice=adminModelSelect?adminModelSelect.value:'default';
-    ui.value='';ui.style.height='auto';syncAdminModelRow();iw=true;
+    ui.value='';ui.style.height='auto';iw=true;
     const botEl=document.createElement('div');
     botEl.className='msg bot';
     botEl.innerHTML='<span class="typing-dots">'+tr('thinking')+'</span>';
@@ -2076,8 +2062,7 @@ async function sendMessage(){
     let _payloadMsg = msgText;
     if(!_payloadMsg && pdfToSend) _payloadMsg = "لخص لي محتوى الملف المرفق";
     if(!_payloadMsg) _payloadMsg = "مرفق";
-    const payload={message:_payloadMsg,word_attachment:Boolean(pdfToSend && IS_REGISTERED),image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito,model_choice:modelChoice};
-    let actualModel='';
+    const payload={message:_payloadMsg,word_attachment:Boolean(pdfToSend && IS_REGISTERED),image:img||null,history:ch,conv_id:cid,lang:userLang,personality:userPersonality,assistant_id:currentAssistantId,incognito:isIncognito};
     let displayText='';
     let bufferText='';
     let streamDone=false;
@@ -2102,7 +2087,6 @@ async function sendMessage(){
             botEl.innerHTML=formatBotText(displayText);
             if(displayText&&displayText.trim().length>0){
                 attachBotActions(botEl,displayText);
-                if(adminModelSelect&&actualModel){const modelLabel=document.createElement('div');modelLabel.style.cssText='font-size:11px;opacity:.65;margin-top:6px;direction:ltr;text-align:start';modelLabel.textContent=actualModel;botEl.appendChild(modelLabel);}
                 if(pdfToSend && IS_REGISTERED){
                     if(originalDocumentFile)attachDocumentSaveButton(botEl,originalDocumentFile);
                     autoAttachWordDownload(botEl,displayText,pdfToSend);
@@ -2162,7 +2146,6 @@ async function sendMessage(){
                         }
                     } else if(data.done){
                         if(data.conv_id)cid=data.conv_id;
-                        if(typeof data.model_used==='string')actualModel=data.model_used;
                         streamDone=true;
                     } else if(data.error){
                         bufferText+='\n\nخطأ: '+data.error;
